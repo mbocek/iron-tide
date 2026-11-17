@@ -1,6 +1,6 @@
 # Iron Tide
 
-An original real-time strategy game in Rust ([Bevy](https://bevyengine.org) 0.20), version 1.0.0, in the
+An original real-time strategy game in Rust ([Bevy](https://bevyengine.org) 0.20), version 1.1.0, in the
 spirit of classic base-building RTS games and the open-source OpenRA engine: build a
 base, harvest crystals, keep your power up, and destroy the enemy.
 All code and 3D models are original. The models are generated procedurally with Blender.
@@ -29,7 +29,7 @@ CI (`.github/workflows/ci.yml`) runs `make check`, then packages Linux x86_64, m
 the three packages:
 
 ```sh
-git tag v1.0.0 && git push origin v1.0.0   # the tag should match the version in Cargo.toml
+git tag v1.1.0 && git push origin v1.1.0   # the tag should match the version in Cargo.toml
 ```
 
 ## Tests
