@@ -41,7 +41,7 @@ jobs:
           - os: ubuntu-latest
             platform: linux-x86_64
             binary: target/release/iron_tide
-          - os: macos-14
+          - os: macos-latest
             platform: macos-arm64
             binary: target/release/iron_tide
           - os: windows-latest
