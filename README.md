@@ -11,9 +11,25 @@ All code and 3D models are original. The models are generated procedurally with 
 make run-release      # or: make run (dev build)
 make models           # regenerate the models in Blender 5.x (ONLY=tank,scout for a subset)
 make models-fast      # export only, without rendering previews (no GPU needed)
-make check            # cargo fmt --check + clippy -D warnings
+make check            # cargo fmt --check + clippy -D warnings + tests
+make package          # release build bundled with its assets in dist/
 make capture CAPTURE=shot.png CAPTURE_AFTER=30 CAPTURE_FOCUS=52,10
 make help             # every target
+```
+
+## Packages and releases
+
+```sh
+make package          # dist/iron-tide-<version>-<os>-<arch>.tar.gz: the release binary, its assets and this README
+```
+
+The game loads its assets from the folder next to the executable, so a package just needs unpacking.
+CI (`.github/workflows/ci.yml`) runs `make check`, then packages Linux x86_64, macOS arm64 and Windows x86_64
+(zip) builds and attaches them to the workflow run. Pushing a version tag also publishes a GitHub release with
+the three packages:
+
+```sh
+git tag v1.0.0 && git push origin v1.0.0   # the tag should match the version in Cargo.toml
 ```
 
 ## Tests
@@ -33,6 +49,42 @@ river through a ford, a refinery's harvester earns credits, barracks train queue
 production, a tank beats a rifle squad, a gun turret stops a scout, artillery splash hits a group, destroyed
 buildings free their ground, the enemy AI builds an economy and attacks, a defenceless player loses, a strong
 scripted army wins, and saving then loading restores the battle.
+
+## Balance
+
+```sh
+make balance              # 12 AI matches per pairing, about a minute on 10 cores
+make balance MATCHES=40   # tighter numbers
+```
+
+`src/bin/balance.rs` runs the headless simulation (`iron_tide::headless`) in parallel and prints a Markdown report:
+
+- **Equal-cost duels:** $3000 of one unit type attack-moves into $3000 of another, on both sides of the river.
+  The score is the row's remaining army value minus the column's (+100 = the row wins untouched).
+- **AI against AI:** the computer plays the Coalition side too. Normal plays a mirror, then Hard and Easy
+  challenge Normal. Sides alternate every match, so a favoured base site shows up in its own column.
+- **Unit ledger:** how many of each unit the AIs built and lost, and the damage they dealt per credit spent.
+
+Results after tuning (40 matches per pairing):
+
+| Duel ($3000 a side) | Rifleman | Rocketeer | Scout | Tank | Bulwark | Howitzer |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Rifleman** | 0 | +80 | −78 | −52 | −14 | −85 |
+| **Rocketeer** | −80 | 0 | −38 | +56 | +58 | −19 |
+| **Scout Buggy** | +79 | +35 | 0 | −53 | −52 | +32 |
+| **Battle Tank** | +53 | −56 | +56 | 0 | −12 | +56 |
+| **Bulwark** | +12 | −60 | +45 | +12 | 0 | +65 |
+| **Howitzer** | +88 | +45 | −30 | −55 | −66 | −8 |
+
+| Challenger | vs | wins : losses (unfinished) | median length |
+| --- | --- | --- | --- |
+| Normal | Normal | 16 : 21 (3) | 10.5 min |
+| Hard | Normal | 28 : 10 (2) | 7.9 min |
+| Easy | Normal | 2 : 34 (4) | 8.9 min |
+
+Every unit now has a counter: riflemen beat rocketeers, scouts hunt infantry, rocketeers kill armour, tanks and the
+Bulwark beat light vehicles, and howitzers shell infantry but lose to anything fast that reaches them.
+Known imbalance: the terrain is not mirrored, and the south-west base wins about four of five mirror matches.
 
 ## Controls
 
@@ -149,7 +201,8 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `economy` | credits, power, harvester state machine |
 | `production` | production queues, placing structures |
 | `orders` | selection and player orders |
-| `ai` | enemy AI: build plan, army, attack waves, base defense |
+| `ai` | computer opponents: build plan, saving up for structures, gathered attack waves, base defense |
+| `headless` | windowless battle harness shared by the tests and the balance tool |
 | `terrain`, `terrain_material` | terrain height, roads, texture layers, WESL shader, water |
 | `scenery` | forests, meadows, reeds, mountains with boulders |
 | `minimap`, `notifications` | minimap, status messages |

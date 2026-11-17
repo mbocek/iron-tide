@@ -8,9 +8,11 @@ CAPTURE ?= screenshot.png
 CAPTURE_AFTER ?= 5
 CAPTURE_FOCUS ?=
 ONLY ?=
+MATCHES ?= 12
+PLATFORM ?= $(shell uname -s | tr A-Z a-z)-$(shell uname -m)
 
 .DEFAULT_GOAL := help
-.PHONY: help run run-release build release models models-fast previews capture check lint fmt fmt-check test test-unit test-playability clean clean-models
+.PHONY: help run run-release build release models models-fast previews capture check lint fmt fmt-check test test-unit test-playability balance package clean clean-models
 
 help: ## List the available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -45,6 +47,12 @@ test-unit: ## Unit tests of the game logic only
 
 test-playability: ## Headless matches: movement, economy, production, combat, AI, missions, objectives, save/load
 	cargo test --release --test playability --test missions --test fog --test sound --test orders
+
+package: release ## Bundle the release binary and assets into dist/ (PLATFORM=, defaults to this machine)
+	tools/package.sh $(PLATFORM) $(RELEASE_BIN)
+
+balance: ## AI-against-AI balance report: unit duels and difficulty tournaments (MATCHES=per pairing)
+	cargo run --release --bin balance -- --matches $(MATCHES)
 
 check: fmt-check lint test ## Formatting, lints and tests
 

@@ -5,7 +5,7 @@ use rand::RngExt;
 
 use crate::animation::{animated_unit_model, spawn_corpse};
 use crate::assets::ModelLibrary;
-use crate::catalog::{ArmorClass, ProjectileStyle, Team, WeaponSpec};
+use crate::catalog::{ArmorClass, BuildingKind, ProjectileStyle, Team, UnitKind, WeaponSpec};
 use crate::components::*;
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::fog::FogOfWar;
@@ -70,9 +70,24 @@ pub fn surface_distance(from: Vec3, target: &TargetInfo) -> f32 {
     (from.xz().distance(target.position.xz()) - target.radius).max(0.0)
 }
 
+/// Who fired a shot, for balance statistics.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum DamageSource {
+    Unit(UnitKind),
+    Building(BuildingKind),
+}
+
+/// Sent when a unit or structure is destroyed.
+#[derive(Message, Clone, Copy, Debug)]
+pub struct Destroyed {
+    pub team: Team,
+    pub what: DamageSource,
+}
+
 #[derive(Component)]
 pub struct Projectile {
     team: Team,
+    source: DamageSource,
     target: Option<Entity>,
     start: Vec3,
     end: Vec3,
@@ -204,10 +219,18 @@ pub fn aim_and_fire(
         &AttackTarget,
         Option<&mut Turret>,
         Option<&mut Mobile>,
+        Option<&Unit>,
+        Option<&Building>,
     )>,
 ) {
     let dt = time.delta_secs();
-    for (&team, mut transform, mut weapon, attack, turret, mobile) in &mut shooters {
+    for (&team, mut transform, mut weapon, attack, turret, mobile, unit, building) in &mut shooters
+    {
+        let source = match (unit, building) {
+            (Some(unit), _) => DamageSource::Unit(unit.0),
+            (None, Some(building)) => DamageSource::Building(building.kind),
+            (None, None) => continue,
+        };
         weapon.cooldown = (weapon.cooldown - dt).max(0.0);
         let body_yaw = mobile.as_ref().map_or(0.0, |m| m.facing);
         let target = attack.entity().and_then(|entity| targets.get(entity));
@@ -243,7 +266,15 @@ pub fn aim_and_fire(
         weapon.cooldown = weapon.spec.reload_secs;
         let barrel_direction = Quat::from_rotation_y(aimed_yaw) * Vec3::X;
         let muzzle = position + Vec3::Y * MUZZLE_HEIGHT + barrel_direction * BARREL_LENGTH;
-        fire_projectile(&mut commands, &effects, team, muzzle, target, weapon.spec);
+        fire_projectile(
+            &mut commands,
+            &effects,
+            team,
+            source,
+            muzzle,
+            target,
+            weapon.spec,
+        );
         cues.write(SoundCue::at(weapon.spec.report, muzzle));
     }
 }
@@ -252,6 +283,7 @@ fn fire_projectile(
     commands: &mut Commands,
     effects: &EffectAssets,
     team: Team,
+    source: DamageSource,
     muzzle: Vec3,
     target: &TargetInfo,
     weapon: WeaponSpec,
@@ -284,6 +316,7 @@ fn fire_projectile(
     commands.spawn((
         Projectile {
             team,
+            source,
             target: homing_target,
             start: muzzle,
             end,
@@ -342,6 +375,8 @@ pub fn fly_projectiles(
                     &mut damage_log,
                     victim,
                     weapon.damage * falloff * weapon.multiplier_against(victim.armor),
+                    projectile.source,
+                    projectile.team,
                 );
             }
         } else if let Some(victim) = projectile.target.and_then(|e| targets.get(e)) {
@@ -350,6 +385,8 @@ pub fn fly_projectiles(
                 &mut damage_log,
                 victim,
                 weapon.damage * weapon.multiplier_against(victim.armor),
+                projectile.source,
+                projectile.team,
             );
         }
         let blast = match weapon.style {
@@ -375,6 +412,8 @@ pub struct DamageDealt {
     pub victim: Entity,
     pub team: Team,
     pub amount: f32,
+    pub source: DamageSource,
+    pub attacker: Team,
 }
 
 fn apply_damage(
@@ -382,6 +421,8 @@ fn apply_damage(
     damage_log: &mut MessageWriter<DamageDealt>,
     victim: &TargetInfo,
     amount: f32,
+    source: DamageSource,
+    attacker: Team,
 ) {
     if let Ok(mut health) = healths.get_mut(victim.entity) {
         health.current -= amount;
@@ -389,12 +430,15 @@ fn apply_damage(
             victim: victim.entity,
             team: victim.team,
             amount,
+            source,
+            attacker,
         });
     }
 }
 
 pub fn remove_destroyed(
     mut cues: MessageWriter<SoundCue>,
+    mut losses: MessageWriter<Destroyed>,
     mut commands: Commands,
     effects: Res<EffectAssets>,
     models: Res<ModelLibrary>,
@@ -411,6 +455,14 @@ pub fn remove_destroyed(
     for (entity, health, transform, &team, building, unit) in &destroyed {
         if health.current > 0.0 {
             continue;
+        }
+        let what = match (unit, building) {
+            (Some(unit), _) => Some(DamageSource::Unit(unit.0)),
+            (None, Some(building)) => Some(DamageSource::Building(building.kind)),
+            (None, None) => None,
+        };
+        if let Some(what) = what {
+            losses.write(Destroyed { team, what });
         }
         let blast = match (building, unit) {
             (Some(building), _) => {

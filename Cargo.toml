@@ -1,5 +1,6 @@
 [package]
 name = "iron_tide"
+default-run = "iron_tide"
 version = "1.0.0"
 edition = "2024"
 rust-version = "1.100"

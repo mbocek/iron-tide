@@ -18,8 +18,10 @@ use crate::production::{
 };
 
 const MAX_WAVE_SIZE: usize = 16;
+const WAVE_GROWTH: usize = 2;
 const BASE_DEFENSE_RADIUS: f32 = 16.0 * CELL_SIZE;
 const SITE_SEARCH_RADIUS: i32 = 14;
+const CRYSTAL_SEARCH_RADIUS: i32 = 20;
 const HARVESTERS_PER_REFINERY: usize = 2;
 const COMBAT_UNIT_RESERVE: i32 = 400;
 
@@ -47,7 +49,6 @@ pub struct AiCommander {
     pub difficulty: Difficulty,
     think_timer: f32,
     wave_size: usize,
-    assault_underway: bool,
 }
 
 impl AiCommander {
@@ -58,7 +59,6 @@ impl AiCommander {
             difficulty,
             think_timer: difficulty.think_interval_secs(),
             wave_size: difficulty.first_wave_size(),
-            assault_underway: false,
         }
     }
 }
@@ -95,11 +95,11 @@ pub fn command_enemies(
         }
         ai.think_timer = ai.difficulty.think_interval_secs();
 
-        let owned = owned_building_kinds(&buildings, ai.team);
+        let mut owned = owned_building_kinds(&buildings, ai.team);
         if owned.is_empty() {
             continue;
         }
-        place_finished_structure(
+        let placed = place_finished_structure(
             ai,
             &mut commands,
             &models,
@@ -108,12 +108,20 @@ pub fn command_enemies(
             &buildings,
             &unit_positions,
         );
-        plan_next_structure(ai.team, &mut production, &mut economies, &owned);
+        owned.extend(placed);
+        let saving_for = plan_next_structure(ai.team, &mut production, &mut economies, &owned);
         let harvesters = army
             .iter()
             .filter(|(unit, team, ..)| **team == ai.team && unit.0 == UnitKind::Harvester)
             .count();
-        train_units(ai.team, &mut production, &mut economies, &owned, harvesters);
+        train_units(
+            ai.team,
+            &mut production,
+            &mut economies,
+            &owned,
+            harvesters,
+            saving_for,
+        );
         direct_army(ai, &targets, &buildings, &mut army);
     }
 }
@@ -126,18 +134,16 @@ fn place_finished_structure(
     production: &mut Production,
     buildings: &Query<(&Building, &Team)>,
     unit_positions: &Query<&Transform, With<Unit>>,
-) {
-    let Some(kind) = production.lane(ai.team, Lane::Structures).ready else {
-        return;
-    };
+) -> Option<BuildingKind> {
+    let kind = production.lane(ai.team, Lane::Structures).ready?;
     let site = {
         let context = placement_context(map, ai.team, buildings, unit_positions);
         find_building_site(&context, ai.base, kind)
     };
-    if let Some(origin) = site {
-        construct_building(commands, models, map, kind, ai.team, origin);
-        production.lane_mut(ai.team, Lane::Structures).ready = None;
-    }
+    let origin = site?;
+    construct_building(commands, models, map, kind, ai.team, origin);
+    production.lane_mut(ai.team, Lane::Structures).ready = None;
+    Some(kind)
 }
 
 /// A free spot near `base` that leaves a one-cell lane around the structure so units never get boxed in.
@@ -147,7 +153,12 @@ pub fn find_building_site(
     kind: BuildingKind,
 ) -> Option<IVec2> {
     let footprint = kind.spec().footprint;
-    cells_by_distance(base, SITE_SEARCH_RADIUS).find(|&origin| {
+    let search_center = if kind == BuildingKind::Refinery {
+        towards_nearest_crystal(context.map, base)
+    } else {
+        base
+    };
+    cells_by_distance(search_center, SITE_SEARCH_RADIUS).find(|&origin| {
         let margin_origin = origin - IVec2::ONE;
         let keeps_lanes_open = footprint_cells(margin_origin, footprint + IVec2::splat(2))
             .all(|cell| !GameMap::in_bounds(cell) || context.map.is_passable(cell));
@@ -155,14 +166,21 @@ pub fn find_building_site(
     })
 }
 
+/// Halfway to the closest crystals, so harvesters have a short haul whichever corner the base is in.
+fn towards_nearest_crystal(map: &GameMap, base: IVec2) -> IVec2 {
+    map.nearest_crystal(base, CRYSTAL_SEARCH_RADIUS)
+        .map_or(base, |crystal| (base + crystal) / 2)
+}
+
+/// Queues the next structure of the build plan; returns the price it is saving up for when it cannot pay yet.
 fn plan_next_structure(
     team: Team,
     production: &mut Production,
     economies: &mut Economies,
     owned: &[BuildingKind],
-) {
+) -> Option<i32> {
     if !production.lane(team, Lane::Structures).is_idle() {
-        return;
+        return None;
     }
     let mut planned_so_far = Vec::new();
     let next_in_plan = BUILD_PLAN
@@ -174,14 +192,18 @@ fn plan_next_structure(
             let wanted = planned_so_far.iter().filter(|&&k| k == kind).count();
             owned.iter().filter(|&&k| k == kind).count() < wanted
         });
-    let Some(mut next) = next_in_plan else { return };
+    let mut next = next_in_plan?;
 
     let economy = economies.of(team);
     let spare_power = economy.power_supply - economy.power_demand;
     if next.spec().power < 0 && spare_power + next.spec().power < 0 {
         next = BuildingKind::PowerPlant;
     }
-    let _ = production.enqueue(economies, team, BuildItem::Structure(next), owned);
+    let item = BuildItem::Structure(next);
+    production
+        .enqueue(economies, team, item, owned)
+        .err()
+        .map(|_| item.cost())
 }
 
 /// Weighted wish lists; anything the mission forbids is skipped.
@@ -224,18 +246,14 @@ fn train_units(
     economies: &mut Economies,
     owned: &[BuildingKind],
     harvesters: usize,
+    saving_for: Option<i32>,
 ) {
     let refineries = owned
         .iter()
         .filter(|&&k| k == BuildingKind::Refinery)
         .count();
     let vehicles_idle = production.lane(team, Lane::Vehicles).queue.is_empty();
-    let structure_budget_reserved = !production.lane(team, Lane::Structures).is_idle();
-    let reserve = if structure_budget_reserved {
-        0
-    } else {
-        COMBAT_UNIT_RESERVE
-    };
+    let reserve = saving_for.unwrap_or(COMBAT_UNIT_RESERVE);
     let affordable = |economies: &Economies, kind: UnitKind| {
         economies.of(team).credits >= kind.spec().cost + reserve
     };
@@ -272,71 +290,71 @@ fn direct_army(
     army: &mut Query<ArmyUnit>,
 ) {
     let team = ai.team;
-    let is_soldier = |unit: &Unit, owner: Team| owner == team && unit.0 != UnitKind::Harvester;
-    let soldiers = army
-        .iter()
-        .filter(|(unit, owner, ..)| is_soldier(unit, **owner))
-        .count();
-    let idle_soldiers = army
-        .iter()
-        .filter(|(unit, owner, _, mobile, attack, orders)| {
-            is_soldier(unit, **owner)
-                && !mobile.is_moving()
-                && attack.is_none_or(|a| a.target.is_none())
-                && orders.as_ref().is_none_or(|o| o.current.is_none())
-        })
-        .count();
-
+    let home = cell_center(ai.base);
     let base_positions: Vec<Vec3> = buildings
         .iter()
         .filter(|(_, owner)| **owner == team)
         .map(|(building, _)| footprint_center(building.origin, building.kind.spec().footprint))
         .collect();
-    let intruder = targets.iter().find(|t| {
-        t.team.is_hostile_to(team)
-            && base_positions
-                .iter()
-                .any(|base| base.distance(t.position) < BASE_DEFENSE_RADIUS)
-    });
+    let near_base = |position: Vec3| {
+        base_positions
+            .iter()
+            .any(|base| base.distance(position) < BASE_DEFENSE_RADIUS)
+    };
+    let intruder = targets
+        .iter()
+        .find(|t| t.team.is_hostile_to(team) && near_base(t.position))
+        .map(|t| t.position);
+    let assault_objective = targets
+        .iter()
+        .filter(|t| t.team.is_hostile_to(team))
+        .min_by(|a, b| {
+            let rank = |t: &TargetInfo| {
+                let preference = if t.is_building { 0.0 } else { 30.0 };
+                t.position.distance(home) + preference
+            };
+            rank(a).total_cmp(&rank(b))
+        })
+        .map(|t| t.position);
 
-    if ai.assault_underway && soldiers == 0 {
-        ai.assault_underway = false;
-        ai.wave_size = (ai.wave_size + 2).min(MAX_WAVE_SIZE);
-    }
-    if !ai.assault_underway && idle_soldiers >= ai.wave_size {
-        ai.assault_underway = true;
-    }
-
-    let home = cell_center(ai.base);
-    let objective = intruder.map(|t| t.position).or_else(|| {
-        ai.assault_underway
-            .then(|| {
-                targets
-                    .iter()
-                    .filter(|t| t.team.is_hostile_to(team))
-                    .min_by(|a, b| {
-                        let rank = |t: &&TargetInfo| {
-                            let preference = if t.is_building { 0.0 } else { 30.0 };
-                            t.position.distance(home) + preference
-                        };
-                        rank(a).total_cmp(&rank(b))
-                    })
-                    .map(|t| t.position)
-            })
-            .flatten()
-    });
-    let Some(objective) = objective else { return };
-    let objective_cell = world_to_cell(objective);
-
-    for (unit, &owner, _, mobile, attack, orders) in army.iter_mut() {
+    let mut waiting_at_home = Vec::new();
+    for (unit, &owner, transform, mobile, attack, orders) in army.iter_mut() {
         let idle = !mobile.is_moving()
             && attack.is_none_or(|a| a.target.is_none())
             && orders.as_ref().is_none_or(|o| o.current.is_none());
-        if is_soldier(unit, owner)
-            && idle
-            && let Some(mut orders) = orders
-        {
-            orders.replace_with(Order::AttackMove(objective_cell));
+        let is_soldier = owner == team && unit.0 != UnitKind::Harvester;
+        let Some(orders) = orders.filter(|_| is_soldier && idle) else {
+            continue;
+        };
+        let objective = if near_base(transform.translation) {
+            intruder
+        } else {
+            intruder.or(assault_objective)
+        };
+        match objective {
+            Some(objective) => send(orders, objective),
+            None if near_base(transform.translation) => waiting_at_home.push(orders),
+            None => send(orders, home),
         }
     }
+
+    let enemy_has_army = targets
+        .iter()
+        .any(|t| t.team.is_hostile_to(team) && !t.is_building);
+    let wave_ready = waiting_at_home.len() >= ai.wave_size;
+    let finish_them_off = !enemy_has_army && !waiting_at_home.is_empty();
+    if !wave_ready && !finish_them_off {
+        return;
+    }
+    let Some(objective) = assault_objective else {
+        return;
+    };
+    for orders in waiting_at_home {
+        send(orders, objective);
+    }
+    ai.wave_size = (ai.wave_size + WAVE_GROWTH).min(MAX_WAVE_SIZE);
+}
+
+fn send(mut orders: Mut<Orders>, objective: Vec3) {
+    orders.replace_with(Order::AttackMove(world_to_cell(objective)));
 }

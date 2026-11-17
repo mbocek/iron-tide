@@ -16,6 +16,7 @@ pub mod effects;
 pub mod fog;
 pub mod fog_view;
 pub mod graphics;
+pub mod headless;
 pub mod levels;
 pub mod main_menu;
 pub mod map;
@@ -118,6 +119,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<savegame::SaveRequests>()
             .init_resource::<savegame::SaveDirectory>()
             .add_message::<combat::DamageDealt>()
+            .add_message::<combat::Destroyed>()
             .add_message::<sound::SoundCue>()
             .add_systems(
                 OnEnter(match_flow::GameState::Playing),

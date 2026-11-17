@@ -75,9 +75,9 @@ impl Difficulty {
 
     pub fn first_wave_size(self) -> usize {
         match self {
-            Difficulty::Easy => 7,
-            Difficulty::Normal => 5,
-            Difficulty::Hard => 4,
+            Difficulty::Easy => 4,
+            Difficulty::Normal => 6,
+            Difficulty::Hard => 8,
         }
     }
 

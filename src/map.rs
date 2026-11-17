@@ -222,7 +222,7 @@ pub const CRYSTAL_FIELDS: [CrystalField; 6] = [
         radius: 3.6,
     },
     CrystalField {
-        center: IVec2::new(47, 17),
+        center: IVec2::new(45, 14),
         radius: 3.6,
     },
     CrystalField {
@@ -230,7 +230,7 @@ pub const CRYSTAL_FIELDS: [CrystalField; 6] = [
         radius: 2.6,
     },
     CrystalField {
-        center: IVec2::new(40, 24),
+        center: IVec2::new(36, 22),
         radius: 2.6,
     },
     CrystalField {
@@ -238,7 +238,7 @@ pub const CRYSTAL_FIELDS: [CrystalField; 6] = [
         radius: 3.2,
     },
     CrystalField {
-        center: IVec2::new(57, 42),
+        center: IVec2::new(54, 38),
         radius: 3.2,
     },
 ];
