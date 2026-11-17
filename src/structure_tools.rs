@@ -1,0 +1,246 @@
+use bevy::picking::hover::Hovered;
+use bevy::prelude::*;
+
+use crate::camera::Cursor;
+use crate::catalog::Team;
+use crate::components::{Building, Health};
+use crate::fog::FogOfWar;
+use crate::map::{GameMap, footprint_center, world_to_cell};
+use crate::sound::{Sound, SoundCue};
+use crate::structures::{
+    Repairing, StructureOrder, StructureOrderKind, can_sell, repair_cost, sale_refund,
+};
+use crate::ui::{ACCENT, FRAME, GOOD, TEXT_DIM, TEXT_MAIN, UiFonts};
+
+const BUTTON_IDLE: Color = Color::srgb(0.13, 0.15, 0.17);
+const BUTTON_HOVERED: Color = Color::srgb(0.18, 0.21, 0.24);
+const BUTTON_ACTIVE: Color = Color::srgb(0.30, 0.24, 0.08);
+const HINT_OFFSET: Vec2 = Vec2::new(18.0, 14.0);
+const REPAIR_MARKER_COLOR: Color = Color::srgb(0.35, 1.0, 0.45);
+
+/// The repair or sell mode of the mouse; while one is active, left clicks on own structures apply it.
+#[derive(Resource, Default)]
+pub struct StructureTool(pub Option<StructureOrderKind>);
+
+#[derive(Component)]
+pub struct ToolButton(StructureOrderKind);
+
+#[derive(Component)]
+pub struct ToolHint;
+
+fn hotkey(tool: StructureOrderKind) -> KeyCode {
+    match tool {
+        StructureOrderKind::ToggleRepair => KeyCode::KeyT,
+        StructureOrderKind::Sell => KeyCode::KeyY,
+    }
+}
+
+fn label(tool: StructureOrderKind) -> &'static str {
+    match tool {
+        StructureOrderKind::ToggleRepair => "REPAIR  T",
+        StructureOrderKind::Sell => "SELL  Y",
+    }
+}
+
+pub fn spawn_tool_buttons(panel: &mut ChildSpawnerCommands, fonts: &UiFonts) {
+    panel
+        .spawn(Node {
+            flex_grow: 1.0,
+            column_gap: Val::Px(6.0),
+            ..default()
+        })
+        .with_children(|row| {
+            for tool in [StructureOrderKind::ToggleRepair, StructureOrderKind::Sell] {
+                row.spawn((
+                    ToolButton(tool),
+                    Hovered::default(),
+                    Node {
+                        flex_grow: 1.0,
+                        height: Val::Px(24.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    BackgroundColor(BUTTON_IDLE),
+                    BorderColor::all(FRAME),
+                ))
+                .with_children(|button| {
+                    button.spawn(fonts.heading(label(tool), 13.0, TEXT_MAIN));
+                })
+                .observe(
+                    move |_: On<PointerClick>,
+                          mut active: ResMut<StructureTool>,
+                          mut cues: MessageWriter<SoundCue>| {
+                        toggle(&mut active, tool);
+                        cues.write(SoundCue::interface(Sound::UiClick));
+                    },
+                );
+            }
+        });
+}
+
+/// Every match starts with the mouse in its normal mode and a hidden hint ready to follow it.
+pub fn prepare_structure_tools(mut commands: Commands, fonts: Res<UiFonts>) {
+    commands.insert_resource(StructureTool::default());
+    commands.spawn((
+        ToolHint,
+        fonts.heading("", 15.0, ACCENT),
+        TextShadow::default(),
+        Pickable::IGNORE,
+        Node {
+            position_type: PositionType::Absolute,
+            ..default()
+        },
+        Visibility::Hidden,
+    ));
+}
+
+fn toggle(active: &mut StructureTool, tool: StructureOrderKind) {
+    active.0 = if active.0 == Some(tool) {
+        None
+    } else {
+        Some(tool)
+    };
+}
+
+pub fn switch_tools_by_keyboard(
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut active: ResMut<StructureTool>,
+) {
+    for tool in [StructureOrderKind::ToggleRepair, StructureOrderKind::Sell] {
+        if keys.just_pressed(hotkey(tool)) {
+            toggle(&mut active, tool);
+        }
+    }
+    if keys.just_pressed(KeyCode::Escape) || mouse.just_pressed(MouseButton::Right) {
+        active.0 = None;
+    }
+}
+
+fn own_structure_under(
+    map: &GameMap,
+    cursor: &Cursor,
+    structures: &Query<(&Building, &Team, &Health)>,
+) -> Option<Entity> {
+    let ground = cursor.ground.filter(|_| !cursor.over_interface)?;
+    let entity = map.building_at(world_to_cell(ground))?;
+    let (_, &team, _) = structures.get(entity).ok()?;
+    (team == Team::Player).then_some(entity)
+}
+
+pub fn apply_structure_tool(
+    mouse: Res<ButtonInput<MouseButton>>,
+    cursor: Res<Cursor>,
+    map: Res<GameMap>,
+    active: Res<StructureTool>,
+    structures: Query<(&Building, &Team, &Health)>,
+    mut orders: MessageWriter<StructureOrder>,
+    mut cues: MessageWriter<SoundCue>,
+) {
+    let Some(tool) = active.0 else { return };
+    if !mouse.just_pressed(MouseButton::Left) || cursor.over_interface {
+        return;
+    }
+    let Some(building) = own_structure_under(&map, &cursor, &structures) else {
+        cues.write(SoundCue::interface(Sound::UiError));
+        return;
+    };
+    orders.write(StructureOrder {
+        team: Team::Player,
+        building,
+        kind: tool,
+    });
+    cues.write(SoundCue::interface(Sound::UiClick));
+}
+
+pub fn refresh_tool_buttons(
+    active: Res<StructureTool>,
+    mut buttons: Query<(
+        &ToolButton,
+        &Hovered,
+        &mut BackgroundColor,
+        &mut BorderColor,
+    )>,
+) {
+    for (button, hovered, mut background, mut border) in &mut buttons {
+        let selected = active.0 == Some(button.0);
+        background.0 = match (selected, hovered.get()) {
+            (true, _) => BUTTON_ACTIVE,
+            (false, true) => BUTTON_HOVERED,
+            (false, false) => BUTTON_IDLE,
+        };
+        *border = BorderColor::all(if selected { ACCENT } else { FRAME });
+    }
+}
+
+/// Follows the pointer and tells what a click would do to the structure under it.
+pub fn refresh_tool_hint(
+    active: Res<StructureTool>,
+    cursor: Res<Cursor>,
+    map: Res<GameMap>,
+    structures: Query<(&Building, &Team, &Health)>,
+    mut hints: Query<(&mut Text, &mut TextColor, &mut Node, &mut Visibility), With<ToolHint>>,
+) {
+    let Ok((mut text, mut color, mut node, mut visibility)) = hints.single_mut() else {
+        return;
+    };
+    let (Some(tool), Some(screen)) = (active.0, cursor.screen) else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    *visibility = Visibility::Inherited;
+    node.left = Val::Px(screen.x + HINT_OFFSET.x);
+    node.top = Val::Px(screen.y + HINT_OFFSET.y);
+
+    let target = own_structure_under(&map, &cursor, &structures)
+        .and_then(|entity| structures.get(entity).ok());
+    let (message, tone) = match (tool, target) {
+        (StructureOrderKind::ToggleRepair, None) => {
+            ("Repair: pick a structure".to_string(), TEXT_DIM)
+        }
+        (StructureOrderKind::Sell, None) => ("Sell: pick a structure".to_string(), TEXT_DIM),
+        (StructureOrderKind::ToggleRepair, Some((building, _, health))) => {
+            let cost = repair_cost(building.kind, health);
+            if cost == 0 {
+                ("Undamaged".to_string(), TEXT_DIM)
+            } else {
+                (format!("Repair  ${cost}"), GOOD)
+            }
+        }
+        (StructureOrderKind::Sell, Some((building, ..))) if can_sell(building.kind) => {
+            (format!("Sell  +${}", sale_refund(building.kind)), ACCENT)
+        }
+        (StructureOrderKind::Sell, Some(_)) => ("Cannot be sold".to_string(), TEXT_DIM),
+    };
+    text.0 = message;
+    color.0 = tone;
+}
+
+/// A slowly turning green cross above every structure being repaired that the player can see.
+pub fn draw_repair_markers(
+    mut gizmos: Gizmos,
+    time: Res<Time>,
+    fog: Res<FogOfWar>,
+    repairing: Query<&Building, With<Repairing>>,
+) {
+    let spin = Quat::from_rotation_y(time.elapsed_secs() * 1.5);
+    for building in &repairing {
+        let footprint = building.kind.spec().footprint;
+        let center = footprint_center(building.origin, footprint);
+        if !fog.is_visible(center) {
+            continue;
+        }
+        let above = center + Vec3::Y * (4.0 + footprint.max_element() as f32);
+        for arm in [Vec3::X, Vec3::Z] {
+            let reach = spin * arm * 0.9;
+            gizmos.line(above - reach, above + reach, REPAIR_MARKER_COLOR);
+        }
+        gizmos.line(
+            above - Vec3::Y * 0.9,
+            above + Vec3::Y * 0.9,
+            REPAIR_MARKER_COLOR,
+        );
+    }
+}

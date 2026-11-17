@@ -19,6 +19,7 @@ use crate::notifications::Notifications;
 use crate::production::{BuildItem, Lane, Production};
 use crate::settings::game_data_directory;
 use crate::spawn::{spawn_building, spawn_unit};
+use crate::structures::{BeingSold, Repairing};
 
 /// Bumped whenever the save layout changes incompatibly; older files are refused rather than misread.
 const SAVE_VERSION: u32 = 2;
@@ -34,6 +35,8 @@ struct SavedBuilding {
     health: f32,
     #[serde(default)]
     rally: Option<[i32; 2]>,
+    #[serde(default)]
+    repairing: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -168,7 +171,16 @@ pub fn write_requested_save(
     fog: Res<FogOfWar>,
     intel: Res<Intel>,
     cameras: Query<&RtsCamera>,
-    buildings: Query<(&Building, &Team, &Health, Option<&RallyPoint>)>,
+    buildings: Query<
+        (
+            &Building,
+            &Team,
+            &Health,
+            Option<&RallyPoint>,
+            Has<Repairing>,
+        ),
+        Without<BeingSold>,
+    >,
     units: Query<(
         &Unit,
         &Team,
@@ -194,13 +206,16 @@ pub fn write_requested_save(
         crystal: map.crystal_amounts(),
         buildings: buildings
             .iter()
-            .map(|(building, &team, health, rally)| SavedBuilding {
-                team,
-                kind: building.kind,
-                origin: building.origin.to_array(),
-                health: health.current,
-                rally: rally.map(|rally| rally.0.to_array()),
-            })
+            .map(
+                |(building, &team, health, rally, repairing)| SavedBuilding {
+                    team,
+                    kind: building.kind,
+                    origin: building.origin.to_array(),
+                    health: health.current,
+                    rally: rally.map(|rally| rally.0.to_array()),
+                    repairing,
+                },
+            )
             .collect(),
         units: units
             .iter()
@@ -349,6 +364,9 @@ pub fn restore_pending_load(
             commands
                 .entity(entity)
                 .insert(RallyPoint(IVec2::from_array(rally)));
+        }
+        if saved.repairing {
+            commands.entity(entity).insert(Repairing::default());
         }
     }
     for saved in &save.units {

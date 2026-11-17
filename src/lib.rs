@@ -38,6 +38,8 @@ pub mod scenery;
 pub mod settings;
 pub mod sound;
 pub mod spawn;
+pub mod structure_tools;
+pub mod structures;
 pub mod terrain;
 pub mod terrain_material;
 pub mod ui;
@@ -123,6 +125,7 @@ impl Plugin for SimulationPlugin {
             .add_message::<combat::DamageDealt>()
             .add_message::<combat::Destroyed>()
             .add_message::<sound::SoundCue>()
+            .add_message::<structures::StructureOrder>()
             .add_systems(
                 OnEnter(match_flow::GameState::Playing),
                 (
@@ -151,7 +154,11 @@ impl Plugin for SimulationPlugin {
                         economy::tally_power,
                         production::advance_production,
                         ai::command_enemies,
+                        ai::repair_damaged_structures,
                         economy::run_harvesters,
+                        structures::carry_out_structure_orders,
+                        structures::repair_structures,
+                        structures::finish_sales,
                         medical::treat_wounded,
                     )
                         .chain(),
@@ -215,6 +222,7 @@ impl Plugin for GamePlugin {
             )
             .insert_resource(settings::load_settings())
             .init_gizmo_group::<overlay::HealthBarGizmos>()
+            .init_resource::<structure_tools::StructureTool>()
             .add_plugins((
                 bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
                 bevy::diagnostic::SystemInformationDiagnosticsPlugin,
@@ -249,6 +257,7 @@ impl Plugin for GamePlugin {
                     fog_view::shroud_unexplored_scenery,
                     minimap::create_minimap,
                     ui::build_interface,
+                    structure_tools::prepare_structure_tools,
                     orders::spawn_selection_box,
                     ambience::light_crystal_fields,
                     ambience::index_trampleable_vegetation,
@@ -284,6 +293,8 @@ impl Plugin for GamePlugin {
                     orders::select_units,
                     orders::issue_orders,
                     production::place_structure,
+                    structure_tools::apply_structure_tool,
+                    structure_tools::switch_tools_by_keyboard,
                 )
                     .chain()
                     .in_set(FramePhase::Input),
@@ -328,6 +339,9 @@ impl Plugin for GamePlugin {
                     (
                         overlay::draw_overlays,
                         overlay::draw_planned_routes,
+                        structure_tools::draw_repair_markers,
+                        structure_tools::refresh_tool_buttons,
+                        structure_tools::refresh_tool_hint,
                         ui::refresh_build_tiles,
                         ui::refresh_resources,
                         ui::refresh_info_panel,

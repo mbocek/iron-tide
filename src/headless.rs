@@ -22,6 +22,7 @@ use crate::production::{BuildItem, Production, construct_building};
 use crate::savegame::SaveDirectory;
 use crate::sound::{Sound, SoundCue};
 use crate::spawn::spawn_unit;
+use crate::structures::{StructureOrder, StructureOrderKind};
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 use std::collections::HashMap;
@@ -186,6 +187,24 @@ impl Battle {
         });
         world.flush();
         entity
+    }
+
+    /// The first structure of `kind` that `team` owns.
+    pub fn building(&mut self, team: Team, kind: BuildingKind) -> Option<Entity> {
+        let world = self.world();
+        world
+            .query::<(Entity, &Building, &Team)>()
+            .iter(world)
+            .find(|(_, building, owner)| building.kind == kind && **owner == team)
+            .map(|(entity, ..)| entity)
+    }
+
+    pub fn order_structure(&mut self, team: Team, building: Entity, kind: StructureOrderKind) {
+        self.world().write_message(StructureOrder {
+            team,
+            building,
+            kind,
+        });
     }
 
     pub fn construct(&mut self, kind: BuildingKind, team: Team, origin: IVec2) {

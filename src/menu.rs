@@ -1,3 +1,4 @@
+use crate::structure_tools::StructureTool;
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 
@@ -396,10 +397,11 @@ pub fn spawn_menu(commands: &mut Commands, fonts: &UiFonts) {
 pub fn toggle_menu(
     keys: Res<ButtonInput<KeyCode>>,
     placement: Res<Placement>,
+    tool: Res<StructureTool>,
     selected: Query<(), With<Selected>>,
     mut menu: ResMut<MenuState>,
 ) {
-    let escape_is_free = placement.active.is_none() && selected.is_empty();
+    let escape_is_free = placement.active.is_none() && tool.0.is_none() && selected.is_empty();
     let wants_toggle = keys.just_pressed(KeyCode::F10)
         || (keys.just_pressed(KeyCode::Escape) && (menu.open || escape_is_free));
     if wants_toggle {

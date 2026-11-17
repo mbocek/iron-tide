@@ -81,7 +81,7 @@ impl Plugin for CapturePlugin {
 }
 
 /// Screenshots of the window surface come out black on Bevy 0.20 here, so the capture renders
-/// through a copy of the game camera into an offscreen image instead (the interface is not included).
+/// through a copy of the game camera into an offscreen image instead, interface included.
 #[derive(Resource)]
 struct CaptureTarget(Handle<Image>);
 
@@ -106,7 +106,11 @@ fn spawn_capture_camera(
         .entity(game_camera)
         .clone_and_spawn()
         .remove::<RtsCamera>()
-        .insert((CaptureCamera, RenderTarget::from(target.clone())));
+        .insert((
+            CaptureCamera,
+            RenderTarget::from(target.clone()),
+            IsDefaultUiCamera,
+        ));
     commands.insert_resource(CaptureTarget(target));
 }
 

@@ -89,6 +89,10 @@ impl GameMap {
         Self::index(cell).is_some_and(|i| !self.terrain_blocked[i] && self.building[i].is_none())
     }
 
+    pub fn building_at(&self, cell: IVec2) -> Option<Entity> {
+        Self::index(cell).and_then(|i| self.building[i])
+    }
+
     pub fn is_buildable(&self, cell: IVec2) -> bool {
         self.is_passable(cell) && self.crystal_at(cell) == 0
     }

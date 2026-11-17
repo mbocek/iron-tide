@@ -1,3 +1,4 @@
+use crate::structure_tools::spawn_tool_buttons;
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 use bevy::text::{FontSize, FontSource};
@@ -284,43 +285,52 @@ fn spawn_resources(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
             panel
                 .spawn(Node {
                     justify_content: JustifyContent::SpaceBetween,
-                    align_items: AlignItems::Baseline,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(10.0),
                     ..default()
                 })
                 .with_children(|row| {
                     row.spawn((CreditsText, fonts.heading("$ 0", 26.0, ACCENT)));
-                    row.spawn((PowerText, fonts.text("POWER 0 / 0", 16.0, TEXT_MAIN)));
+                    spawn_tool_buttons(row, fonts);
                 });
             panel
-                .spawn((
-                    Node {
-                        width: Val::Percent(100.0),
-                        height: Val::Px(8.0),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.04, 0.05, 0.05)),
-                ))
-                .with_children(|bar| {
-                    bar.spawn((
-                        PowerBarFill,
+                .spawn(Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(8.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    row.spawn((PowerText, fonts.text("POWER 0 / 0", 14.0, TEXT_MAIN)));
+                    row.spawn((
                         Node {
-                            position_type: PositionType::Absolute,
-                            height: Val::Percent(100.0),
+                            flex_grow: 1.0,
+                            height: Val::Px(8.0),
                             ..default()
                         },
-                        BackgroundColor(GOOD),
-                    ));
-                    bar.spawn((
-                        PowerBarDemand,
-                        Node {
-                            position_type: PositionType::Absolute,
-                            width: Val::Px(2.0),
-                            height: Val::Px(12.0),
-                            top: Val::Px(-2.0),
-                            ..default()
-                        },
-                        BackgroundColor(TEXT_MAIN),
-                    ));
+                        BackgroundColor(Color::srgb(0.04, 0.05, 0.05)),
+                    ))
+                    .with_children(|bar| {
+                        bar.spawn((
+                            PowerBarFill,
+                            Node {
+                                position_type: PositionType::Absolute,
+                                height: Val::Percent(100.0),
+                                ..default()
+                            },
+                            BackgroundColor(GOOD),
+                        ));
+                        bar.spawn((
+                            PowerBarDemand,
+                            Node {
+                                position_type: PositionType::Absolute,
+                                width: Val::Px(2.0),
+                                height: Val::Px(12.0),
+                                top: Val::Px(-2.0),
+                                ..default()
+                            },
+                            BackgroundColor(TEXT_MAIN),
+                        ));
+                    });
                 });
         });
 }
@@ -554,6 +564,10 @@ fn spawn_controls_help(commands: &mut Commands, fonts: &UiFonts) {
         ("Patrol", "Alt + right click"),
         ("Queue orders", "Shift + right click"),
         ("Rally point", "select barracks/factory, right click"),
+        (
+            "Repair / sell",
+            "T / Y (or the buttons), then click a structure",
+        ),
         ("Scroll", "WASD, arrows, screen edge, middle-drag"),
         ("Fast scroll", "hold Shift"),
         ("Minimap", "click or drag to jump"),

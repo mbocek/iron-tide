@@ -8,6 +8,7 @@ use crate::map::{GameMap, cells_by_distance, world_to_cell};
 use crate::movement::order_move;
 use crate::production::Placement;
 use crate::sound::{Sound, SoundCue};
+use crate::structure_tools::StructureTool;
 
 const DRAG_THRESHOLD_PX: f32 = 8.0;
 const CLICK_SLACK: f32 = 0.6;
@@ -78,6 +79,7 @@ pub fn select_units(
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Res<Cursor>,
     placement: Res<Placement>,
+    tool: Res<StructureTool>,
     targets: Res<Targets>,
     mut drag: ResMut<DragSelection>,
     cameras: Query<(&Camera, &GlobalTransform), With<RtsCamera>>,
@@ -86,12 +88,13 @@ pub fn select_units(
     mut selection_box: Query<(&mut Node, &mut Visibility), With<SelectionBoxUi>>,
 ) {
     let Some(screen) = cursor.screen else { return };
-    if keys.just_pressed(KeyCode::Escape) && placement.active.is_none() {
+    let pointer_busy = placement.active.is_some() || tool.0.is_some();
+    if keys.just_pressed(KeyCode::Escape) && !pointer_busy {
         for entity in &selected {
             commands.entity(entity).remove::<Selected>();
         }
     }
-    if placement.active.is_some() {
+    if pointer_busy {
         drag.start = None;
     } else if mouse.just_pressed(MouseButton::Left) && !cursor.over_interface {
         drag.start = Some(screen);
@@ -196,6 +199,7 @@ pub fn issue_orders(
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Res<Cursor>,
     placement: Res<Placement>,
+    tool: Res<StructureTool>,
     targets: Res<Targets>,
     map: Res<GameMap>,
     mut marker: ResMut<OrderMarker>,
@@ -217,6 +221,7 @@ pub fn issue_orders(
         }
     }
     if placement.active.is_some()
+        || tool.0.is_some()
         || cursor.over_interface
         || !mouse.just_pressed(MouseButton::Right)
     {

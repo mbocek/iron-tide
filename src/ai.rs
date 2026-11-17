@@ -18,6 +18,7 @@ use crate::production::{
     BuildItem, Lane, PlacementContext, Production, construct_building, owned_building_kinds,
     placement_context,
 };
+use crate::structures::{BeingSold, Repairing, StructureOrder, StructureOrderKind};
 
 const MAX_WAVE_SIZE: usize = 16;
 const WAVE_GROWTH: usize = 2;
@@ -28,6 +29,7 @@ const SITE_SEARCH_RADIUS: i32 = 14;
 const CRYSTAL_SEARCH_RADIUS: i32 = 20;
 const HARVESTERS_PER_REFINERY: usize = 2;
 const COMBAT_UNIT_RESERVE: i32 = 400;
+const REPAIR_BELOW_HEALTH: f32 = 0.6;
 
 const BUILD_PLAN: [BuildingKind; 13] = [
     BuildingKind::PowerPlant,
@@ -141,6 +143,30 @@ pub fn command_enemies(
             player_fog: &player_fog,
         };
         direct_army(ai, &knowledge, &buildings, &mut army);
+    }
+}
+
+/// Computer opponents patch up badly damaged structures whenever they can spare the credits.
+pub fn repair_damaged_structures(
+    commanders: Res<AiCommanders>,
+    economies: Res<Economies>,
+    structures: Query<
+        (Entity, &Team, &Health),
+        (With<Building>, Without<Repairing>, Without<BeingSold>),
+    >,
+    mut orders: MessageWriter<StructureOrder>,
+) {
+    for (building, &team, health) in &structures {
+        let commanded = commanders.0.iter().any(|ai| ai.team == team);
+        let badly_damaged = health.current > 0.0 && health.fraction() < REPAIR_BELOW_HEALTH;
+        let can_spare = economies.of(team).credits >= COMBAT_UNIT_RESERVE;
+        if commanded && badly_damaged && can_spare {
+            orders.write(StructureOrder {
+                team,
+                building,
+                kind: StructureOrderKind::ToggleRepair,
+            });
+        }
     }
 }
 
