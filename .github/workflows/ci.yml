@@ -40,13 +40,13 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux-x86_64
-            binary: target/release/iron_tide
+            binary: target/release/iron-tide
           - os: macos-latest
             platform: macos-arm64
-            binary: target/release/iron_tide
+            binary: target/release/iron-tide
           - os: windows-latest
             platform: windows-x86_64
-            binary: target/release/iron_tide.exe
+            binary: target/release/iron-tide.exe
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
@@ -69,7 +69,7 @@ jobs:
           key: ${{ matrix.platform }}
 
       - name: Build the game
-        run: cargo build --release --bin iron_tide
+        run: cargo build --release --bin iron-tide
 
       - name: Bundle binary and assets
         run: tools/package.sh ${{ matrix.platform }} ${{ matrix.binary }}

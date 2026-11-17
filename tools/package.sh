@@ -4,7 +4,7 @@
 set -euo pipefail
 
 platform="${1:?platform name, e.g. linux-x86_64}"
-binary="${2:-target/release/iron_tide}"
+binary="${2:-target/release/iron-tide}"
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
 name="iron-tide-${version}-${platform}"
 stage="dist/${name}"
