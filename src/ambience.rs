@@ -10,6 +10,7 @@ use crate::camera::RtsCamera;
 use crate::catalog::ArmorClass;
 use crate::components::{Armor, BodyRadius, HarvestState, Harvester, Mobile};
 use crate::effects::{EffectAssets, spawn_sparkle};
+use crate::fog::{CellSight, FogOfWar};
 use crate::map::{CRYSTAL_FIELDS, GameMap, cell_center, cells_by_distance, world_to_cell};
 use crate::settings::GameSettings;
 
@@ -98,13 +99,20 @@ pub fn light_crystal_fields(mut commands: Commands, map: Res<GameMap>) {
 pub fn pulse_crystal_glow(
     time: Res<Time>,
     map: Res<GameMap>,
+    fog: Res<FogOfWar>,
     mut glows: Query<(&CrystalGlow, &mut PointLight)>,
 ) {
     let t = time.elapsed_secs();
     for (glow, mut light) in &mut glows {
         let remaining = field_crystal(&map, glow.field_index) as f32 / glow.initial_crystal as f32;
         let pulse = 0.8 + 0.2 * (t * CRYSTAL_GLOW_PULSE_SPEED + glow.phase).sin();
-        light.intensity = CRYSTAL_GLOW_INTENSITY * pulse * remaining.sqrt();
+        let field_center = cell_center(CRYSTAL_FIELDS[glow.field_index].center);
+        let known = if fog.is_explored(field_center) {
+            1.0
+        } else {
+            0.0
+        };
+        light.intensity = CRYSTAL_GLOW_INTENSITY * pulse * remaining.sqrt() * known;
     }
 }
 
@@ -178,6 +186,7 @@ pub fn emit_crystal_sparkles(
     time: Res<Time>,
     effects: Res<EffectAssets>,
     map: Res<GameMap>,
+    fog: Res<FogOfWar>,
     mut pending: Local<f32>,
     harvesters: Query<(&Transform, &Harvester)>,
 ) {
@@ -193,7 +202,7 @@ pub fn emit_crystal_sparkles(
                 rng.random_range(-reach..=reach),
                 rng.random_range(-reach..=reach),
             );
-        if map.crystal_at(cell) == 0 {
+        if map.crystal_at(cell) == 0 || fog.sight_at(cell) == CellSight::Unexplored {
             continue;
         }
         let jitter = Vec3::new(
@@ -216,6 +225,9 @@ pub fn emit_crystal_sparkles(
     }
 
     for (transform, harvester) in &harvesters {
+        if !fog.is_visible(transform.translation) {
+            continue;
+        }
         if !matches!(harvester.state, HarvestState::Mining { .. })
             || !rng.random_bool((MINING_SPARKLES_PER_SEC * dt).min(1.0) as f64)
         {

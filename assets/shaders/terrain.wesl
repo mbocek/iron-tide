@@ -17,11 +17,17 @@ struct TerrainSettings {
 @group(constants::MATERIAL_BIND_GROUP) @binding(102) var albedo_sampler: sampler;
 @group(constants::MATERIAL_BIND_GROUP) @binding(103) var normal_layers: texture_2d_array<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(104) var normal_sampler: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(105) var fog_texture: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(106) var fog_sampler: sampler;
 
 const LAYER_COUNT: u32 = 5u;
 const ANTI_TILE_ROTATION: mat2x2<f32> = mat2x2<f32>(0.8, -0.6, 0.6, 0.8);
 const ANTI_TILE_SCALE: f32 = 0.37;
 const HEIGHT_BLEND_SHARPNESS: f32 = 0.25;
+// Same as MAP_WORLD_SIZE in src/map.rs.
+const MAP_WORLD_SIZE: f32 = 128.0;
+// The fog texture stores perceived brightness; lighting is linear, so it is raised to the display gamma.
+const FOG_GAMMA: f32 = 2.2;
 const CLOUD_DRIFT: vec2<f32> = vec2<f32>(1.6, 0.9);
 const CLOUD_SCALE: f32 = 0.011;
 const CLOUD_SHADOW_DEPTH: f32 = 0.32;
@@ -148,5 +154,10 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     var out: FragmentOutput;
     out.color = apply_pbr_lighting(pbr_input);
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
+
+    let map_uv = world_xz / MAP_WORLD_SIZE;
+    let inside_map = all(map_uv >= vec2<f32>(0.0)) && all(map_uv <= vec2<f32>(1.0));
+    let fog = select(1.0, textureSampleLevel(fog_texture, fog_sampler, map_uv, 0.0).r, inside_map);
+    out.color = vec4<f32>(out.color.rgb * pow(fog, FOG_GAMMA), out.color.a);
     return out;
 }

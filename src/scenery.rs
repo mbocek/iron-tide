@@ -37,6 +37,10 @@ const OUTLAND_TREE_ATTEMPTS: usize = 1100;
 const OUTLAND_BOULDER_COUNT: usize = 90;
 const MAX_MEADOW_DIRT: f32 = 0.35;
 
+/// Any static piece of landscape: trees, rocks and decoration.
+#[derive(Component)]
+pub struct Scenery;
+
 /// Walk-through decoration that is cleared away when a structure is built on top of it.
 #[derive(Component)]
 pub struct Decor;
@@ -318,6 +322,7 @@ fn spawn_scenery(
         heading
     };
     let mut scenery = commands.spawn((
+        Scenery,
         WorldAssetRoot(models.neutral(model_id)),
         Transform::from_translation(ground)
             .with_rotation(rotation)

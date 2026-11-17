@@ -121,6 +121,8 @@ pub struct UnitSpec {
     pub producer: BuildingKind,
     /// Health restored per second to wounded friendly infantry nearby; zero for everyone but medics.
     pub heal_per_sec: f32,
+    /// Radius in meters this unit reveals through the fog of war.
+    pub sight: f32,
 }
 
 impl UnitKind {
@@ -178,6 +180,8 @@ pub struct BuildingSpec {
     pub power: i32,
     pub prerequisites: &'static [BuildingKind],
     pub weapon: Option<WeaponSpec>,
+    /// Radius in meters this structure reveals through the fog of war.
+    pub sight: f32,
 }
 
 impl BuildingKind {
@@ -276,6 +280,7 @@ const RIFLEMAN: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     heal_per_sec: 0.0,
+    sight: 14.0,
 };
 
 const SCOUT: UnitSpec = UnitSpec {
@@ -293,6 +298,7 @@ const SCOUT: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     heal_per_sec: 0.0,
+    sight: 22.0,
 };
 
 const TANK: UnitSpec = UnitSpec {
@@ -310,6 +316,7 @@ const TANK: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     heal_per_sec: 0.0,
+    sight: 16.0,
 };
 
 const ARTILLERY: UnitSpec = UnitSpec {
@@ -327,6 +334,7 @@ const ARTILLERY: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     heal_per_sec: 0.0,
+    sight: 14.0,
 };
 
 const HARVESTER: UnitSpec = UnitSpec {
@@ -344,6 +352,7 @@ const HARVESTER: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Factory,
     heal_per_sec: 0.0,
+    sight: 10.0,
 };
 
 const MISSILE_LAUNCHER: WeaponSpec = WeaponSpec {
@@ -385,6 +394,7 @@ const ROCKETEER: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     heal_per_sec: 0.0,
+    sight: 14.0,
 };
 
 const MEDIC: UnitSpec = UnitSpec {
@@ -402,6 +412,7 @@ const MEDIC: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     heal_per_sec: 8.0,
+    sight: 12.0,
 };
 
 const BULWARK: UnitSpec = UnitSpec {
@@ -419,6 +430,7 @@ const BULWARK: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     heal_per_sec: 0.0,
+    sight: 16.0,
 };
 
 const COMMAND_CENTER: BuildingSpec = BuildingSpec {
@@ -432,6 +444,7 @@ const COMMAND_CENTER: BuildingSpec = BuildingSpec {
     power: 20,
     prerequisites: &[],
     weapon: None,
+    sight: 18.0,
 };
 
 const POWER_PLANT: BuildingSpec = BuildingSpec {
@@ -445,6 +458,7 @@ const POWER_PLANT: BuildingSpec = BuildingSpec {
     power: 100,
     prerequisites: &[BuildingKind::CommandCenter],
     weapon: None,
+    sight: 10.0,
 };
 
 const REFINERY: BuildingSpec = BuildingSpec {
@@ -458,6 +472,7 @@ const REFINERY: BuildingSpec = BuildingSpec {
     power: -40,
     prerequisites: &[BuildingKind::PowerPlant],
     weapon: None,
+    sight: 12.0,
 };
 
 const BARRACKS: BuildingSpec = BuildingSpec {
@@ -471,6 +486,7 @@ const BARRACKS: BuildingSpec = BuildingSpec {
     power: -20,
     prerequisites: &[BuildingKind::PowerPlant],
     weapon: None,
+    sight: 10.0,
 };
 
 const FACTORY: BuildingSpec = BuildingSpec {
@@ -484,6 +500,7 @@ const FACTORY: BuildingSpec = BuildingSpec {
     power: -50,
     prerequisites: &[BuildingKind::Refinery],
     weapon: None,
+    sight: 12.0,
 };
 
 const GUN_TURRET: BuildingSpec = BuildingSpec {
@@ -497,6 +514,7 @@ const GUN_TURRET: BuildingSpec = BuildingSpec {
     power: -25,
     prerequisites: &[BuildingKind::Barracks],
     weapon: Some(TURRET_CANNON),
+    sight: 16.0,
 };
 
 pub const STARTING_CREDITS: i32 = 5000;

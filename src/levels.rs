@@ -171,6 +171,8 @@ pub struct LevelDefinition {
     /// Units and structures the mission allows; empty means everything.
     pub available_units: Vec<UnitKind>,
     pub available_buildings: Vec<BuildingKind>,
+    /// Hide unexplored ground and unseen enemies.
+    pub fog_of_war: bool,
 }
 
 impl Default for LevelDefinition {
@@ -184,6 +186,7 @@ impl Default for LevelDefinition {
             objective: Objective::DestroyAllEnemies,
             available_units: Vec::new(),
             available_buildings: Vec::new(),
+            fog_of_war: true,
         }
     }
 }
@@ -363,6 +366,7 @@ pub struct SkirmishOptions {
     pub tech: TechLevel,
     pub map_variant: u64,
     pub player_site: BaseSite,
+    pub fog_of_war: bool,
 }
 
 impl Default for SkirmishOptions {
@@ -375,6 +379,7 @@ impl Default for SkirmishOptions {
             tech: TechLevel::Full,
             map_variant: 1,
             player_site: BaseSite::SouthWest,
+            fog_of_war: true,
         }
     }
 }
@@ -416,6 +421,7 @@ impl SkirmishOptions {
             objective,
             available_units: self.tech.units(),
             available_buildings: Vec::new(),
+            fog_of_war: self.fog_of_war,
         }
     }
 }

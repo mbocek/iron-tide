@@ -9,3 +9,6 @@
 
 # Created when Blender imports the model scripts.
 __pycache__/
+
+# Local IDE settings.
+/.openidea/

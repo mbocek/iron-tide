@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use crate::camera::RtsCamera;
 use crate::catalog::{HARVESTER_CAPACITY, Team};
 use crate::components::*;
+use crate::fog::FogOfWar;
 use crate::orders::OrderMarker;
 use crate::settings::{GameSettings, HealthBars};
 
@@ -43,6 +44,7 @@ pub fn draw_overlays(
     mut gizmos: Gizmos,
     mut bars: Gizmos<HealthBarGizmos>,
     settings: Res<GameSettings>,
+    fog: Res<FogOfWar>,
     time: Res<Time>,
     mut marker: ResMut<OrderMarker>,
     cameras: Query<&GlobalTransform, With<RtsCamera>>,
@@ -61,6 +63,9 @@ pub fn draw_overlays(
     let toward_camera = camera.back().as_vec3() * 0.05;
 
     for (transform, health, radius, &team, harvester, selected, is_building) in &entities {
+        if !fog.reveals(team, transform.translation) {
+            continue;
+        }
         let damaged = health.current < health.max;
         if selected {
             let (isometry, circle_radius) = ground_circle(transform.translation, radius.0 + 0.25);

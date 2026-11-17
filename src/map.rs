@@ -6,10 +6,11 @@ use rand::{RngExt, SeedableRng};
 use crate::animation::AnimatedModel;
 use crate::assets::ModelLibrary;
 use crate::catalog::CRYSTAL_PER_CELL;
+use crate::fog_view::FogTexture;
 use crate::levels::ActiveLevel;
 use crate::scenery;
 use crate::terrain::{OUTLANDS_WIDTH, WATER_LEVEL, build_terrain_mesh, on_ground, river_depth};
-use crate::terrain_material::{TerrainSurface, WaterSurface, water_material};
+use crate::terrain_material::{TerrainSurface, WaterMaterial, WaterSurface, water_material};
 
 pub const CELL_SIZE: f32 = 2.0;
 pub const MAP_CELLS: i32 = 64;
@@ -282,6 +283,8 @@ pub fn spawn_terrain_visuals(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
+    mut water_materials: ResMut<Assets<WaterMaterial>>,
+    fog: Res<FogTexture>,
 ) {
     commands.spawn((
         TerrainSurface,
@@ -304,7 +307,7 @@ pub fn spawn_terrain_visuals(
     commands.spawn((
         WaterSurface,
         Mesh3d(meshes.add(water_mesh)),
-        MeshMaterial3d(materials.add(water_material(&mut images))),
+        MeshMaterial3d(water_materials.add(water_material(&mut images, fog.0.clone()))),
         Transform::from_xyz(MAP_WORLD_SIZE * 0.5, WATER_LEVEL, MAP_WORLD_SIZE * 0.5),
     ));
 }

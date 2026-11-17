@@ -68,9 +68,10 @@ pub enum EditorField {
     Tech,
     MapVariant,
     PlayerSite,
+    FogOfWar,
 }
 
-const EDITOR_FIELDS: [EditorField; 7] = [
+const EDITOR_FIELDS: [EditorField; 8] = [
     EditorField::Enemies,
     EditorField::Difficulty,
     EditorField::Credits,
@@ -78,6 +79,7 @@ const EDITOR_FIELDS: [EditorField; 7] = [
     EditorField::Tech,
     EditorField::MapVariant,
     EditorField::PlayerSite,
+    EditorField::FogOfWar,
 ];
 
 fn cycle<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
@@ -100,6 +102,7 @@ impl EditorField {
             EditorField::Tech => "Available units",
             EditorField::MapVariant => "Map variant",
             EditorField::PlayerSite => "Your base",
+            EditorField::FogOfWar => "Fog of war",
         }
     }
 
@@ -117,6 +120,7 @@ impl EditorField {
             EditorField::Tech => options.tech.label().into(),
             EditorField::MapVariant => format!("{} of {MAP_VARIANTS}", options.map_variant),
             EditorField::PlayerSite => site_name(options.player_site).into(),
+            EditorField::FogOfWar => if options.fog_of_war { "On" } else { "Off" }.into(),
         }
     }
 
@@ -156,6 +160,7 @@ impl EditorField {
             EditorField::PlayerSite => {
                 options.player_site = cycle(&BaseSite::ALL, options.player_site, forward)
             }
+            EditorField::FogOfWar => options.fog_of_war = !options.fog_of_war,
         }
     }
 }

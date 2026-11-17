@@ -5,6 +5,7 @@ use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 
 use crate::camera::RtsCamera;
+use crate::fog_view::Shrouded;
 use crate::notifications::Notifications;
 use crate::settings::{GameSettings, QualityPreset, ShadowQuality};
 
@@ -107,7 +108,7 @@ pub fn cull_distant_decor(
     settings: Res<GameSettings>,
     mut countdown: Local<f32>,
     cameras: Query<&RtsCamera>,
-    mut decor: Query<(&Transform, &mut Visibility), With<FineDecor>>,
+    mut decor: Query<(&Transform, &mut Visibility), (With<FineDecor>, Without<Shrouded>)>,
 ) {
     *countdown -= time.delta_secs();
     if *countdown > 0.0 && !settings.is_changed() {

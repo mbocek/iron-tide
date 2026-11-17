@@ -10,6 +10,8 @@ use bevy::render::render_resource::{
 };
 use bevy::shader::ShaderRef;
 
+use crate::fog_view::FogTexture;
+
 /// Order must match the layer indices in `assets/shaders/terrain.wesl` and the weights in `terrain::layer_weights`.
 const TERRAIN_LAYERS: [&str; 5] = [
     "leafy_grass",
@@ -40,7 +42,15 @@ pub struct TerrainLayers {
     #[texture(103, dimension = "2d_array")]
     #[sampler(104)]
     pub normals: Handle<Image>,
+    /// Fog of war over the playable map: red channel 0 unexplored, ~0.7 explored, 1 visible.
+    #[texture(105)]
+    #[sampler(106)]
+    pub fog: Handle<Image>,
 }
+
+/// The assembled ground material, kept so every later match's terrain can reuse it.
+#[derive(Resource)]
+pub struct TerrainMaterialHandle(pub Handle<TerrainMaterial>);
 
 pub use uniforms::TerrainSettings;
 
@@ -112,7 +122,7 @@ pub fn assemble_terrain_material(
     asset_server: Res<AssetServer>,
     mut images: ResMut<Assets<Image>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
-    surfaces: Query<Entity, With<TerrainSurface>>,
+    fog: Res<FogTexture>,
 ) {
     let Some(sources) = sources else { return };
     let all_handles = sources
@@ -126,10 +136,6 @@ pub fn assemble_terrain_material(
     {
         return;
     }
-    let Ok(surface) = surfaces.single() else {
-        return;
-    };
-
     let pixels = |handles: &[Handle<Image>]| -> Vec<RgbaLayer> {
         handles
             .iter()
@@ -165,13 +171,32 @@ pub fn assemble_terrain_material(
                 TextureFormat::Rgba8UnormSrgb,
             )),
             normals: images.add(mipmapped_array(&normal_layers, TextureFormat::Rgba8Unorm)),
+            fog: fog.0.clone(),
         },
     };
-    commands
-        .entity(surface)
-        .remove::<MeshMaterial3d<StandardMaterial>>()
-        .insert(MeshMaterial3d(terrain_materials.add(material)));
+    commands.insert_resource(TerrainMaterialHandle(terrain_materials.add(material)));
     commands.remove_resource::<TerrainTextureSources>();
+}
+
+/// Gives each newly spawned terrain the textured material once it exists.
+pub fn dress_terrain_surfaces(
+    mut commands: Commands,
+    material: Option<Res<TerrainMaterialHandle>>,
+    bare: Query<
+        Entity,
+        (
+            With<TerrainSurface>,
+            Without<MeshMaterial3d<TerrainMaterial>>,
+        ),
+    >,
+) {
+    let Some(material) = material else { return };
+    for surface in &bare {
+        commands
+            .entity(surface)
+            .remove::<MeshMaterial3d<StandardMaterial>>()
+            .insert(MeshMaterial3d(material.0.clone()));
+    }
 }
 
 struct RgbaLayer {
@@ -329,21 +354,40 @@ pub fn water_normal_map() -> Image {
     image
 }
 
-pub fn water_material(images: &mut Assets<Image>) -> StandardMaterial {
-    StandardMaterial {
-        base_color: Color::srgba(0.10, 0.27, 0.33, 0.78),
-        alpha_mode: AlphaMode::Blend,
-        perceptual_roughness: 0.04,
-        reflectance: 0.6,
-        normal_map_texture: Some(images.add(water_normal_map())),
-        ..default()
+pub type WaterMaterial = ExtendedMaterial<StandardMaterial, FoggedWater>;
+
+/// Darkens the river under the fog of war exactly like the terrain shader does.
+#[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
+pub struct FoggedWater {
+    #[texture(100)]
+    #[sampler(101)]
+    pub fog: Handle<Image>,
+}
+
+impl MaterialExtension for FoggedWater {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/water.wesl".into()
+    }
+}
+
+pub fn water_material(images: &mut Assets<Image>, fog: Handle<Image>) -> WaterMaterial {
+    WaterMaterial {
+        base: StandardMaterial {
+            base_color: Color::srgba(0.10, 0.27, 0.33, 0.78),
+            alpha_mode: AlphaMode::Blend,
+            perceptual_roughness: 0.04,
+            reflectance: 0.6,
+            normal_map_texture: Some(images.add(water_normal_map())),
+            ..default()
+        },
+        extension: FoggedWater { fog },
     }
 }
 
 pub fn animate_water(
     time: Res<Time>,
-    water: Query<&MeshMaterial3d<StandardMaterial>, With<WaterSurface>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    water: Query<&MeshMaterial3d<WaterMaterial>, With<WaterSurface>>,
+    mut materials: ResMut<Assets<WaterMaterial>>,
 ) {
     let Ok(handle) = water.single() else { return };
     let Some(mut material) = materials.get_mut(handle) else {
@@ -352,6 +396,6 @@ pub fn animate_water(
     let repeats =
         (crate::map::MAP_WORLD_SIZE + 2.0 * crate::terrain::OUTLANDS_WIDTH) / WATER_TILE_METERS;
     let offset = WATER_FLOW * time.elapsed_secs();
-    material.uv_transform =
+    material.base.uv_transform =
         bevy::math::Affine2::from_scale_angle_translation(Vec2::splat(repeats), 0.0, offset);
 }

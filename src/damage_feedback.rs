@@ -80,6 +80,9 @@ pub fn spawn_damage_numbers(
         let Some(victim) = targets.get(hit.victim) else {
             continue;
         };
+        if !victim.seen_by_player {
+            continue;
+        }
         let color = if hit.team == Team::Player {
             PLAYER_LOSS_COLOR
         } else {

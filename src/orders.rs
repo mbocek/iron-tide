@@ -44,6 +44,7 @@ pub fn spawn_selection_box(mut commands: Commands) {
 fn target_under(targets: &Targets, point: Vec3) -> Option<&TargetInfo> {
     targets
         .iter()
+        .filter(|t| t.seen_by_player)
         .filter(|t| {
             let offset = (point - t.position).xz().abs();
             let reach = t.radius + CLICK_SLACK;

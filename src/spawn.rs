@@ -4,6 +4,7 @@ use crate::animation::{animated_building_model, animated_unit_model};
 use crate::assets::ModelLibrary;
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
 use crate::components::*;
+use crate::fog::Sight;
 use crate::map::{CELL_SIZE, GameMap, footprint_center};
 use crate::medical::Healer;
 
@@ -23,6 +24,7 @@ pub fn spawn_unit(
         team,
         Health::full(spec.max_health),
         BodyRadius(spec.radius),
+        Sight(spec.sight),
         Armor(spec.armor),
         Mobile::new(spec.speed, spec.turn_rate, facing),
         WorldAssetRoot(models.unit(kind, team)),
@@ -72,6 +74,7 @@ pub fn spawn_building(
         team,
         Health::full(spec.max_health),
         BodyRadius(footprint_radius),
+        Sight(spec.sight),
         Armor(ArmorClass::Structure),
         WorldAssetRoot(models.building(kind, team)),
         Transform::from_translation(footprint_center(origin, spec.footprint)),

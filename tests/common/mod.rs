@@ -188,7 +188,9 @@ impl Battle {
             .collect();
         world.resource_scope(|world, mut production: Mut<Production>| {
             let mut economies = world.resource_mut::<Economies>();
-            production.enqueue(&mut economies, team, item, &owned)
+            production
+                .enqueue(&mut economies, team, item, &owned)
+                .is_ok()
         })
     }
 

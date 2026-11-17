@@ -8,6 +8,8 @@ use bevy::window::PrimaryWindow;
 use crate::camera::{RtsCamera, ray_hit_on_terrain};
 use crate::catalog::Team;
 use crate::components::{Building, Unit};
+use crate::fog::{CellSight, FogOfWar};
+use crate::fog_view::Discovered;
 use crate::map::{CELL_SIZE, GameMap, MAP_CELLS, MAP_WORLD_SIZE, footprint_cells};
 use crate::terrain::{GroundLayers, river_depth};
 use crate::ui::SIDEBAR_WIDTH;
@@ -19,6 +21,7 @@ const WATER: [u8; 3] = [38, 78, 104];
 const OBSTACLE: [u8; 3] = [34, 62, 30];
 const CRYSTAL: [u8; 3] = [90, 230, 210];
 const VIEW_FRAME: [u8; 3] = [240, 240, 240];
+const EXPLORED_BRIGHTNESS: f32 = 0.55;
 
 #[derive(Resource)]
 pub struct Minimap {
@@ -117,6 +120,24 @@ fn team_rgb(team: Team) -> [u8; 3] {
     ]
 }
 
+/// Black for unexplored ground, dimmed for explored ground the player cannot currently see.
+fn darken_by_fog(pixels: &mut [u8], fog: &FogOfWar) {
+    for (index, texel) in pixels.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+        let pixel = IVec2::new(
+            index as i32 % RESOLUTION as i32,
+            index as i32 / RESOLUTION as i32,
+        );
+        let factor = match fog.sight_at(pixel / PIXELS_PER_CELL) {
+            CellSight::Unexplored => 0.0,
+            CellSight::Explored => EXPLORED_BRIGHTNESS,
+            CellSight::Visible => continue,
+        };
+        for channel in &mut texel[..3] {
+            *channel = (*channel as f32 * factor) as u8;
+        }
+    }
+}
+
 pub fn redraw_minimap(
     time: Res<Time>,
     map: Res<GameMap>,
@@ -124,7 +145,8 @@ pub fn redraw_minimap(
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &GlobalTransform), With<RtsCamera>>,
-    buildings: Query<(&Building, &Team)>,
+    fog: Res<FogOfWar>,
+    buildings: Query<(&Building, &Team, Has<Discovered>)>,
     units: Query<(&Transform, &Team), With<Unit>>,
 ) {
     minimap.refresh_timer -= time.delta_secs();
@@ -139,17 +161,21 @@ pub fn redraw_minimap(
         return;
     };
     pixels.copy_from_slice(&minimap.terrain);
+    darken_by_fog(pixels, &fog);
     let mut canvas = Canvas { pixels };
 
     for cell_y in 0..MAP_CELLS {
         for cell_x in 0..MAP_CELLS {
             let cell = IVec2::new(cell_x, cell_y);
-            if map.crystal_at(cell) > 0 {
+            if map.crystal_at(cell) > 0 && fog.sight_at(cell) != CellSight::Unexplored {
                 canvas.fill(cell * PIXELS_PER_CELL + 1, IVec2::ONE, CRYSTAL);
             }
         }
     }
-    for (building, &team) in &buildings {
+    for (building, &team, discovered) in &buildings {
+        if team.is_hostile_to(Team::Player) && !discovered && fog.enabled() {
+            continue;
+        }
         for cell in footprint_cells(building.origin, building.kind.spec().footprint) {
             canvas.fill(
                 cell * PIXELS_PER_CELL,
@@ -159,6 +185,9 @@ pub fn redraw_minimap(
         }
     }
     for (transform, &team) in &units {
+        if !fog.reveals(team, transform.translation) {
+            continue;
+        }
         let center = to_minimap(transform.translation).floor().as_ivec2();
         canvas.fill(center - IVec2::ONE, IVec2::splat(2), team_rgb(team));
     }

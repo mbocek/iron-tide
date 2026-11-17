@@ -10,6 +10,7 @@ use crate::camera::RtsCamera;
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::components::*;
 use crate::economy::Economies;
+use crate::fog::FogOfWar;
 use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::{GameMap, cell_of_index, spawn_crystal_visual};
 use crate::match_flow::{GameState, MatchClock};
@@ -64,6 +65,8 @@ pub struct SaveGame {
     production: Vec<SavedLane>,
     ai: AiCommanders,
     camera_focus: [f32; 3],
+    #[serde(default)]
+    explored: Vec<bool>,
 }
 
 /// A save waiting to be restored once the next match's map has been generated from its level.
@@ -155,6 +158,7 @@ pub fn write_requested_save(
     economies: Res<Economies>,
     production: Res<Production>,
     commanders: Res<AiCommanders>,
+    fog: Res<FogOfWar>,
     cameras: Query<&RtsCamera>,
     buildings: Query<(&Building, &Team, &Health)>,
     units: Query<(
@@ -219,6 +223,7 @@ pub fn write_requested_save(
         camera_focus: cameras
             .single()
             .map_or([0.0; 3], |camera| camera.focus.to_array()),
+        explored: fog.explored_cells(),
     };
     let path = slot_path(&directory, slot);
     let written = path
@@ -286,6 +291,7 @@ pub fn restore_pending_load(
     mut commanders: ResMut<AiCommanders>,
     mut clock: ResMut<MatchClock>,
     mut notifications: ResMut<Notifications>,
+    mut fog: ResMut<FogOfWar>,
     mut cameras: Query<&mut RtsCamera>,
 ) {
     let Some(pending) = pending else { return };
@@ -356,6 +362,7 @@ pub fn restore_pending_load(
     }
     *commanders = save.ai;
     clock.elapsed_secs = save.match_secs;
+    fog.restore_explored(&save.explored);
     for mut camera in &mut cameras {
         camera.focus = Vec3::from_array(save.camera_focus);
     }

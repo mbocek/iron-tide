@@ -23,6 +23,7 @@ make test               # everything (about 2 s in release)
 make test-unit          # game logic: pathfinding, terrain, production, placement, combat math, settings, saves
 make test-playability   # headless matches on a fixed 50 ms clock
 cargo test --release --test missions   # campaign setups, objectives, multiple enemies, new units
+cargo test --release --test fog        # fog of war: hidden enemies, exploration, spotting, saves
 ```
 
 The playability tests run the real simulation systems (`SimulationPlugin`) without a window: units cross the
@@ -109,7 +110,12 @@ attack wave and its income (75 % / 100 % / 135 %).
 - **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory; Barracks → Gun Turret.
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Scout Buggy,
   Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Harvester.
-- **Victory:** destroy every enemy unit and building.
+- **Victory:** depends on the mission objective (destroy everything, destroy the Command Centers, survive, stockpile credits).
+- **Fog of war:** unexplored ground is black; explored ground stays visible but enemy units show only within
+  the sight of your units and buildings. Enemy structures stay on the map once spotted. Your units only open
+  fire on enemies someone on your side can see, so long-range artillery needs a spotter. The computer
+  opponents currently see the whole map. Levels can switch the fog off (`"fog_of_war": false`, or in the
+  battle editor).
 
 ## Code layout
 
@@ -133,6 +139,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `lib.rs` | `SimulationPlugin` (battle logic, also used headless by the tests) and `GamePlugin` (the full game) |
 | `levels`, `match_flow`, `main_menu` | level definitions, campaign and custom levels; match setup and states; main menu and battle editor |
 | `medical` | field medics healing infantry |
+| `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `outcome` | mission objectives, victory and defeat |
 | `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves) |
 

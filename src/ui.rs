@@ -709,18 +709,15 @@ fn click_build_tile(
         1
     };
     for _ in 0..batch {
-        if economies.of(Team::Player).credits < item.cost() {
-            notifications.push("Insufficient funds");
-            return;
-        }
-        if !production.enqueue(&mut economies, Team::Player, item, &owned) {
-            notifications.push("Production queue is full");
+        if let Err(refusal) = production.enqueue(&mut economies, Team::Player, item, &owned) {
+            notifications.push(refusal.message());
             return;
         }
     }
 }
 
 enum TileState {
+    NotInMission,
     Locked,
     Ready,
     Building { fraction: f32, queued: usize },
@@ -735,6 +732,9 @@ fn tile_state(
     owned: &[BuildingKind],
     credits: i32,
 ) -> TileState {
+    if !production.allows(Team::Player, item) {
+        return TileState::NotInMission;
+    }
     if item.missing_requirement(owned).is_some() {
         return TileState::Locked;
     }
@@ -809,7 +809,7 @@ pub fn refresh_build_tiles(
     }
     for (shade, mut node) in &mut shades {
         let covered = match state_of(shade.0) {
-            TileState::Locked | TileState::Unaffordable => 1.0,
+            TileState::NotInMission | TileState::Locked | TileState::Unaffordable => 1.0,
             TileState::Building { fraction, .. } => 1.0 - fraction,
             _ => 0.0,
         };
@@ -827,13 +827,17 @@ pub fn refresh_build_tiles(
             }
             TileState::Queued(count) => (format!("x{count}"), TEXT_MAIN),
             TileState::Locked => ("LOCKED".to_string(), TEXT_DIM),
+            TileState::NotInMission => ("N/A".to_string(), TEXT_DIM),
             TileState::Unaffordable | TileState::Available => (String::new(), TEXT_MAIN),
         };
         text.0 = label;
         color.0 = tint;
     }
     for (icon, mut image) in &mut icons {
-        let locked = matches!(state_of(icon.0), TileState::Locked);
+        let locked = matches!(
+            state_of(icon.0),
+            TileState::Locked | TileState::NotInMission
+        );
         image.color = if locked {
             Color::srgba(0.5, 0.5, 0.5, 0.5)
         } else {
@@ -914,7 +918,11 @@ fn harvest_activity(state: HarvestState) -> &'static str {
     }
 }
 
-fn describe_item(item: BuildItem, owned: &[BuildingKind]) -> (String, String) {
+fn describe_item(
+    item: BuildItem,
+    owned: &[BuildingKind],
+    production: &Production,
+) -> (String, String) {
     let (role, build_secs, extra) = match item {
         BuildItem::Structure(kind) => {
             let spec = kind.spec();
@@ -934,10 +942,13 @@ fn describe_item(item: BuildItem, owned: &[BuildingKind]) -> (String, String) {
             )
         }
     };
-    let requirement = item
-        .missing_requirement(owned)
-        .map(|missing| format!("\nRequires {}", missing.spec().name))
-        .unwrap_or_default();
+    let requirement = if !production.allows(Team::Player, item) {
+        "\nNot available in this mission".to_string()
+    } else {
+        item.missing_requirement(owned)
+            .map(|missing| format!("\nRequires {}", missing.spec().name))
+            .unwrap_or_default()
+    };
     (
         format!("{}  ${}", item.name(), item.cost()),
         format!("{role}\n{build_secs:.0}s build, {extra}{requirement}"),
@@ -946,6 +957,7 @@ fn describe_item(item: BuildItem, owned: &[BuildingKind]) -> (String, String) {
 
 pub fn refresh_info_panel(
     asset_server: Res<AssetServer>,
+    production: Res<Production>,
     buildings: Query<(&Building, &Team)>,
     hovered_tiles: Query<(&Hovered, &BuildTile)>,
     selected: Query<
@@ -984,7 +996,7 @@ pub fn refresh_info_panel(
     let selection: Vec<_> = selected.iter().collect();
 
     let (shown_icon, heading, details, health) = if let Some(item) = hovered {
-        let (heading, details) = describe_item(item, &owned);
+        let (heading, details) = describe_item(item, &owned, &production);
         (Some(icon_path(item)), heading, details, None)
     } else {
         match selection.as_slice() {

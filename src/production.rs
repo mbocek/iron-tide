@@ -87,6 +87,26 @@ impl BuildItem {
     }
 }
 
+/// Why an item could not be added to a production queue.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum EnqueueRefusal {
+    NotInMission,
+    Requires(BuildingKind),
+    QueueFull,
+    InsufficientFunds,
+}
+
+impl EnqueueRefusal {
+    pub fn message(self) -> String {
+        match self {
+            EnqueueRefusal::NotInMission => "Not available in this mission".into(),
+            EnqueueRefusal::Requires(missing) => format!("Requires {}", missing.spec().name),
+            EnqueueRefusal::QueueFull => "Production queue is full".into(),
+            EnqueueRefusal::InsufficientFunds => "Insufficient funds".into(),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct ProductionLane {
     pub queue: VecDeque<BuildItem>,
@@ -137,19 +157,24 @@ impl Production {
         team: Team,
         item: BuildItem,
         owned: &[BuildingKind],
-    ) -> bool {
-        if item.missing_requirement(owned).is_some() || !self.allows(team, item) {
-            return false;
+    ) -> Result<(), EnqueueRefusal> {
+        if !self.allows(team, item) {
+            return Err(EnqueueRefusal::NotInMission);
+        }
+        if let Some(missing) = item.missing_requirement(owned) {
+            return Err(EnqueueRefusal::Requires(missing));
         }
         let lane = self.lane_mut(team, item.lane());
-        let lane_full = lane.queue.len() >= MAX_QUEUE_LENGTH;
+        if lane.queue.len() >= MAX_QUEUE_LENGTH {
+            return Err(EnqueueRefusal::QueueFull);
+        }
         let economy = economies.of_mut(team);
-        if lane_full || economy.credits < item.cost() {
-            return false;
+        if economy.credits < item.cost() {
+            return Err(EnqueueRefusal::InsufficientFunds);
         }
         economy.credits -= item.cost();
         lane.queue.push_back(item);
-        true
+        Ok(())
     }
 
     /// Cancels the most recently queued copy of `item`, or the structure waiting to be placed.
@@ -474,7 +499,11 @@ mod tests {
         let mut production = Production::default();
         let start = economies.of(Team::Player).credits;
         let rifleman = BuildItem::Unit(UnitKind::Rifleman);
-        assert!(production.enqueue(&mut economies, Team::Player, rifleman, &BASE));
+        assert!(
+            production
+                .enqueue(&mut economies, Team::Player, rifleman, &BASE)
+                .is_ok()
+        );
         assert_eq!(economies.of(Team::Player).credits, start - rifleman.cost());
         production.cancel(&mut economies, Team::Player, rifleman);
         assert_eq!(economies.of(Team::Player).credits, start);
@@ -492,16 +521,38 @@ mod tests {
         let mut economies = rich();
         let tank = BuildItem::Unit(UnitKind::Tank);
         assert_eq!(tank.missing_requirement(&BASE), Some(BuildingKind::Factory));
-        assert!(!production.enqueue(&mut economies, Team::Player, tank, &BASE));
+        assert_eq!(
+            production.enqueue(&mut economies, Team::Player, tank, &BASE),
+            Err(EnqueueRefusal::Requires(BuildingKind::Factory))
+        );
 
         let mut poor = Economies::default();
         poor.of_mut(Team::Player).credits = 50;
-        assert!(!production.enqueue(
-            &mut poor,
-            Team::Player,
-            BuildItem::Unit(UnitKind::Rifleman),
-            &BASE
-        ));
+        assert_eq!(
+            production.enqueue(
+                &mut poor,
+                Team::Player,
+                BuildItem::Unit(UnitKind::Rifleman),
+                &BASE
+            ),
+            Err(EnqueueRefusal::InsufficientFunds)
+        );
+    }
+
+    #[test]
+    fn items_withheld_by_the_mission_are_refused_with_that_reason() {
+        let mut production = Production::default();
+        let mut economies = rich();
+        let turret = BuildItem::Structure(BuildingKind::GunTurret);
+        production.forbid(Team::Player, vec![turret]);
+        assert_eq!(
+            production.enqueue(&mut economies, Team::Player, turret, &BASE),
+            Err(EnqueueRefusal::NotInMission)
+        );
+        assert_eq!(
+            EnqueueRefusal::NotInMission.message(),
+            "Not available in this mission"
+        );
     }
 
     #[test]
@@ -510,7 +561,11 @@ mod tests {
         let mut economies = rich();
         let plant = BuildItem::Structure(BuildingKind::PowerPlant);
         let accepted = (0..MAX_QUEUE_LENGTH + 3)
-            .filter(|_| production.enqueue(&mut economies, Team::Player, plant, &BASE))
+            .filter(|_| {
+                production
+                    .enqueue(&mut economies, Team::Player, plant, &BASE)
+                    .is_ok()
+            })
             .count();
         assert_eq!(accepted, MAX_QUEUE_LENGTH);
     }
@@ -520,8 +575,12 @@ mod tests {
         let mut production = Production::default();
         let mut economies = rich();
         let item = BuildItem::Unit(UnitKind::Rifleman);
-        production.enqueue(&mut economies, Team::Player, item, &BASE);
-        production.enqueue(&mut economies, Team::Player, item, &BASE);
+        production
+            .enqueue(&mut economies, Team::Player, item, &BASE)
+            .unwrap();
+        production
+            .enqueue(&mut economies, Team::Player, item, &BASE)
+            .unwrap();
         production
             .lane_mut(Team::Player, Lane::Infantry)
             .progress_secs = 3.0;

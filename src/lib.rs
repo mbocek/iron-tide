@@ -13,6 +13,8 @@ pub mod control_groups;
 pub mod damage_feedback;
 pub mod economy;
 pub mod effects;
+pub mod fog;
+pub mod fog_view;
 pub mod graphics;
 pub mod levels;
 pub mod main_menu;
@@ -110,6 +112,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<notifications::Notifications>()
             .init_resource::<control_groups::ControlGroups>()
             .init_resource::<match_flow::MatchClock>()
+            .init_resource::<fog::FogOfWar>()
             .init_resource::<savegame::SaveRequests>()
             .init_resource::<savegame::SaveDirectory>()
             .add_message::<combat::DamageDealt>()
@@ -146,6 +149,7 @@ impl Plugin for SimulationPlugin {
                     )
                         .chain(),
                     (
+                        fog::update_fog,
                         combat::snapshot_targets,
                         combat::acquire_targets,
                         combat::chase_targets,
@@ -194,6 +198,7 @@ impl Plugin for GamePlugin {
                 bevy::render::diagnostic::RenderDiagnosticsPlugin,
                 capture::CapturePlugin,
                 MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
+                MaterialPlugin::<terrain_material::WaterMaterial>::default(),
             ))
             .add_systems(
                 Startup,
@@ -206,6 +211,7 @@ impl Plugin for GamePlugin {
                     camera::setup_scene,
                     overlay::configure_gizmos,
                     ui::load_fonts,
+                    fog_view::create_fog_texture,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),
@@ -215,6 +221,7 @@ impl Plugin for GamePlugin {
                 (
                     camera::focus_on_player_base,
                     map::spawn_terrain_visuals,
+                    fog_view::shroud_unexplored_scenery,
                     minimap::create_minimap,
                     ui::build_interface,
                     orders::spawn_selection_box,
@@ -303,6 +310,10 @@ impl Plugin for GamePlugin {
                         perf_overlay::refresh_performance_overlay,
                         queue_bar::animate_queue_progress,
                         ui::refresh_notifications,
+                        terrain_material::dress_terrain_surfaces,
+                        fog_view::paint_fog_texture,
+                        fog_view::reveal_explored_scenery,
+                        fog_view::show_seen_enemies,
                         minimap::redraw_minimap,
                         ui::show_outcome,
                     )

@@ -181,7 +181,7 @@ fn plan_next_structure(
     if next.spec().power < 0 && spare_power + next.spec().power < 0 {
         next = BuildingKind::PowerPlant;
     }
-    production.enqueue(economies, team, BuildItem::Structure(next), owned);
+    let _ = production.enqueue(economies, team, BuildItem::Structure(next), owned);
 }
 
 /// Weighted wish lists; anything the mission forbids is skipped.
@@ -253,7 +253,7 @@ fn train_units(
             pick_weighted(&VEHICLE_MIX, allowed).filter(|&kind| affordable(economies, kind))
         };
         if let Some(kind) = choice {
-            production.enqueue(economies, team, BuildItem::Unit(kind), owned);
+            let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);
         }
     }
     let infantry_queue = production.lane(team, Lane::Infantry).queue.len();
@@ -261,7 +261,7 @@ fn train_units(
         && let Some(kind) =
             pick_weighted(&INFANTRY_MIX, allowed).filter(|&kind| affordable(economies, kind))
     {
-        production.enqueue(economies, team, BuildItem::Unit(kind), owned);
+        let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);
     }
 }
 
