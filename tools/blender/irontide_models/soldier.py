@@ -333,6 +333,48 @@ def add_medic_extras(build):
                              name="ArmbandStripe")
 
 
+def add_hard_hat():
+    """A yellow construction hard hat with a brim and a team-coloured band."""
+    shell = [(r * HELMET_SCALE, z * HELMET_SCALE) for r, z in
+             [(0.118, 0.02), (0.112, 0.08), (0.09, 0.12), (0.05, 0.146), (0.0, 0.152)]]
+    lathe("HazardYellow", shell, (0.0, 0.0, 1.595), segments=16, name="HardHat")
+    lathe("HazardYellow", [(0.165, 0.018), (0.12, 0.03)], (0.0, 0.0, 1.595), segments=16, cap_start=False,
+          cap_end=False, name="HardHatBrim")
+    lathe("TeamColor", [(0.124, 0.045), (0.118, 0.075)], (0.0, 0.0, 1.595), segments=16, cap_start=False,
+          cap_end=False, name="HardHatBand")
+    box("HazardYellow", (0.18, 0.03, 0.02), (0.0, 0.0, 1.745), bevel=0.008, name="HardHatRidge")
+    for sign in (-1, 1):
+        box("Webbing", (0.05, 0.02, 0.08), (0.06, sign * 0.1, 1.56), bevel=0.0, name="ChinStrap")
+
+
+def add_tool_backpack():
+    box("Webbing", (0.22, 0.34, 0.36), (-0.22, 0.0, 1.27), bevel=0.04, name="ToolPack")
+    box("TeamColor", (0.012, 0.26, 0.08), (-0.335, 0.0, 1.36), bevel=0.0, name="ToolPackTeamFlash")
+    cylinder_between("Steel", (-0.3, -0.1, 1.08), (-0.3, -0.1, 1.5), 0.055, 12, name="WelderTank")
+    cylinder_between("HazardYellow", (-0.3, -0.1, 1.5), (-0.3, -0.1, 1.54), 0.03, 8, name="WelderValve")
+    cylinder_between("ArmorDark", (-0.3, -0.1, 1.52), (-0.15, -0.24, 1.1), 0.01, 6, name="WelderHose")
+    box("ArmorDark", (0.1, 0.3, 0.12), (-0.33, 0.06, 1.12), bevel=0.02, name="ToolRoll")
+    for k in range(3):
+        box("Steel", (0.012, 0.012, 0.14), (-0.38, -0.02 + k * 0.05, 1.24), bevel=0.0, name="ToolHandle")
+
+
+def add_engineer_extras(build):
+    with build.bone_mesh("hips"):
+        box("HazardYellow", (0.1, 0.4, 0.05), (0.0, 0.0, 0.94), bevel=0.01, name="ToolBelt")
+        box("Steel", (0.03, 0.025, 0.22), (0.05, -0.2, 0.86), (0, math.radians(-12), 0), bevel=0.005,
+            name="Wrench")
+        box("Steel", (0.07, 0.03, 0.04), (0.06, -0.2, 0.98), bevel=0.006, name="WrenchJaw")
+        box("Webbing", (0.1, 0.1, 0.1), (0.05, 0.2, 0.92), bevel=0.015, name="ToolPouch")
+    for side in ("L", "R"):
+        with build.bone_mesh(f"upper_arm.{side}"):
+            band = SHOULDER[side].lerp(build.kit.elbow[side], 0.45)
+            direction = (build.kit.elbow[side] - SHOULDER[side]).normalized()
+            cylinder_between("HazardYellow", band - direction * 0.03, band + direction * 0.03, 0.058, 10,
+                             name="HazardSleeve")
+            cylinder_between("HazardBlack", band - direction * 0.008, band + direction * 0.008, 0.06, 10,
+                             name="HazardSleeveStripe")
+
+
 def _elbows(hands, poles):
     return {side: rest_elbow(SHOULDER[side], hands[side], poles[side]) for side in "LR"}
 
@@ -361,6 +403,18 @@ MEDIC = SoldierKit(
     add_weapon=lambda: None, add_helmet=add_medic_helmet, add_backpack=add_medical_backpack,
     add_extras=add_medic_extras,
 )
+
+ENGINEER = SoldierKit(
+    carry=CARRY_NOTHING, weapon_seat=Vector((0.0, -0.18, 0.98)), weapon_axis=Vector((0.0, 0.0, -1.0)),
+    hand=HANGING_HAND,
+    elbow=_elbows(HANGING_HAND, {"L": Vector((-0.3, 0.3, 0.0)), "R": Vector((-0.3, -0.3, 0.0))}),
+    add_weapon=lambda: None, add_helmet=add_hard_hat, add_backpack=add_tool_backpack,
+    add_extras=add_engineer_extras,
+)
+
+
+def build_engineer():
+    SoldierBuild(ENGINEER).build()
 
 
 def build_rifleman():

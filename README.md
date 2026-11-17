@@ -102,6 +102,7 @@ Without fog the north-east has had a slight edge over several runs; the cause is
 | Shift + RMB | queue the order behind the current ones (route shown for selected units) |
 | RMB with a barracks or factory selected | set its rally point |
 | RMB on crystals / refinery (harvester) | harvest / unload |
+| RMB on a structure with engineers selected | capture it (enemy) / repair it fully (own, damaged) |
 | Menu: tile LMB | build; a finished structure: click, then place it on the map |
 | Menu: tile RMB | cancel and refund |
 | Wall tile, then LMB drag on the map | lay a straight wall, $50 per segment (RMB / Esc ends) |
@@ -201,6 +202,9 @@ attack wave and its income (75 % / 100 % / 135 %).
   (Crimson red, Amber orange, Violet purple), each with its own base, economy and AI.
 - **Economy:** the harvester mines crystals and unloads them at the refinery. Every refinery comes with a free harvester.
 - **Power:** when consumption exceeds production, all production runs at half speed.
+- **Engineer:** unarmed $500 infantry from the Barracks. Right-click an enemy structure (not a wall) with
+  engineers selected: they walk in and capture it, damage and all. Right-click a damaged own structure: they
+  repair it fully. Either way the engineer is used up. Other selected units attack the structure as usual.
 - **Walls:** $50 concrete segments that block movement. Click the Wall tile, then drag on the map to lay a
   straight line; each segment is paid as it is placed and the mode stays on until right click / Esc. Every
   segment extends the area you may build in, so walls can reach out from the base. Walls do not keep a
@@ -211,7 +215,7 @@ attack wave and its income (75 % / 100 % / 135 %).
   half the price and the structure sinks into the ground. The Command Center cannot be sold. The computer
   repairs its own structures below 60 % health when it has credits to spare.
 - **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory; Barracks → Gun Turret, Wall.
-- **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Scout Buggy,
+- **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Engineer, Scout Buggy,
   Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Harvester.
 - **Fair corners:** the map is point-symmetric around its centre: the river and its fords, the crystal fields
   and every tree or rock that blocks movement have a twin in the opposite corner. Bases in the far half face
@@ -255,6 +259,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `medical` | field medics healing infantry |
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
+| `engineers` | engineers capturing enemy structures and repairing own ones |
 | `tutorial` | the step-by-step tutorial of levels with `"tutorial": true` |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |

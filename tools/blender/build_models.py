@@ -26,6 +26,7 @@ TEAM_MODELS = {
     "rifleman": (soldier.build_rifleman, UNIT_TRIANGLE_BUDGET),
     "rocketeer": (soldier.build_rocketeer, UNIT_TRIANGLE_BUDGET),
     "medic": (soldier.build_medic, UNIT_TRIANGLE_BUDGET),
+    "engineer": (soldier.build_engineer, UNIT_TRIANGLE_BUDGET),
     "scout": (units.build_scout, UNIT_TRIANGLE_BUDGET),
     "tank": (units.build_tank, UNIT_TRIANGLE_BUDGET),
     "bulwark": (units.build_bulwark, UNIT_TRIANGLE_BUDGET),
@@ -72,6 +73,7 @@ REQUIRED_NODES = {
     "rifleman": INFANTRY_NODES,
     "rocketeer": INFANTRY_NODES,
     "medic": INFANTRY_NODES,
+    "engineer": INFANTRY_NODES,
     "bulwark": ("Turret", "Barrel", "Sprocket_L", "Sprocket_R", "Idler_L", "Idler_R",
                 *(f"RoadWheel_{side}{index}" for side in "LR" for index in range(1, 8))),
 }
@@ -80,6 +82,7 @@ REQUIRED_ANIMATIONS = {
     "rifleman": INFANTRY_CLIPS,
     "rocketeer": INFANTRY_CLIPS,
     "medic": INFANTRY_CLIPS,
+    "engineer": INFANTRY_CLIPS,
     "bulwark": {"Drive": None, "Fire": "Barrel"},
     "scout": {"Drive": None},
     "tank": {"Drive": None, "Fire": "Barrel"},

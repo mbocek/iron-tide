@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 
 use crate::camera::{Cursor, RtsCamera};
-use crate::catalog::{BuildingKind, Team};
+use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
+use crate::engineers::{EngineerJob, EngineerTask, job_for};
 use crate::map::{GameMap, cells_by_distance, world_to_cell};
 use crate::movement::order_move;
 use crate::production::Placement;
@@ -205,6 +206,8 @@ pub fn issue_orders(
     mut marker: ResMut<OrderMarker>,
     mut units: Query<CommandableUnit, (With<Selected>, With<Unit>)>,
     buildings: Query<&Building>,
+    structures: Query<(&Building, &Health)>,
+    kinds: Query<&Unit>,
     selected_buildings: Query<(Entity, &Building, &Team), With<Selected>>,
 ) {
     if keys.just_pressed(KeyCode::KeyX) {
@@ -253,6 +256,30 @@ pub fn issue_orders(
         return;
     }
 
+    if let Some(structure) = hovered.filter(|t| t.is_building)
+        && let Ok((building, health)) = structures.get(structure.entity)
+        && let Some(job) = job_for(Team::Player, structure.team, building.kind, health)
+    {
+        let engineers: Vec<Entity> = units
+            .iter()
+            .map(|(entity, ..)| entity)
+            .filter(|&entity| {
+                kinds
+                    .get(entity)
+                    .is_ok_and(|unit| unit.0 == UnitKind::Engineer)
+            })
+            .collect();
+        for &engineer in &engineers {
+            commands
+                .entity(engineer)
+                .insert(EngineerTask::new(structure.entity, job));
+        }
+        if !engineers.is_empty() && job == EngineerJob::Repair {
+            acknowledge(&mut marker, structure.position, MarkerKind::Move);
+            return;
+        }
+    }
+
     if let Some(enemy) = hovered.filter(|t| t.team.is_hostile_to(Team::Player)) {
         for (_, _, mobile, attack, _, orders) in &mut units {
             if let (Some(mut attack), Some(mut mobile)) = (attack, mobile) {
@@ -275,8 +302,9 @@ pub fn issue_orders(
     });
     let (ground_order, queue) = ground_order_from_keys(&keys);
     let mut formation = cells_by_distance(goal_cell, 6).filter(|&cell| map.is_passable(cell));
-    for (_, transform, mobile, attack, harvester, orders) in &mut units {
+    for (entity, transform, mobile, attack, harvester, orders) in &mut units {
         let Some(mut mobile) = mobile else { continue };
+        commands.entity(entity).remove::<EngineerTask>();
         let position = transform.translation;
         if let Some(mut harvester) = harvester {
             if let Some(refinery) = own_refinery {

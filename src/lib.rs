@@ -13,6 +13,7 @@ pub mod control_groups;
 pub mod damage_feedback;
 pub mod economy;
 pub mod effects;
+pub mod engineers;
 pub mod flat_scenery;
 pub mod fog;
 pub mod fog_view;
@@ -164,6 +165,7 @@ impl Plugin for SimulationPlugin {
                         structures::carry_out_structure_orders,
                         structures::repair_structures,
                         structures::finish_sales,
+                        engineers::carry_out_engineer_tasks,
                         medical::treat_wounded,
                     )
                         .chain(),

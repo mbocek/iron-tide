@@ -102,6 +102,7 @@ pub enum UnitKind {
     Rifleman,
     Rocketeer,
     Medic,
+    Engineer,
     Scout,
     Tank,
     Bulwark,
@@ -130,7 +131,12 @@ pub struct UnitSpec {
 }
 
 impl UnitKind {
-    pub const INFANTRY: [UnitKind; 3] = [UnitKind::Rifleman, UnitKind::Rocketeer, UnitKind::Medic];
+    pub const INFANTRY: [UnitKind; 4] = [
+        UnitKind::Rifleman,
+        UnitKind::Rocketeer,
+        UnitKind::Medic,
+        UnitKind::Engineer,
+    ];
     pub const VEHICLES: [UnitKind; 5] = [
         UnitKind::Scout,
         UnitKind::Tank,
@@ -138,10 +144,11 @@ impl UnitKind {
         UnitKind::Artillery,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 8] = [
+    pub const ALL: [UnitKind; 9] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
+        UnitKind::Engineer,
         UnitKind::Scout,
         UnitKind::Tank,
         UnitKind::Bulwark,
@@ -158,6 +165,7 @@ impl UnitKind {
             UnitKind::Harvester => &HARVESTER,
             UnitKind::Rocketeer => &ROCKETEER,
             UnitKind::Medic => &MEDIC,
+            UnitKind::Engineer => &ENGINEER,
             UnitKind::Bulwark => &BULWARK,
         }
     }
@@ -431,6 +439,24 @@ const MEDIC: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     heal_per_sec: 8.0,
+    sight: 12.0,
+};
+
+const ENGINEER: UnitSpec = UnitSpec {
+    name: "Engineer",
+    role: "Unarmed. Right-click an enemy structure to capture it, or a damaged own one to repair it fully.",
+    model_id: "engineer",
+    cost: 500,
+    build_secs: 10.0,
+    max_health: 50.0,
+    speed: 2.6,
+    turn_rate: 10.0,
+    radius: 0.4,
+    armor: ArmorClass::Infantry,
+    weapon: None,
+    has_turret: false,
+    producer: BuildingKind::Barracks,
+    heal_per_sec: 0.0,
     sight: 12.0,
 };
 
