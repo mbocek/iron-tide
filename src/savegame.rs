@@ -20,6 +20,7 @@ use crate::production::{BuildItem, Lane, Production};
 use crate::settings::game_data_directory;
 use crate::spawn::{spawn_building, spawn_unit};
 use crate::structures::{BeingSold, Repairing};
+use crate::veterancy::Veterancy;
 
 /// Bumped whenever the save layout changes incompatibly; older files are refused rather than misread.
 const SAVE_VERSION: u32 = 2;
@@ -49,6 +50,8 @@ struct SavedUnit {
     cargo: u32,
     #[serde(default)]
     orders: Vec<Order>,
+    #[serde(default)]
+    experience: f32,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -189,6 +192,7 @@ pub fn write_requested_save(
         &Health,
         Option<&Harvester>,
         Option<&Orders>,
+        Option<&Veterancy>,
     )>,
 ) {
     let Some(slot) = requests.save.take() else {
@@ -220,21 +224,24 @@ pub fn write_requested_save(
         units: units
             .iter()
             .map(
-                |(unit, &team, transform, mobile, health, harvester, orders)| SavedUnit {
-                    team,
-                    kind: unit.0,
-                    position: transform.translation.to_array(),
-                    facing: mobile.facing,
-                    health: health.current,
-                    cargo: harvester.map_or(0, |h| h.cargo),
-                    orders: orders.map_or_else(Vec::new, |orders| {
-                        orders
-                            .current
-                            .iter()
-                            .chain(orders.queued.iter())
-                            .copied()
-                            .collect()
-                    }),
+                |(unit, &team, transform, mobile, health, harvester, orders, veterancy)| {
+                    SavedUnit {
+                        team,
+                        kind: unit.0,
+                        position: transform.translation.to_array(),
+                        facing: mobile.facing,
+                        health: health.current,
+                        cargo: harvester.map_or(0, |h| h.cargo),
+                        orders: orders.map_or_else(Vec::new, |orders| {
+                            orders
+                                .current
+                                .iter()
+                                .chain(orders.queued.iter())
+                                .copied()
+                                .collect()
+                        }),
+                        experience: veterancy.map_or(0.0, |veterancy| veterancy.experience),
+                    }
                 },
             )
             .collect(),
@@ -379,10 +386,11 @@ pub fn restore_pending_load(
             position,
             saved.facing,
         );
-        commands.entity(entity).insert(Health {
-            current: saved.health,
-            max: saved.kind.spec().max_health,
-        });
+        let (veterancy, health) = Veterancy::restored(saved.kind, saved.experience, saved.health);
+        commands.entity(entity).insert(health);
+        if saved.experience > 0.0 {
+            commands.entity(entity).insert(veterancy);
+        }
         let mut planned = saved.orders.iter().copied();
         commands.entity(entity).insert(Orders {
             current: planned.next(),

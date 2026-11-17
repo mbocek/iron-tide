@@ -207,6 +207,10 @@ attack wave and its income (75 % / 100 % / 135 %).
 - **Fair corners:** the map is point-symmetric around its centre: the river and its fords, the crystal fields
   and every tree or rock that blocks movement have a twin in the opposite corner. Bases in the far half face
   the other way, so every base's doors, refinery dock and new units point towards the middle of the map.
+- **Veterancy:** units earn experience worth the price of every enemy unit or structure they destroy (the last
+  hit counts). At their own price in experience they become Veterans (+20 % damage and health, one gold
+  chevron), at three times it Elites (+40 %, two chevrons, and they slowly mend their own wounds). Structures
+  that shoot do not gain ranks. Ranks are kept in saves.
 - **Victory:** depends on the mission objective (destroy everything, destroy the Command Centers, survive, stockpile credits).
 - **Fog of war:** unexplored ground is black; explored ground stays visible but enemy units show only within
   the sight of your units and buildings. Enemy structures stay on the map once spotted. Your units only open
@@ -241,6 +245,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `levels`, `match_flow`, `main_menu` | level definitions, campaign and custom levels; match setup and states; main menu and battle editor |
 | `medical` | field medics healing infantry |
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
+| `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |

@@ -46,6 +46,7 @@ pub mod terrain;
 pub mod terrain_material;
 pub mod ui;
 pub mod unit_orders;
+pub mod veterancy;
 
 use bevy::prelude::*;
 
@@ -122,6 +123,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<match_flow::MatchClock>()
             .init_resource::<fog::FogOfWar>()
             .init_resource::<intel::Intel>()
+            .init_resource::<veterancy::LastHits>()
             .init_resource::<savegame::SaveRequests>()
             .init_resource::<savegame::SaveDirectory>()
             .add_message::<combat::DamageDealt>()
@@ -183,6 +185,10 @@ impl Plugin for SimulationPlugin {
                     )
                         .chain(),
                     (
+                        veterancy::record_last_hits,
+                        veterancy::credit_kills,
+                        veterancy::promote_veterans,
+                        veterancy::elite_field_repairs,
                         notifications::watch_base,
                         outcome::decide_outcome,
                         savegame::write_requested_save,

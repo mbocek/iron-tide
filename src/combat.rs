@@ -13,6 +13,7 @@ use crate::intel::Intel;
 use crate::map::{GameMap, world_to_cell};
 use crate::movement::order_move;
 use crate::sound::{Sound, SoundCue};
+use crate::veterancy::{Rank, Veterancy};
 
 const SIGHT_BEYOND_RANGE: f32 = 6.0;
 const CHASE_REPATH_SECS: f32 = 1.0;
@@ -91,6 +92,7 @@ pub enum DamageSource {
 /// Sent when a unit or structure is destroyed.
 #[derive(Message, Clone, Copy, Debug)]
 pub struct Destroyed {
+    pub entity: Entity,
     pub team: Team,
     pub what: DamageSource,
 }
@@ -99,6 +101,7 @@ pub struct Destroyed {
 pub struct Projectile {
     team: Team,
     source: DamageSource,
+    shooter: Entity,
     target: Option<Entity>,
     start: Vec3,
     end: Vec3,
@@ -227,6 +230,7 @@ pub fn aim_and_fire(
     targets: Res<Targets>,
     effects: Res<EffectAssets>,
     mut shooters: Query<(
+        Entity,
         &Team,
         &mut Transform,
         &mut Weapon,
@@ -235,10 +239,22 @@ pub fn aim_and_fire(
         Option<&mut Mobile>,
         Option<&Unit>,
         Option<&Building>,
+        Option<&Veterancy>,
     )>,
 ) {
     let dt = time.delta_secs();
-    for (&team, mut transform, mut weapon, attack, turret, mobile, unit, building) in &mut shooters
+    for (
+        shooter,
+        &team,
+        mut transform,
+        mut weapon,
+        attack,
+        turret,
+        mobile,
+        unit,
+        building,
+        veterancy,
+    ) in &mut shooters
     {
         let source = match (unit, building) {
             (Some(unit), _) => DamageSource::Unit(unit.0),
@@ -280,28 +296,43 @@ pub fn aim_and_fire(
         weapon.cooldown = weapon.spec.reload_secs;
         let barrel_direction = Quat::from_rotation_y(aimed_yaw) * Vec3::X;
         let muzzle = position + Vec3::Y * MUZZLE_HEIGHT + barrel_direction * BARREL_LENGTH;
-        fire_projectile(
-            &mut commands,
-            &effects,
+        let rank = veterancy.map_or(Rank::Recruit, |veterancy| veterancy.rank);
+        let mut ranked_weapon = weapon.spec;
+        ranked_weapon.damage *= rank.damage_factor();
+        let shot = Shot {
             team,
             source,
+            shooter,
             muzzle,
-            target,
-            weapon.spec,
-        );
+            weapon: ranked_weapon,
+        };
+        fire_projectile(&mut commands, &effects, shot, target);
         cues.write(SoundCue::at(weapon.spec.report, muzzle));
     }
+}
+
+/// Who fires what from where; the weapon's damage already includes the shooter's rank.
+struct Shot {
+    team: Team,
+    source: DamageSource,
+    shooter: Entity,
+    muzzle: Vec3,
+    weapon: WeaponSpec,
 }
 
 fn fire_projectile(
     commands: &mut Commands,
     effects: &EffectAssets,
-    team: Team,
-    source: DamageSource,
-    muzzle: Vec3,
+    shot: Shot,
     target: &TargetInfo,
-    weapon: WeaponSpec,
 ) {
+    let Shot {
+        team,
+        source,
+        shooter,
+        muzzle,
+        weapon,
+    } = shot;
     let mut end = target.position + Vec3::Y * TARGET_CENTER_HEIGHT;
     let mut arc_height = 0.0;
     let mut homing_target = Some(target.entity);
@@ -331,6 +362,7 @@ fn fire_projectile(
         Projectile {
             team,
             source,
+            shooter,
             target: homing_target,
             start: muzzle,
             end,
@@ -389,8 +421,7 @@ pub fn fly_projectiles(
                     &mut damage_log,
                     victim,
                     weapon.damage * falloff * weapon.multiplier_against(victim.armor),
-                    projectile.source,
-                    projectile.team,
+                    &projectile,
                 );
             }
         } else if let Some(victim) = projectile.target.and_then(|e| targets.get(e)) {
@@ -399,8 +430,7 @@ pub fn fly_projectiles(
                 &mut damage_log,
                 victim,
                 weapon.damage * weapon.multiplier_against(victim.armor),
-                projectile.source,
-                projectile.team,
+                &projectile,
             );
         }
         let blast = match weapon.style {
@@ -428,6 +458,7 @@ pub struct DamageDealt {
     pub amount: f32,
     pub source: DamageSource,
     pub attacker: Team,
+    pub shooter: Entity,
 }
 
 fn apply_damage(
@@ -435,8 +466,7 @@ fn apply_damage(
     damage_log: &mut MessageWriter<DamageDealt>,
     victim: &TargetInfo,
     amount: f32,
-    source: DamageSource,
-    attacker: Team,
+    projectile: &Projectile,
 ) {
     if let Ok(mut health) = healths.get_mut(victim.entity) {
         health.current -= amount;
@@ -444,8 +474,9 @@ fn apply_damage(
             victim: victim.entity,
             team: victim.team,
             amount,
-            source,
-            attacker,
+            source: projectile.source,
+            attacker: projectile.team,
+            shooter: projectile.shooter,
         });
     }
 }
@@ -476,7 +507,7 @@ pub fn remove_destroyed(
             (None, None) => None,
         };
         if let Some(what) = what {
-            losses.write(Destroyed { team, what });
+            losses.write(Destroyed { entity, team, what });
         }
         let blast = match (building, unit) {
             (Some(building), _) => {

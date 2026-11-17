@@ -41,7 +41,7 @@ pub struct StructureOrder {
     pub kind: StructureOrderKind,
 }
 
-fn structure_value(kind: BuildingKind) -> i32 {
+pub fn structure_value(kind: BuildingKind) -> i32 {
     match kind {
         BuildingKind::CommandCenter => COMMAND_CENTER_VALUE,
         _ => kind.spec().cost,

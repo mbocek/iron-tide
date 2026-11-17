@@ -9,7 +9,11 @@ use crate::fog::FogOfWar;
 use crate::map::cell_center;
 use crate::orders::{MarkerKind, OrderMarker};
 use crate::settings::{GameSettings, HealthBars};
+use crate::veterancy::{Rank, Veterancy};
 
+const RANK_COLOR: Color = Color::srgb(1.0, 0.82, 0.25);
+const CHEVRON_SPACING: f32 = 0.22;
+const CHEVRON_HALF_WIDTH: f32 = 0.14;
 const HEALTH_BAR_HEIGHT_UNIT: f32 = 2.6;
 const HEALTH_BAR_HEIGHT_BUILDING: f32 = 6.8;
 
@@ -97,6 +101,25 @@ pub fn draw_planned_routes(
     }
 }
 
+/// Gold rank chevrons stacked just left of the health bar.
+fn draw_chevrons(
+    bars: &mut Gizmos<HealthBarGizmos>,
+    bar_start: Vec3,
+    screen_right: Vec3,
+    rank: Rank,
+) {
+    for chevron in 0..rank.chevrons() {
+        let tip = bar_start + Vec3::Y * (0.12 + chevron as f32 * CHEVRON_SPACING);
+        let wing = screen_right * CHEVRON_HALF_WIDTH - Vec3::Y * CHEVRON_HALF_WIDTH;
+        bars.line(
+            tip - screen_right * CHEVRON_HALF_WIDTH * 2.0 + wing,
+            tip,
+            RANK_COLOR,
+        );
+        bars.line(tip, tip + wing, RANK_COLOR);
+    }
+}
+
 pub fn draw_overlays(
     mut gizmos: Gizmos,
     mut bars: Gizmos<HealthBarGizmos>,
@@ -111,6 +134,7 @@ pub fn draw_overlays(
         &BodyRadius,
         &Team,
         Option<&Harvester>,
+        Option<&Veterancy>,
         Has<Selected>,
         Has<Building>,
     )>,
@@ -119,7 +143,8 @@ pub fn draw_overlays(
     let screen_right = camera.right().as_vec3();
     let toward_camera = camera.back().as_vec3() * 0.05;
 
-    for (transform, health, radius, &team, harvester, selected, is_building) in &entities {
+    for (transform, health, radius, &team, harvester, veterancy, selected, is_building) in &entities
+    {
         if !fog.reveals(team, transform.translation) {
             continue;
         }
@@ -178,6 +203,8 @@ pub fn draw_overlays(
         if fraction < 1.0 {
             bars.line(health_end, left + full, LOST_HEALTH_COLOR);
         }
+        let rank = veterancy.map_or(Rank::Recruit, |veterancy| veterancy.rank);
+        draw_chevrons(&mut bars, left - screen_right * 0.35, screen_right, rank);
         for segment in 1..HEALTH_BAR_SEGMENTS {
             let tick = left + full * (segment as f32 / HEALTH_BAR_SEGMENTS as f32) + toward_camera;
             bars.line(

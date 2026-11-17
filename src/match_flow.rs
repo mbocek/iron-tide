@@ -15,6 +15,7 @@ use crate::outcome::GameOutcome;
 use crate::production::{BuildItem, Placement, PlacementContext, Production, construct_building};
 use crate::savegame::PendingLoad;
 use crate::spawn::{spawn_building, spawn_unit};
+use crate::veterancy::LastHits;
 
 #[derive(States, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameState {
@@ -47,6 +48,7 @@ pub struct MatchClock {
 pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
     commands.insert_resource(FogOfWar::new(level.0.fog_of_war));
     commands.insert_resource(Intel::new(level.0.fog_of_war));
+    commands.insert_resource(LastHits::default());
     commands.insert_resource(Targets::default());
     commands.insert_resource(Economies::default());
     commands.insert_resource(Production::default());
