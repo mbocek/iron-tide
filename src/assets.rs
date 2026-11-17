@@ -1,0 +1,100 @@
+use std::collections::HashMap;
+
+use bevy::prelude::*;
+
+use crate::catalog::{BuildingKind, Team, UnitKind};
+
+const NEUTRAL_MODELS: [&str; 22] = [
+    "crystal_a",
+    "crystal_b",
+    "crystal_c",
+    "tree",
+    "tree_pine",
+    "tree_pine_young",
+    "tree_broadleaf",
+    "tree_birch",
+    "tree_dead",
+    "rock",
+    "rock_a",
+    "rock_b",
+    "boulder_large",
+    "bush",
+    "bush_round",
+    "bush_flowering",
+    "grass_tuft",
+    "flowers",
+    "pebbles",
+    "fallen_log",
+    "stump",
+    "reeds",
+];
+
+#[derive(Resource)]
+pub struct ModelLibrary {
+    scenes: HashMap<String, Handle<WorldAsset>>,
+}
+
+impl ModelLibrary {
+    pub fn unit(&self, kind: UnitKind, team: Team) -> Handle<WorldAsset> {
+        self.team_model(kind.spec().model_id, team)
+    }
+
+    pub fn building(&self, kind: BuildingKind, team: Team) -> Handle<WorldAsset> {
+        self.team_model(kind.spec().model_id, team)
+    }
+
+    pub fn neutral(&self, model_id: &str) -> Handle<WorldAsset> {
+        self.scenes[model_id].clone()
+    }
+
+    fn team_model(&self, model_id: &str, team: Team) -> Handle<WorldAsset> {
+        self.scenes[&team_model_key(model_id, team)].clone()
+    }
+}
+
+fn team_model_key(model_id: &str, team: Team) -> String {
+    format!("{model_id}_{}", team.model_variant())
+}
+
+fn load_scene(asset_server: &AssetServer, file_stem: &str) -> Handle<WorldAsset> {
+    asset_server.load(GltfAssetLabel::Scene(0).from_asset(format!("models/{file_stem}.glb")))
+}
+
+fn all_model_keys() -> Vec<String> {
+    let team_model_ids = UnitKind::INFANTRY
+        .iter()
+        .chain(UnitKind::VEHICLES.iter())
+        .map(|kind| kind.spec().model_id)
+        .chain(
+            std::iter::once(BuildingKind::CommandCenter)
+                .chain(BuildingKind::CONSTRUCTIBLE)
+                .map(|kind| kind.spec().model_id),
+        );
+    team_model_ids
+        .flat_map(|model_id| Team::ALL.map(|team| team_model_key(model_id, team)))
+        .chain(NEUTRAL_MODELS.iter().map(|id| id.to_string()))
+        .collect()
+}
+
+impl ModelLibrary {
+    /// Empty handles for every model, for running the simulation without loading or rendering assets.
+    pub fn placeholder() -> Self {
+        Self {
+            scenes: all_model_keys()
+                .into_iter()
+                .map(|key| (key, Handle::default()))
+                .collect(),
+        }
+    }
+}
+
+pub fn load_models(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let scenes = all_model_keys()
+        .into_iter()
+        .map(|key| {
+            let scene = load_scene(&asset_server, &key);
+            (key, scene)
+        })
+        .collect::<HashMap<_, _>>();
+    commands.insert_resource(ModelLibrary { scenes });
+}

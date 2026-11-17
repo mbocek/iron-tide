@@ -1,0 +1,18 @@
+{
+  "name": "2. Hold the Ford",
+  "briefing": "Two Syndicate columns converge on our forward base. Reinforcements are eight minutes out. New: Rocketeers from the barracks punch through armour, Field Medics keep your infantry standing.",
+  "map_seed": 2002,
+  "player": {
+    "site": "SouthWest",
+    "credits": 3500,
+    "buildings": ["PowerPlant", "Barracks", "GunTurret", "GunTurret"],
+    "units": ["Rifleman", "Rifleman", "Rocketeer", "Rocketeer", "Medic", "Tank"]
+  },
+  "enemies": [
+    { "site": "NorthEast", "credits": 5000, "units": ["Rifleman", "Rifleman", "Tank", "Scout"], "difficulty": "Normal" },
+    { "site": "SouthEast", "credits": 4000, "units": ["Rifleman", "Rifleman", "Scout"], "difficulty": "Normal" }
+  ],
+  "objective": { "Survive": { "minutes": 8.0 } },
+  "available_units": ["Rifleman", "Rocketeer", "Medic", "Scout", "Tank", "Artillery", "Harvester"],
+  "available_buildings": []
+}

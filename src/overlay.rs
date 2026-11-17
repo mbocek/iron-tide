@@ -1,0 +1,139 @@
+use std::f32::consts::FRAC_PI_2;
+
+use bevy::prelude::*;
+
+use crate::camera::RtsCamera;
+use crate::catalog::{HARVESTER_CAPACITY, Team};
+use crate::components::*;
+use crate::orders::OrderMarker;
+use crate::settings::{GameSettings, HealthBars};
+
+const HEALTH_BAR_HEIGHT_UNIT: f32 = 2.6;
+const HEALTH_BAR_HEIGHT_BUILDING: f32 = 6.8;
+
+const HEALTH_BAR_WIDTH_PX: f32 = 7.0;
+const HEALTH_BAR_SEGMENTS: usize = 4;
+const CARGO_BAR_HEIGHT: f32 = HEALTH_BAR_HEIGHT_UNIT - 0.45;
+const CARGO_COLOR: Color = Color::srgb(0.30, 0.95, 0.90);
+const EMPTY_CARGO_COLOR: Color = Color::srgb(0.06, 0.16, 0.18);
+const LOST_HEALTH_COLOR: Color = Color::srgb(0.38, 0.07, 0.05);
+const SEGMENT_TICK_COLOR: Color = Color::srgb(0.03, 0.03, 0.03);
+
+/// Health bars draw thicker than other markers and always on top of models.
+#[derive(Default, Reflect, GizmoConfigGroup)]
+pub struct HealthBarGizmos;
+
+pub fn configure_gizmos(mut config_store: ResMut<GizmoConfigStore>) {
+    let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
+    config.line.width = 3.0;
+    config.depth_bias = -0.5;
+    let (bars, _) = config_store.config_mut::<HealthBarGizmos>();
+    bars.line.width = HEALTH_BAR_WIDTH_PX;
+    bars.depth_bias = -1.0;
+}
+
+fn ground_circle(position: Vec3, radius: f32) -> (Isometry3d, f32) {
+    (
+        Isometry3d::new(position + Vec3::Y * 0.08, Quat::from_rotation_x(FRAC_PI_2)),
+        radius,
+    )
+}
+
+pub fn draw_overlays(
+    mut gizmos: Gizmos,
+    mut bars: Gizmos<HealthBarGizmos>,
+    settings: Res<GameSettings>,
+    time: Res<Time>,
+    mut marker: ResMut<OrderMarker>,
+    cameras: Query<&GlobalTransform, With<RtsCamera>>,
+    entities: Query<(
+        &Transform,
+        &Health,
+        &BodyRadius,
+        &Team,
+        Option<&Harvester>,
+        Has<Selected>,
+        Has<Building>,
+    )>,
+) {
+    let Ok(camera) = cameras.single() else { return };
+    let screen_right = camera.right().as_vec3();
+    let toward_camera = camera.back().as_vec3() * 0.05;
+
+    for (transform, health, radius, &team, harvester, selected, is_building) in &entities {
+        let damaged = health.current < health.max;
+        if selected {
+            let (isometry, circle_radius) = ground_circle(transform.translation, radius.0 + 0.25);
+            if is_building {
+                gizmos.rect(
+                    isometry,
+                    Vec2::splat(circle_radius * 2.0),
+                    Color::srgb(0.4, 1.0, 0.5),
+                );
+            } else {
+                gizmos.circle(isometry, circle_radius, Color::srgb(0.4, 1.0, 0.5));
+            }
+        }
+        let half_width = (radius.0 * 0.9).clamp(0.6, 3.0);
+        let bar_span = screen_right * half_width * 2.0;
+        if let Some(harvester) = harvester.filter(|_| team == Team::Player || selected) {
+            let cargo_left =
+                transform.translation + Vec3::Y * CARGO_BAR_HEIGHT - screen_right * half_width;
+            let cargo = (harvester.cargo as f32 / HARVESTER_CAPACITY as f32).clamp(0.0, 1.0);
+            let cargo_end = cargo_left + bar_span * cargo;
+            if cargo > 0.0 {
+                bars.line(cargo_left, cargo_end, CARGO_COLOR);
+            }
+            if cargo < 1.0 {
+                bars.line(cargo_end, cargo_left + bar_span, EMPTY_CARGO_COLOR);
+            }
+        }
+        let show_health = match settings.health_bars {
+            HealthBars::Always => true,
+            HealthBars::DamagedOrSelected => selected || damaged,
+            HealthBars::SelectedOnly => selected,
+        };
+        if !show_health {
+            continue;
+        }
+        let height = if is_building {
+            HEALTH_BAR_HEIGHT_BUILDING
+        } else {
+            HEALTH_BAR_HEIGHT_UNIT
+        };
+        let left = transform.translation + Vec3::Y * height - screen_right * half_width;
+        let full = bar_span;
+        let fraction = health.fraction();
+        let bar_color = match fraction {
+            f if f > 0.6 => Color::srgb(0.25, 0.9, 0.3),
+            f if f > 0.3 => Color::srgb(0.95, 0.8, 0.2),
+            _ => Color::srgb(0.95, 0.25, 0.2),
+        };
+        let health_end = left + full * fraction;
+        if fraction > 0.0 {
+            bars.line(left, health_end, bar_color);
+        }
+        if fraction < 1.0 {
+            bars.line(health_end, left + full, LOST_HEALTH_COLOR);
+        }
+        for segment in 1..HEALTH_BAR_SEGMENTS {
+            let tick = left + full * (segment as f32 / HEALTH_BAR_SEGMENTS as f32) + toward_camera;
+            bars.line(
+                tick - Vec3::Y * 0.06,
+                tick + Vec3::Y * 0.06,
+                SEGMENT_TICK_COLOR,
+            );
+        }
+    }
+
+    if marker.remaining_secs > 0.0 {
+        marker.remaining_secs -= time.delta_secs();
+        let color = if marker.hostile {
+            Color::srgb(1.0, 0.25, 0.2)
+        } else {
+            Color::srgb(0.4, 1.0, 0.5)
+        };
+        let (isometry, radius) = ground_circle(marker.position, 0.4 + marker.remaining_secs * 1.5);
+        gizmos.circle(isometry, radius, color);
+    }
+}

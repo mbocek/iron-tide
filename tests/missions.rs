@@ -1,0 +1,227 @@
+mod common;
+
+use bevy::prelude::*;
+use common::Battle;
+use iron_tide::catalog::{BuildingKind, Team, UnitKind};
+use iron_tide::components::*;
+use iron_tide::levels::{
+    BaseSite, Difficulty, LevelDefinition, Objective, SkirmishOptions, campaign,
+};
+use iron_tide::outcome::GameOutcome;
+use iron_tide::production::BuildItem;
+use iron_tide::savegame::SaveRequests;
+
+const OPEN_FIELD: IVec2 = IVec2::new(30, 45);
+
+fn quiet_level(objective: Objective) -> LevelDefinition {
+    let mut level = LevelDefinition {
+        objective,
+        ..default()
+    };
+    level.enemies[0].force.units.clear();
+    level
+}
+
+#[test]
+fn every_campaign_mission_sets_up_its_battle() {
+    for mission in campaign() {
+        let level = mission.level;
+        let mut battle = Battle::on_level(level.clone());
+        assert!(
+            battle
+                .buildings(Team::Player)
+                .contains(&BuildingKind::CommandCenter),
+            "{}",
+            level.name
+        );
+        for building in &level.player.buildings {
+            assert!(
+                battle.buildings(Team::Player).contains(building),
+                "{}: missing {building:?}",
+                level.name
+            );
+        }
+        for (team, enemy) in level.opponents() {
+            assert!(
+                battle
+                    .buildings(team)
+                    .contains(&BuildingKind::CommandCenter),
+                "{}: {team:?}",
+                level.name
+            );
+            assert_eq!(battle.units(team, None).len(), enemy.force.units.len());
+            assert_eq!(battle.credits(team), enemy.force.credits);
+        }
+        assert_eq!(
+            battle.units(Team::Player, None).len(),
+            level.player.units.len()
+                + level
+                    .player
+                    .buildings
+                    .iter()
+                    .filter(|&&k| k == BuildingKind::Refinery)
+                    .count()
+        );
+        battle.run_for(30.0);
+        assert_eq!(
+            battle.outcome(),
+            GameOutcome::Ongoing,
+            "{} ended within 30 s",
+            level.name
+        );
+    }
+}
+
+#[test]
+fn three_enemy_commanders_each_build_a_base() {
+    let level = SkirmishOptions {
+        enemies: 3,
+        difficulty: Difficulty::Hard,
+        ..default()
+    }
+    .to_level();
+    let mut battle = Battle::on_level(level);
+    battle.run_for(240.0);
+    for team in Team::OPPONENTS {
+        let base = battle.buildings(team);
+        assert!(base.len() >= 3, "{team:?} only has {base:?}");
+    }
+}
+
+#[test]
+fn enemies_are_allied_against_the_player() {
+    assert!(Team::Crimson.is_hostile_to(Team::Player));
+    assert!(Team::Player.is_hostile_to(Team::Violet));
+    assert!(!Team::Crimson.is_hostile_to(Team::Amber));
+}
+
+#[test]
+fn surviving_the_timer_wins_a_defence_mission() {
+    let mut battle = Battle::on_level(quiet_level(Objective::Survive { minutes: 0.5 }));
+    battle.run_for(20.0);
+    assert_eq!(battle.outcome(), GameOutcome::Ongoing);
+    battle.run_for(15.0);
+    assert_eq!(battle.outcome(), GameOutcome::Victory);
+}
+
+#[test]
+fn destroying_the_command_centers_wins_even_with_enemies_left() {
+    let mut battle = Battle::on_level(LevelDefinition {
+        objective: Objective::DestroyCommandCenters,
+        ..default()
+    });
+    let world = battle.world();
+    let enemy_centers: Vec<Entity> = world
+        .query::<(Entity, &Building, &Team)>()
+        .iter(world)
+        .filter(|(_, building, team)| {
+            **team == Team::Crimson && building.kind == BuildingKind::CommandCenter
+        })
+        .map(|(entity, ..)| entity)
+        .collect();
+    for center in enemy_centers {
+        world.get_mut::<Health>(center).unwrap().current = 0.0;
+    }
+    battle.run_for(0.5);
+    assert!(
+        !battle.units(Team::Crimson, None).is_empty(),
+        "enemy troops are still alive"
+    );
+    assert_eq!(battle.outcome(), GameOutcome::Victory);
+}
+
+#[test]
+fn a_full_treasury_wins_an_economy_mission() {
+    let mut battle = Battle::on_level(quiet_level(Objective::ReachCredits { credits: 9000 }));
+    battle.run_for(1.0);
+    assert_eq!(battle.outcome(), GameOutcome::Ongoing);
+    battle.set_credits(Team::Player, 9500);
+    battle.run_for(0.5);
+    assert_eq!(battle.outcome(), GameOutcome::Victory);
+}
+
+#[test]
+fn missions_can_withhold_units() {
+    let mut battle = Battle::on_level(LevelDefinition {
+        player: iron_tide::levels::ForceSetup {
+            site: BaseSite::SouthWest,
+            credits: 50_000,
+            buildings: vec![
+                BuildingKind::PowerPlant,
+                BuildingKind::Refinery,
+                BuildingKind::Factory,
+                BuildingKind::Barracks,
+            ],
+            units: Vec::new(),
+        },
+        available_units: vec![UnitKind::Rifleman, UnitKind::Harvester],
+        ..quiet_level(Objective::DestroyAllEnemies)
+    });
+    assert!(battle.enqueue(Team::Player, BuildItem::Unit(UnitKind::Rifleman)));
+    assert!(
+        !battle.enqueue(Team::Player, BuildItem::Unit(UnitKind::Tank)),
+        "tanks are not part of this mission"
+    );
+}
+
+#[test]
+fn a_medic_patches_up_wounded_infantry() {
+    let mut battle = Battle::sandbox();
+    let soldier = battle.spawn_unit(UnitKind::Rifleman, Team::Player, OPEN_FIELD);
+    battle.spawn_unit(UnitKind::Medic, Team::Player, OPEN_FIELD + IVec2::new(4, 0));
+    battle.world().get_mut::<Health>(soldier).unwrap().current = 10.0;
+    battle.run_for(12.0);
+    let health = battle.world().get::<Health>(soldier).unwrap().current;
+    assert!(health > 40.0, "soldier only back to {health:.0} HP");
+}
+
+#[test]
+fn rocketeers_take_down_a_tank() {
+    let mut battle = Battle::sandbox();
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Crimson, OPEN_FIELD + IVec2::new(5, 0));
+    for row in 0..3 {
+        battle.spawn_unit(
+            UnitKind::Rocketeer,
+            Team::Player,
+            OPEN_FIELD + IVec2::new(0, row),
+        );
+    }
+    let took = battle.run_until(60.0, |battle| !battle.alive(tank));
+    assert!(took.is_some(), "the tank survived three rocketeers");
+}
+
+#[test]
+fn a_bulwark_outfights_a_battle_tank() {
+    let mut battle = Battle::sandbox();
+    let bulwark = battle.spawn_unit(UnitKind::Bulwark, Team::Player, OPEN_FIELD);
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Crimson, OPEN_FIELD + IVec2::new(5, 0));
+    let took = battle.run_until(60.0, |battle| !battle.alive(tank) || !battle.alive(bulwark));
+    assert!(took.is_some(), "the duel never ended");
+    assert!(battle.alive(bulwark) && !battle.alive(tank));
+}
+
+#[test]
+fn a_saved_mission_reloads_with_its_level() {
+    let level = SkirmishOptions {
+        enemies: 2,
+        map_variant: 3,
+        ..default()
+    }
+    .to_level();
+    let mut battle = Battle::on_level(level.clone());
+    battle.run_for(20.0);
+    battle.world().resource_mut::<SaveRequests>().save = Some(2);
+    battle.run_for(0.1);
+    let amber_buildings = battle.buildings(Team::Amber).len();
+
+    battle.world().resource_mut::<SaveRequests>().load = Some(2);
+    battle.run_for(0.3);
+    assert_eq!(
+        battle
+            .world()
+            .resource::<iron_tide::levels::ActiveLevel>()
+            .0,
+        level
+    );
+    assert_eq!(battle.buildings(Team::Amber).len(), amber_buildings);
+}

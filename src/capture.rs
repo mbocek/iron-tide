@@ -1,0 +1,199 @@
+use bevy::camera::RenderTarget;
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
+use bevy::input::InputSystems;
+use bevy::prelude::*;
+use bevy::render::render_resource::TextureFormat;
+use bevy::window::{CursorOptions, PrimaryWindow};
+
+use crate::camera::RtsCamera;
+use crate::levels::{ActiveLevel, campaign};
+use crate::map::cell_center;
+use crate::match_flow::GameState;
+use crate::savegame::SaveRequests;
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
+
+const CAPTURE_PATH_VAR: &str = "IRON_TIDE_CAPTURE";
+const CAPTURE_DELAY_VAR: &str = "IRON_TIDE_CAPTURE_AFTER_SECS";
+const CAPTURE_FOCUS_VAR: &str = "IRON_TIDE_CAPTURE_FOCUS_CELL";
+const CAPTURE_SAVE_SLOT_VAR: &str = "IRON_TIDE_CAPTURE_SAVE_SLOT";
+const CAPTURE_LOAD_SLOT_VAR: &str = "IRON_TIDE_CAPTURE_LOAD_SLOT";
+const CAPTURE_MISSION_VAR: &str = "IRON_TIDE_CAPTURE_MISSION";
+const LOAD_AFTER_SECS: f32 = 1.5;
+const DEFAULT_CAPTURE_DELAY_SECS: f32 = 5.0;
+const FRAMES_TO_FLUSH_SCREENSHOT: u32 = 10;
+const CAPTURE_SIZE: UVec2 = UVec2::new(1600, 900);
+
+pub fn is_capture_run() -> bool {
+    std::env::var_os(CAPTURE_PATH_VAR).is_some()
+}
+
+/// Development aid: with `IRON_TIDE_CAPTURE=shot.png` the game saves one screenshot and quits.
+/// `IRON_TIDE_CAPTURE_SAVE_SLOT` / `_LOAD_SLOT` exercise saving and loading in the same unattended run.
+/// Input is ignored meanwhile so a stray mouse on the desktop cannot steer the run.
+pub struct CapturePlugin;
+
+#[derive(Resource)]
+struct PendingCapture {
+    path: String,
+    save_slot: Option<usize>,
+    load_slot: Option<usize>,
+    remaining_secs: f32,
+    frames_after_shot: Option<u32>,
+}
+
+impl Plugin for CapturePlugin {
+    fn build(&self, app: &mut App) {
+        let Ok(path) = std::env::var(CAPTURE_PATH_VAR) else {
+            return;
+        };
+        let delay = std::env::var(CAPTURE_DELAY_VAR)
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(DEFAULT_CAPTURE_DELAY_SECS);
+        let slot_from = |var: &str| std::env::var(var).ok().and_then(|value| value.parse().ok());
+        app.insert_resource(PendingCapture {
+            path,
+            save_slot: slot_from(CAPTURE_SAVE_SLOT_VAR),
+            load_slot: slot_from(CAPTURE_LOAD_SLOT_VAR),
+            remaining_secs: delay,
+            frames_after_shot: None,
+        })
+        .add_systems(Startup, let_mouse_pass_through)
+        .add_systems(
+            PostStartup,
+            (
+                spawn_capture_camera,
+                start_requested_mission.after(crate::match_flow::finish_booting),
+            ),
+        )
+        .add_systems(PreUpdate, discard_keyboard.after(InputSystems))
+        .add_systems(Update, (follow_main_camera, capture_then_exit).chain());
+        if let Some(cell) = std::env::var(CAPTURE_FOCUS_VAR)
+            .ok()
+            .and_then(|value| parse_cell(&value))
+        {
+            app.insert_resource(CaptureFocus(cell)).add_systems(
+                OnEnter(GameState::Playing),
+                focus_camera.after(crate::camera::focus_on_player_base),
+            );
+        }
+    }
+}
+
+/// Screenshots of the window surface come out black on Bevy 0.20 here, so the capture renders
+/// through a copy of the game camera into an offscreen image instead (the interface is not included).
+#[derive(Resource)]
+struct CaptureTarget(Handle<Image>);
+
+#[derive(Component)]
+struct CaptureCamera;
+
+fn spawn_capture_camera(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    game_cameras: Query<Entity, With<RtsCamera>>,
+) {
+    let Ok(game_camera) = game_cameras.single() else {
+        return;
+    };
+    let target = images.add(Image::new_target_texture(
+        CAPTURE_SIZE.x,
+        CAPTURE_SIZE.y,
+        TextureFormat::Rgba8UnormSrgb,
+        None,
+    ));
+    commands
+        .entity(game_camera)
+        .clone_and_spawn()
+        .remove::<RtsCamera>()
+        .insert((CaptureCamera, RenderTarget::from(target.clone())));
+    commands.insert_resource(CaptureTarget(target));
+}
+
+fn follow_main_camera(
+    game_cameras: Query<&Transform, (With<RtsCamera>, Without<CaptureCamera>)>,
+    mut capture_cameras: Query<&mut Transform, With<CaptureCamera>>,
+) {
+    let Ok(game_view) = game_cameras.single() else {
+        return;
+    };
+    for mut view in &mut capture_cameras {
+        *view = *game_view;
+    }
+}
+
+fn capture_then_exit(
+    mut commands: Commands,
+    time: Res<Time>,
+    target: Option<Res<CaptureTarget>>,
+    diagnostics: Res<DiagnosticsStore>,
+    mut requests: ResMut<SaveRequests>,
+    mut capture: ResMut<PendingCapture>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    if let Some(frames) = capture.frames_after_shot.as_mut() {
+        *frames += 1;
+        if *frames > FRAMES_TO_FLUSH_SCREENSHOT {
+            exit.write(AppExit::Success);
+        }
+        return;
+    }
+    capture.remaining_secs -= time.delta_secs();
+    if time.elapsed_secs() > LOAD_AFTER_SECS
+        && let Some(slot) = capture.load_slot.take()
+    {
+        requests.load = Some(slot);
+    }
+    let Some(target) = target else { return };
+    if capture.remaining_secs <= 0.0 {
+        let fps = diagnostics
+            .get(&FrameTimeDiagnosticsPlugin::FPS)
+            .and_then(|fps| fps.smoothed())
+            .unwrap_or_default();
+        info!("capture: average {fps:.1} fps");
+        requests.save = capture.save_slot.take();
+        commands
+            .spawn(Screenshot::image(target.0.clone()))
+            .observe(save_to_disk(capture.path.clone()));
+        capture.frames_after_shot = Some(0);
+    }
+}
+
+#[derive(Resource)]
+struct CaptureFocus(IVec2);
+
+fn parse_cell(value: &str) -> Option<IVec2> {
+    let (x, y) = value.split_once(',')?;
+    Some(IVec2::new(x.trim().parse().ok()?, y.trim().parse().ok()?))
+}
+
+fn focus_camera(focus: Res<CaptureFocus>, mut cameras: Query<&mut RtsCamera>) {
+    for mut camera in &mut cameras {
+        camera.focus = cell_center(focus.0);
+    }
+}
+
+fn let_mouse_pass_through(mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>) {
+    for mut cursor in &mut cursors {
+        cursor.hit_test = false;
+    }
+}
+
+fn discard_keyboard(mut keys: ResMut<ButtonInput<KeyCode>>) {
+    keys.reset_all();
+}
+
+/// `IRON_TIDE_CAPTURE_MISSION=2` starts the second campaign mission instead of waiting in the main menu.
+fn start_requested_mission(mut commands: Commands, mut next_state: ResMut<NextState<GameState>>) {
+    let Some(number) = std::env::var(CAPTURE_MISSION_VAR)
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+    else {
+        next_state.set(GameState::Playing);
+        return;
+    };
+    if let Some(mission) = campaign().into_iter().nth(number.saturating_sub(1)) {
+        commands.insert_resource(ActiveLevel(mission.level));
+    }
+    next_state.set(GameState::Playing);
+}

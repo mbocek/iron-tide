@@ -1,0 +1,402 @@
+use bevy::asset::RenderAssetUsages;
+use bevy::prelude::*;
+use bevy::render::mesh::{Indices, PrimitiveTopology};
+
+use crate::map::{BASE_SITES, CELL_SIZE, MAP_CELLS, MAP_WORLD_SIZE};
+
+pub const WATER_LEVEL: f32 = -0.45;
+/// How far the mountains surrounding the playable area reach beyond the map edge.
+pub const OUTLANDS_WIDTH: f32 = 44.0;
+
+const MESH_SPACING: f32 = 0.5;
+const RIVER_DEPTH: f32 = 1.5;
+const RIVER_HALF_WIDTH_CELLS: f32 = 1.7;
+const RIVER_FORD_COLUMNS: [(f32, f32); 3] = [(9.0, 13.0), (30.0, 34.0), (51.0, 55.0)];
+const ROLLING_HILLS_HEIGHT: f32 = 1.1;
+const MOUNTAIN_HEIGHT: f32 = 16.0;
+const MOUNTAIN_RISE_DISTANCE: f32 = 26.0;
+const BASE_FLAT_RADIUS_CELLS: f32 = 9.0;
+const BASE_PAD_RADIUS_CELLS: f32 = 4.5;
+const ROAD_HALF_WIDTH: f32 = 1.4;
+const ROAD_SHOULDER: f32 = 1.6;
+
+fn hash(cell: IVec2, seed: u32) -> f32 {
+    let mut h = (cell.x as u32).wrapping_mul(0x8da6_b343)
+        ^ (cell.y as u32).wrapping_mul(0xd816_3841)
+        ^ seed.wrapping_mul(0xcb1a_b31f);
+    h ^= h >> 13;
+    h = h.wrapping_mul(0x5bd1_e995);
+    h ^= h >> 15;
+    (h & 0x00ff_ffff) as f32 / 0x00ff_ffff as f32
+}
+
+/// Smooth value noise in [-1, 1].
+fn value_noise(point: Vec2, seed: u32) -> f32 {
+    let cell = point.floor();
+    let local = point - cell;
+    let blend = local * local * (Vec2::splat(3.0) - 2.0 * local);
+    let corner = |dx: i32, dy: i32| hash(cell.as_ivec2() + IVec2::new(dx, dy), seed);
+    let bottom = corner(0, 0) + (corner(1, 0) - corner(0, 0)) * blend.x;
+    let top = corner(0, 1) + (corner(1, 1) - corner(0, 1)) * blend.x;
+    (bottom + (top - bottom) * blend.y) * 2.0 - 1.0
+}
+
+fn fractal_noise(point: Vec2, octaves: u32, seed: u32) -> f32 {
+    let (mut sum, mut amplitude, mut frequency, mut norm) = (0.0, 1.0, 1.0, 0.0);
+    for octave in 0..octaves {
+        sum += value_noise(point * frequency, seed + octave) * amplitude;
+        norm += amplitude;
+        amplitude *= 0.5;
+        frequency *= 2.03;
+    }
+    sum / norm
+}
+
+fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+pub fn river_centerline(column: f32) -> f32 {
+    31.0 + 5.0 * (column * 0.13).sin() + 2.0 * (column * 0.31 + 1.0).sin()
+}
+
+fn is_ford(column: f32) -> bool {
+    RIVER_FORD_COLUMNS
+        .iter()
+        .any(|&(start, end)| column >= start && column <= end)
+}
+
+/// Depth of the riverbed below the surrounding ground at a point in cell units; zero away from the river.
+pub fn river_depth(column: f32, row: f32) -> f32 {
+    let inside_map = (0.0..MAP_CELLS as f32).contains(&column);
+    if inside_map && is_ford(column) {
+        return 0.0;
+    }
+    let distance = (row - river_centerline(column)).abs();
+    let bank = 1.0 - (distance / RIVER_HALF_WIDTH_CELLS).clamp(0.0, 1.0);
+    RIVER_DEPTH * bank.powf(0.6)
+}
+
+fn distance_to_river_cells(column: f32, row: f32) -> f32 {
+    (row - river_centerline(column)).abs()
+}
+
+fn distance_outside_map(position: Vec2) -> f32 {
+    let outside = (Vec2::ZERO - position)
+        .max(position - Vec2::splat(MAP_WORLD_SIZE))
+        .max(Vec2::ZERO);
+    outside.length()
+}
+
+fn distance_to_bases_cells(column: f32, row: f32) -> f32 {
+    BASE_SITES
+        .iter()
+        .map(|base| (Vec2::new(column, row) - base.as_vec2() - Vec2::splat(1.5)).length())
+        .fold(f32::MAX, f32::min)
+}
+
+fn mountain_height(position: Vec2, river_proximity: f32) -> f32 {
+    let outside = distance_outside_map(position);
+    if outside <= 0.0 {
+        return 0.0;
+    }
+    let rise = smoothstep(0.0, MOUNTAIN_RISE_DISTANCE, outside);
+    let massif = 0.65 + 0.35 * fractal_noise(position * 0.03, 3, 71);
+    let crags = fractal_noise(position * 0.11, 3, 97).abs() * 0.25;
+    let gorge = 1.0 - river_proximity;
+    MOUNTAIN_HEIGHT * rise * (massif + crags) * gorge
+}
+
+/// Terrain surface height in meters at a world position.
+pub fn terrain_height(x: f32, z: f32) -> f32 {
+    let position = Vec2::new(x, z);
+    let (column, row) = (x / CELL_SIZE, z / CELL_SIZE);
+    let river_distance = distance_to_river_cells(column, row);
+    let river_proximity = 1.0 - smoothstep(2.0, 7.0, river_distance);
+    let calm_near_river = smoothstep(2.0, 5.0, river_distance);
+    let calm_near_bases = smoothstep(
+        BASE_FLAT_RADIUS_CELLS * 0.6,
+        BASE_FLAT_RADIUS_CELLS,
+        distance_to_bases_cells(column, row),
+    );
+    let hill_shape = fractal_noise(position * 0.03, 3, 11) * 0.5 + 0.5;
+    let rolling = hill_shape * ROLLING_HILLS_HEIGHT * calm_near_river * calm_near_bases;
+    rolling + mountain_height(position, river_proximity) - river_depth(column, row)
+}
+
+pub fn terrain_normal(x: f32, z: f32) -> Vec3 {
+    let step = 0.4;
+    let dx = terrain_height(x + step, z) - terrain_height(x - step, z);
+    let dz = terrain_height(x, z + step) - terrain_height(x, z - step);
+    Vec3::new(-dx, 2.0 * step, -dz).normalize()
+}
+
+pub fn on_ground(position: Vec3) -> Vec3 {
+    position.with_y(terrain_height(position.x, position.z))
+}
+
+fn road_network() -> Vec<Vec<Vec2>> {
+    let ford = |column: f32| Vec2::new(column, river_centerline(column) + 0.5);
+    let cells = |points: &[Vec2]| points.iter().map(|p| *p * CELL_SIZE).collect::<Vec<_>>();
+    let [south_west, north_east, north_west, south_east] =
+        BASE_SITES.map(|site| site.as_vec2() + Vec2::splat(1.5));
+    let west_gate = |site: Vec2| site + Vec2::new(3.0, 0.0);
+    let east_gate = |site: Vec2| site + Vec2::new(-3.0, 0.0);
+    vec![
+        cells(&[
+            west_gate(south_west),
+            Vec2::new(12.0, 44.0),
+            ford(11.0),
+            Vec2::new(14.0, 20.0),
+            west_gate(north_west),
+        ]),
+        cells(&[
+            west_gate(north_west),
+            Vec2::new(30.0, 11.0),
+            east_gate(north_east),
+        ]),
+        cells(&[
+            west_gate(south_west),
+            Vec2::new(28.0, 46.0),
+            ford(32.0),
+            Vec2::new(40.0, 18.0),
+            east_gate(north_east),
+        ]),
+        cells(&[
+            west_gate(south_west),
+            Vec2::new(32.0, 53.0),
+            east_gate(south_east),
+        ]),
+        cells(&[
+            east_gate(south_east),
+            Vec2::new(54.0, 44.0),
+            ford(53.0),
+            Vec2::new(55.0, 20.0),
+            east_gate(north_east),
+        ]),
+    ]
+}
+
+fn distance_to_polyline(point: Vec2, polyline: &[Vec2]) -> f32 {
+    polyline
+        .windows(2)
+        .map(|segment| {
+            let (start, end) = (segment[0], segment[1]);
+            let along = (point - start).dot(end - start) / (end - start).length_squared();
+            point.distance(start + (end - start) * along.clamp(0.0, 1.0))
+        })
+        .fold(f32::MAX, f32::min)
+}
+
+pub struct GroundLayers {
+    roads: Vec<Vec<Vec2>>,
+}
+
+impl Default for GroundLayers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl GroundLayers {
+    pub fn new() -> Self {
+        Self {
+            roads: road_network(),
+        }
+    }
+
+    /// Blend weights of the terrain layers dirt, rock, riverbed and base gravel; grass fills the remainder.
+    pub fn weights(&self, position: Vec2, crystal_soil: f32) -> Vec4 {
+        layer_weights(position, &self.roads, crystal_soil)
+    }
+
+    pub fn minimap_color(&self, position: Vec2, crystal: bool) -> Vec3 {
+        let weights = self.weights(position, if crystal { 1.0 } else { 0.0 });
+        let grass = Vec3::new(0.30, 0.38, 0.17);
+        let dirt = Vec3::new(0.42, 0.34, 0.24);
+        let rock = Vec3::new(0.48, 0.46, 0.43);
+        let riverbed = Vec3::new(0.20, 0.36, 0.48);
+        let pad = Vec3::new(0.52, 0.51, 0.48);
+        let grass_weight = (1.0 - weights.element_sum()).max(0.0);
+        grass * grass_weight
+            + dirt * weights.x
+            + rock * weights.y
+            + riverbed * weights.z
+            + pad * weights.w
+    }
+}
+
+fn layer_weights(position: Vec2, roads: &[Vec<Vec2>], crystal_soil: f32) -> Vec4 {
+    let (column, row) = (position.x / CELL_SIZE, position.y / CELL_SIZE);
+    let normal = terrain_normal(position.x, position.y);
+    let slope = 1.0 - normal.y;
+    let river_proximity = 1.0 - smoothstep(2.0, 7.0, distance_to_river_cells(column, row));
+    let mountain = mountain_height(position, river_proximity);
+    let patchiness = fractal_noise(position * 0.08, 3, 23);
+
+    let rock = (smoothstep(0.08, 0.3, slope)
+        + smoothstep(2.0, 7.0, mountain)
+        + smoothstep(0.55, 0.8, patchiness) * 0.6)
+        .min(1.0);
+    let riverbed = smoothstep(0.05, 0.5, river_depth(column, row))
+        .max(1.0 - smoothstep(1.4, 2.6, distance_to_river_cells(column, row)));
+    let road_distance = roads
+        .iter()
+        .map(|road| distance_to_polyline(position, road))
+        .fold(f32::MAX, f32::min);
+    let road_edge_noise = fractal_noise(position * 0.6, 2, 31) * 0.6;
+    let road = 1.0
+        - smoothstep(
+            ROAD_HALF_WIDTH,
+            ROAD_HALF_WIDTH + ROAD_SHOULDER,
+            road_distance + road_edge_noise,
+        );
+    let worn_ground = smoothstep(0.2, 0.7, patchiness) * 0.5;
+    let base_distance = distance_to_bases_cells(column, row);
+    let base_wear =
+        (1.0 - smoothstep(
+            BASE_PAD_RADIUS_CELLS,
+            BASE_FLAT_RADIUS_CELLS - 1.0,
+            base_distance,
+        )) * (0.6 + 0.4 * patchiness);
+    let dirt = road
+        .max(worn_ground)
+        .max(base_wear * 0.8)
+        .max(crystal_soil * 0.7);
+    let pad = 1.0
+        - smoothstep(
+            BASE_PAD_RADIUS_CELLS - 1.5,
+            BASE_PAD_RADIUS_CELLS + patchiness * 1.5,
+            base_distance,
+        );
+
+    let mut remaining = 1.0;
+    let mut claim = |wanted: f32| {
+        let taken = wanted.min(remaining);
+        remaining -= taken;
+        taken
+    };
+    let riverbed = claim(riverbed);
+    let pad = claim(pad);
+    let rock = claim(rock);
+    let dirt = claim(dirt);
+    Vec4::new(dirt, rock, riverbed, pad)
+}
+
+/// Builds the visible ground including the mountain rim, with layer weights stored as vertex colors.
+pub fn build_terrain_mesh(crystal_soil: impl Fn(IVec2) -> bool) -> Mesh {
+    let start = -OUTLANDS_WIDTH;
+    let span = MAP_WORLD_SIZE + 2.0 * OUTLANDS_WIDTH;
+    let vertices_per_side = (span / MESH_SPACING) as u32 + 1;
+    let ground = GroundLayers::new();
+    let mut positions = Vec::with_capacity((vertices_per_side * vertices_per_side) as usize);
+    let mut colors = Vec::with_capacity(positions.capacity());
+    let mut uvs = Vec::with_capacity(positions.capacity());
+
+    for zi in 0..vertices_per_side {
+        for xi in 0..vertices_per_side {
+            let position = Vec2::new(
+                start + xi as f32 * MESH_SPACING,
+                start + zi as f32 * MESH_SPACING,
+            );
+            let cell = (position / CELL_SIZE).floor().as_ivec2();
+            let soil = if crystal_soil(cell) { 1.0 } else { 0.0 };
+            positions.push([
+                position.x,
+                terrain_height(position.x, position.y),
+                position.y,
+            ]);
+            colors.push(ground.weights(position, soil).to_array());
+            uvs.push([position.x, position.y]);
+        }
+    }
+
+    let mut indices = Vec::with_capacity(((vertices_per_side - 1).pow(2) * 6) as usize);
+    for zi in 0..vertices_per_side - 1 {
+        for xi in 0..vertices_per_side - 1 {
+            let top_left = zi * vertices_per_side + xi;
+            let top_right = top_left + 1;
+            let bottom_left = top_left + vertices_per_side;
+            let bottom_right = bottom_left + 1;
+            indices.extend_from_slice(&[
+                top_left,
+                bottom_left,
+                top_right,
+                top_right,
+                bottom_left,
+                bottom_right,
+            ]);
+        }
+    }
+
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+    .with_inserted_indices(Indices::U32(indices));
+    mesh.compute_smooth_normals();
+    mesh
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fords_are_dry_and_the_river_between_them_is_deep() {
+        for column in [11.0, 32.0, 53.0] {
+            assert_eq!(river_depth(column, river_centerline(column)), 0.0);
+        }
+        for column in [5.0, 22.0, 42.0, 60.0] {
+            assert!(river_depth(column, river_centerline(column)) > 1.0);
+        }
+    }
+
+    #[test]
+    fn playable_ground_is_gentle_and_finite() {
+        let step = CELL_SIZE * 1.5;
+        let mut x = 0.0;
+        while x < MAP_WORLD_SIZE {
+            let mut z = 0.0;
+            while z < MAP_WORLD_SIZE {
+                let height = terrain_height(x, z);
+                assert!(height.is_finite());
+                assert!(
+                    (-RIVER_DEPTH - 0.1..=ROLLING_HILLS_HEIGHT + 0.1).contains(&height),
+                    "height {height} at {x},{z}"
+                );
+                z += step;
+            }
+            x += step;
+        }
+    }
+
+    #[test]
+    fn bases_sit_on_flat_ground() {
+        for base in BASE_SITES {
+            let center = (base.as_vec2() + Vec2::splat(1.5)) * CELL_SIZE;
+            for offset in [Vec2::ZERO, Vec2::new(4.0, 0.0), Vec2::new(0.0, -4.0)] {
+                let point = center + offset;
+                assert!(terrain_height(point.x, point.y).abs() < 0.05);
+            }
+        }
+    }
+
+    #[test]
+    fn mountains_rise_around_the_map() {
+        let outside = terrain_height(-OUTLANDS_WIDTH * 0.8, MAP_WORLD_SIZE * 0.2);
+        assert!(outside > 4.0, "rim only {outside} m high");
+    }
+
+    #[test]
+    fn terrain_normals_point_up() {
+        for (x, z) in [(10.0, 10.0), (64.0, 64.0), (-20.0, 50.0)] {
+            let normal = terrain_normal(x, z);
+            assert!(normal.y > 0.0 && (normal.length() - 1.0).abs() < 1e-4);
+        }
+    }
+}

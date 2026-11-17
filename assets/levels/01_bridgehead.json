@@ -1,0 +1,17 @@
+{
+  "name": "1. Bridgehead",
+  "briefing": "A Syndicate outpost guards the northern bank. Build a refinery to fund the push, cross at the fords and wipe the outpost out. The Syndicate commander here is cautious.",
+  "map_seed": 1001,
+  "player": {
+    "site": "SouthWest",
+    "credits": 4000,
+    "buildings": [],
+    "units": ["Rifleman", "Rifleman", "Rifleman", "Scout"]
+  },
+  "enemies": [
+    { "site": "NorthEast", "credits": 3000, "units": ["Rifleman", "Rifleman", "Scout"], "difficulty": "Easy" }
+  ],
+  "objective": "DestroyAllEnemies",
+  "available_units": ["Rifleman", "Scout", "Tank", "Harvester"],
+  "available_buildings": ["PowerPlant", "Refinery", "Barracks", "Factory"]
+}

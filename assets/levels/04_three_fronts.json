@@ -1,0 +1,19 @@
+{
+  "name": "4. Three Fronts",
+  "briefing": "All three Syndicate cartels have united against us. They are well funded and aggressive. Secure the crystal fields, fortify, and destroy everything they have.",
+  "map_seed": 4004,
+  "player": {
+    "site": "SouthWest",
+    "credits": 7000,
+    "buildings": ["PowerPlant", "Refinery"],
+    "units": ["Rifleman", "Rifleman", "Rifleman", "Rocketeer", "Medic", "Tank", "Tank"]
+  },
+  "enemies": [
+    { "site": "NorthEast", "credits": 6000, "difficulty": "Hard" },
+    { "site": "NorthWest", "credits": 5000, "difficulty": "Hard" },
+    { "site": "SouthEast", "credits": 5000, "difficulty": "Hard" }
+  ],
+  "objective": "DestroyAllEnemies",
+  "available_units": [],
+  "available_buildings": []
+}

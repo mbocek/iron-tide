@@ -1,0 +1,136 @@
+use bevy::prelude::*;
+
+use crate::catalog::ArmorClass;
+use crate::components::*;
+use crate::map::{GameMap, cell_center, world_to_cell};
+use crate::terrain::terrain_height;
+
+const WAYPOINT_REACHED_DISTANCE: f32 = 0.2;
+/// Vehicles drive forward only once roughly facing their next waypoint, so they turn on the spot like tracked vehicles.
+const DRIVE_ALIGNMENT_TOLERANCE: f32 = 0.7;
+const SEPARATION_STRENGTH: f32 = 2.5;
+const VEHICLE_HALF_LENGTH_PER_RADIUS: f32 = 1.2;
+const VEHICLE_HALF_WIDTH_PER_RADIUS: f32 = 0.75;
+const HULL_CLEARANCE: f32 = 0.03;
+
+pub fn order_move(
+    mobile: &mut Mobile,
+    map: &GameMap,
+    from: Vec3,
+    goal: IVec2,
+    ordered: bool,
+) -> bool {
+    let Some(cells) = map.find_path(world_to_cell(from), goal) else {
+        return false;
+    };
+    mobile.path = cells.into_iter().skip(1).map(cell_center).collect();
+    if mobile.path.is_empty() {
+        mobile.path.push_back(cell_center(goal));
+    }
+    mobile.ordered_move = ordered;
+    true
+}
+
+pub fn follow_paths(time: Res<Time>, mut movers: Query<(&mut Mobile, &mut Transform)>) {
+    let dt = time.delta_secs();
+    for (mut mobile, mut transform) in &mut movers {
+        let Some(&waypoint) = mobile.path.front() else {
+            mobile.ordered_move = false;
+            continue;
+        };
+        let to_waypoint = (waypoint - transform.translation).with_y(0.0);
+        let distance = to_waypoint.length();
+        if distance < WAYPOINT_REACHED_DISTANCE {
+            mobile.path.pop_front();
+            continue;
+        }
+
+        let desired_yaw = yaw_towards(transform.translation, waypoint);
+        mobile.facing = rotate_towards(mobile.facing, desired_yaw, mobile.turn_rate * dt);
+        let misalignment = shortest_angle(mobile.facing, desired_yaw).abs();
+        if misalignment < DRIVE_ALIGNMENT_TOLERANCE {
+            let step = (mobile.speed * dt).min(distance);
+            transform.translation += to_waypoint / distance * step;
+        }
+    }
+}
+
+/// Rests every unit on the terrain. Vehicles sample the ground under their nose, tail and flanks,
+/// tilt to that plane and sit on the highest supports so crests and banks cannot poke through the hull.
+pub fn settle_on_terrain(mut units: Query<(&Mobile, &mut Transform, &Armor, &BodyRadius)>) {
+    for (mobile, mut transform, armor, radius) in &mut units {
+        let heading = Quat::from_rotation_y(mobile.facing);
+        let position = transform.translation;
+        let center_height = terrain_height(position.x, position.z);
+        if armor.0 == ArmorClass::Infantry {
+            transform.translation.y = center_height;
+            transform.rotation = heading;
+            continue;
+        }
+        let forward = heading * Vec3::X;
+        let right = forward.cross(Vec3::Y);
+        let half_length = radius.0 * VEHICLE_HALF_LENGTH_PER_RADIUS;
+        let half_width = radius.0 * VEHICLE_HALF_WIDTH_PER_RADIUS;
+        let height_at = |offset: Vec3| {
+            let probe = position + offset;
+            terrain_height(probe.x, probe.z)
+        };
+        let (front, back) = (
+            height_at(forward * half_length),
+            height_at(-forward * half_length),
+        );
+        let (right_side, left_side) = (
+            height_at(right * half_width),
+            height_at(-right * half_width),
+        );
+
+        let length_axis = forward * (2.0 * half_length) + Vec3::Y * (front - back);
+        let width_axis = right * (2.0 * half_width) + Vec3::Y * (right_side - left_side);
+        let ground_up = width_axis.cross(length_axis).normalize();
+        let ground_up = if ground_up.y < 0.0 {
+            -ground_up
+        } else {
+            ground_up
+        };
+        let resting_height = center_height
+            .max((front + back) * 0.5)
+            .max((left_side + right_side) * 0.5);
+
+        transform.translation.y = resting_height + HULL_CLEARANCE;
+        transform.rotation = Quat::from_rotation_arc(Vec3::Y, ground_up) * heading;
+    }
+}
+
+pub fn separate_units(
+    time: Res<Time>,
+    map: Res<GameMap>,
+    mut units: Query<(Entity, &mut Transform, &BodyRadius, &Mobile)>,
+) {
+    let snapshot: Vec<(Entity, Vec3, f32)> = units
+        .iter()
+        .map(|(entity, transform, radius, _)| (entity, transform.translation, radius.0))
+        .collect();
+    let dt = time.delta_secs();
+
+    for (entity, mut transform, radius, mobile) in &mut units {
+        let mut push = Vec3::ZERO;
+        for &(other, other_position, other_radius) in &snapshot {
+            if other == entity {
+                continue;
+            }
+            let offset = transform.translation - other_position;
+            let overlap = radius.0 + other_radius - offset.length();
+            if overlap > 0.0 {
+                let away = offset.normalize_or(
+                    Vec3::new(entity.index_u32() as f32 % 3.0 - 1.0, 0.0, 1.0).normalize(),
+                );
+                push += away * overlap;
+            }
+        }
+        let resting_factor = if mobile.is_moving() { 0.5 } else { 1.0 };
+        let candidate = transform.translation + push * SEPARATION_STRENGTH * resting_factor * dt;
+        if map.is_passable(world_to_cell(candidate)) {
+            transform.translation = candidate;
+        }
+    }
+}

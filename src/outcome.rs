@@ -1,0 +1,65 @@
+use bevy::prelude::*;
+
+use crate::catalog::{BuildingKind, Team};
+use crate::components::{Building, Unit};
+use crate::economy::Economies;
+use crate::levels::{ActiveLevel, Objective};
+use crate::match_flow::MatchClock;
+
+#[derive(Resource, Default, PartialEq, Eq, Clone, Copy, Debug)]
+pub enum GameOutcome {
+    #[default]
+    Ongoing,
+    Victory,
+    Defeat,
+}
+
+/// The player loses once nothing of theirs is left; how they win depends on the mission objective.
+pub fn decide_outcome(
+    mut outcome: ResMut<GameOutcome>,
+    level: Res<ActiveLevel>,
+    clock: Res<MatchClock>,
+    economies: Res<Economies>,
+    units: Query<&Team, With<Unit>>,
+    buildings: Query<(&Team, &Building)>,
+) {
+    if *outcome != GameOutcome::Ongoing {
+        return;
+    }
+    let player_alive = units.iter().any(|&t| t == Team::Player)
+        || buildings.iter().any(|(&t, _)| t == Team::Player);
+    if !player_alive {
+        *outcome = GameOutcome::Defeat;
+        return;
+    }
+    let hostile = |team: &Team| team.is_hostile_to(Team::Player);
+    let achieved = match level.0.objective {
+        Objective::DestroyAllEnemies => {
+            !units.iter().any(hostile) && !buildings.iter().any(|(team, _)| hostile(team))
+        }
+        Objective::DestroyCommandCenters => !buildings
+            .iter()
+            .any(|(team, building)| hostile(team) && building.kind == BuildingKind::CommandCenter),
+        Objective::Survive { minutes } => clock.elapsed_secs >= minutes * 60.0,
+        Objective::ReachCredits { credits } => economies.of(Team::Player).credits >= credits,
+    };
+    if achieved {
+        *outcome = GameOutcome::Victory;
+    }
+}
+
+/// One-line progress report for the interface, e.g. "Hold out for 8 minutes - 3:12 left".
+pub fn objective_status(level: &ActiveLevel, clock: &MatchClock, economies: &Economies) -> String {
+    let objective = level.0.objective;
+    let progress = match objective {
+        Objective::Survive { minutes } => {
+            let left = (minutes * 60.0 - clock.elapsed_secs).max(0.0) as u32;
+            format!("  -  {}:{:02} left", left / 60, left % 60)
+        }
+        Objective::ReachCredits { credits } => {
+            format!("  -  ${} / ${credits}", economies.of(Team::Player).credits)
+        }
+        Objective::DestroyAllEnemies | Objective::DestroyCommandCenters => String::new(),
+    };
+    format!("{}{progress}", objective.describe())
+}
