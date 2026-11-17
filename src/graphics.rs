@@ -89,8 +89,8 @@ pub fn strip_fine_decor_shadows(
     meshes: Query<(), With<Mesh3d>>,
 ) {
     for root in &decor {
-        let mesh_nodes: Vec<Entity> = children
-            .iter_descendants(root)
+        let mesh_nodes: Vec<Entity> = std::iter::once(root)
+            .chain(children.iter_descendants(root))
             .filter(|&node| meshes.contains(node))
             .collect();
         if mesh_nodes.is_empty() {

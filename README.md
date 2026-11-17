@@ -130,8 +130,14 @@ the `saves/` directory next to it: a quick save plus 3 slots.
 
 The frame rate limit (30 / 60 / 120 fps or unlimited, default 60) keeps the game from spending CPU on frames
 a display cannot show. While the window is in the background the game keeps playing, but at no more than
-30 frames per second. Measured in the main menu on the development Mac: unlimited 79 % of one core, 60 fps 66 %,
-30 fps 48 %.
+30 frames per second. Measured in the main menu on the development Mac: unlimited 79 % of one core, 60 fps 67 %,
+30 fps 37 %.
+
+What the CPU goes on, measured at a fixed 30 fps in a match: the scenery used to be 45 000 entities (a glTF
+scene per grass tuft); merging each scenery model into one mesh brought that to 11 000 but did not change the
+CPU, as Bevy skips static entities cheaply. The Low quality preset saves about 13 %. Running the game's
+schedules on one thread saves about 13 % per frame, because most systems are chained and the multi-threaded
+executor mostly paid for waking worker threads. The rest is Bevy's fixed cost per frame.
 
 ## Sound and music
 
@@ -226,7 +232,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `ai` | computer opponents: build plan, saving up for structures, gathered attack waves, base defense |
 | `headless` | windowless battle harness shared by the tests and the balance tool |
 | `terrain`, `terrain_material` | terrain height, roads, texture layers, WESL shader, water |
-| `scenery` | forests, meadows, reeds, mountains with boulders |
+| `scenery`, `flat_scenery` | forests, meadows, reeds, mountains with boulders; scenery models merged into one mesh each |
 | `minimap`, `notifications` | minimap, status messages |
 | `ui`, `overlay` | sidebar (tabs, tiles with icons), health bars, selection |
 | `settings`, `menu`, `perf_overlay`, `frame_pacing` | settings and their persistence, in-game menu, performance overlay, frame rate limit |

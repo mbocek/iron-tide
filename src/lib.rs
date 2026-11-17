@@ -13,6 +13,7 @@ pub mod control_groups;
 pub mod damage_feedback;
 pub mod economy;
 pub mod effects;
+pub mod flat_scenery;
 pub mod fog;
 pub mod fog_view;
 pub mod frame_pacing;
@@ -224,6 +225,14 @@ impl Plugin for GamePlugin {
             .insert_resource(settings::load_settings())
             .init_gizmo_group::<overlay::HealthBarGizmos>()
             .add_systems(Last, frame_pacing::pace_frames)
+            .add_systems(
+                Update,
+                (
+                    flat_scenery::merge_scenery_models,
+                    flat_scenery::dress_flat_scenery,
+                )
+                    .chain(),
+            )
             .init_resource::<structure_tools::StructureTool>()
             .add_plugins((
                 bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
@@ -247,6 +256,7 @@ impl Plugin for GamePlugin {
                     ui::load_fonts,
                     fog_view::create_fog_texture,
                     sound::load_sounds,
+                    flat_scenery::load_flat_scenery_sources,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),

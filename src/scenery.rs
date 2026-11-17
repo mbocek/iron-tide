@@ -43,6 +43,32 @@ const MAX_MEADOW_DIRT: f32 = 0.35;
 #[derive(Component)]
 pub struct Scenery;
 
+/// Scenery drawn as one merged mesh instead of a full glTF scene; `flat_scenery` dresses it.
+#[derive(Component)]
+pub struct FlatScenery(pub &'static str);
+
+pub const FLAT_SCENERY_MODELS: [&str; 19] = [
+    "boulder_large",
+    "bush",
+    "bush_flowering",
+    "bush_round",
+    "fallen_log",
+    "flowers",
+    "grass_tuft",
+    "pebbles",
+    "reeds",
+    "rock",
+    "rock_a",
+    "rock_b",
+    "stump",
+    "tree",
+    "tree_birch",
+    "tree_broadleaf",
+    "tree_dead",
+    "tree_pine",
+    "tree_pine_young",
+];
+
 /// Walk-through decoration that is cleared away when a structure is built on top of it.
 #[derive(Component)]
 pub struct Decor;
@@ -331,11 +357,14 @@ fn spawn_scenery(
     };
     let mut scenery = commands.spawn((
         Scenery,
-        WorldAssetRoot(models.neutral(model_id)),
         Transform::from_translation(ground)
             .with_rotation(rotation)
             .with_scale(Vec3::splat(rng.random_range(scale))),
     ));
+    match FLAT_SCENERY_MODELS.iter().find(|&&flat| flat == model_id) {
+        Some(&flat) => scenery.insert(FlatScenery(flat)),
+        None => scenery.insert(WorldAssetRoot(models.neutral(model_id))),
+    };
     if matches!(model_id, "grass_tuft" | "flowers" | "pebbles") {
         scenery.insert(FineDecor);
     }

@@ -154,7 +154,11 @@ fn capture_then_exit(
             .get(&FrameTimeDiagnosticsPlugin::FPS)
             .and_then(|fps| fps.smoothed())
             .unwrap_or_default();
-        info!("capture: average {fps:.1} fps");
+        let entities = diagnostics
+            .get(&bevy::diagnostic::EntityCountDiagnosticsPlugin::ENTITY_COUNT)
+            .and_then(|count| count.value())
+            .unwrap_or_default();
+        info!("capture: average {fps:.1} fps, {entities:.0} entities");
         requests.save = capture.save_slot.take();
         commands
             .spawn(Screenshot::image(target.0.clone()))
