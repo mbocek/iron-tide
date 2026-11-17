@@ -39,6 +39,7 @@ pub mod spawn;
 pub mod terrain;
 pub mod terrain_material;
 pub mod ui;
+pub mod unit_orders;
 
 use bevy::prelude::*;
 
@@ -155,6 +156,7 @@ impl Plugin for SimulationPlugin {
                         combat::snapshot_targets,
                         combat::acquire_targets,
                         combat::chase_targets,
+                        unit_orders::carry_out_orders,
                         movement::follow_paths,
                         movement::separate_units,
                         movement::settle_on_terrain,
@@ -320,6 +322,7 @@ impl Plugin for GamePlugin {
                         .chain(),
                     (
                         overlay::draw_overlays,
+                        overlay::draw_planned_routes,
                         ui::refresh_build_tiles,
                         ui::refresh_resources,
                         ui::refresh_info_panel,

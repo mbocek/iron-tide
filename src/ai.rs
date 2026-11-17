@@ -12,7 +12,6 @@ use crate::map::{
     CELL_SIZE, GameMap, cell_center, cells_by_distance, footprint_cells, footprint_center,
     world_to_cell,
 };
-use crate::movement::order_move;
 use crate::production::{
     BuildItem, Lane, PlacementContext, Production, construct_building, owned_building_kinds,
     placement_context,
@@ -73,6 +72,7 @@ type ArmyUnit<'a> = (
     &'a Transform,
     &'a mut Mobile,
     Option<&'a AttackTarget>,
+    Option<&'a mut Orders>,
 );
 
 pub fn command_enemies(
@@ -114,7 +114,7 @@ pub fn command_enemies(
             .filter(|(unit, team, ..)| **team == ai.team && unit.0 == UnitKind::Harvester)
             .count();
         train_units(ai.team, &mut production, &mut economies, &owned, harvesters);
-        direct_army(ai, &map, &targets, &buildings, &mut army);
+        direct_army(ai, &targets, &buildings, &mut army);
     }
 }
 
@@ -267,7 +267,6 @@ fn train_units(
 
 fn direct_army(
     ai: &mut AiCommander,
-    map: &GameMap,
     targets: &Targets,
     buildings: &Query<(&Building, &Team)>,
     army: &mut Query<ArmyUnit>,
@@ -280,10 +279,11 @@ fn direct_army(
         .count();
     let idle_soldiers = army
         .iter()
-        .filter(|(unit, owner, _, mobile, attack)| {
+        .filter(|(unit, owner, _, mobile, attack, orders)| {
             is_soldier(unit, **owner)
                 && !mobile.is_moving()
                 && attack.is_none_or(|a| a.target.is_none())
+                && orders.as_ref().is_none_or(|o| o.current.is_none())
         })
         .count();
 
@@ -328,16 +328,15 @@ fn direct_army(
     let Some(objective) = objective else { return };
     let objective_cell = world_to_cell(objective);
 
-    for (unit, &owner, transform, mut mobile, attack) in army.iter_mut() {
-        let idle = !mobile.is_moving() && attack.is_none_or(|a| a.target.is_none());
-        if is_soldier(unit, owner) && idle {
-            order_move(
-                &mut mobile,
-                map,
-                transform.translation,
-                objective_cell,
-                false,
-            );
+    for (unit, &owner, _, mobile, attack, orders) in army.iter_mut() {
+        let idle = !mobile.is_moving()
+            && attack.is_none_or(|a| a.target.is_none())
+            && orders.as_ref().is_none_or(|o| o.current.is_none());
+        if is_soldier(unit, owner)
+            && idle
+            && let Some(mut orders) = orders
+        {
+            orders.replace_with(Order::AttackMove(objective_cell));
         }
     }
 }

@@ -31,6 +31,8 @@ struct SavedBuilding {
     kind: BuildingKind,
     origin: [i32; 2],
     health: f32,
+    #[serde(default)]
+    rally: Option<[i32; 2]>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -41,6 +43,8 @@ struct SavedUnit {
     facing: f32,
     health: f32,
     cargo: u32,
+    #[serde(default)]
+    orders: Vec<Order>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -160,7 +164,7 @@ pub fn write_requested_save(
     commanders: Res<AiCommanders>,
     fog: Res<FogOfWar>,
     cameras: Query<&RtsCamera>,
-    buildings: Query<(&Building, &Team, &Health)>,
+    buildings: Query<(&Building, &Team, &Health, Option<&RallyPoint>)>,
     units: Query<(
         &Unit,
         &Team,
@@ -168,6 +172,7 @@ pub fn write_requested_save(
         &Mobile,
         &Health,
         Option<&Harvester>,
+        Option<&Orders>,
     )>,
 ) {
     let Some(slot) = requests.save.take() else {
@@ -185,23 +190,32 @@ pub fn write_requested_save(
         crystal: map.crystal_amounts(),
         buildings: buildings
             .iter()
-            .map(|(building, &team, health)| SavedBuilding {
+            .map(|(building, &team, health, rally)| SavedBuilding {
                 team,
                 kind: building.kind,
                 origin: building.origin.to_array(),
                 health: health.current,
+                rally: rally.map(|rally| rally.0.to_array()),
             })
             .collect(),
         units: units
             .iter()
             .map(
-                |(unit, &team, transform, mobile, health, harvester)| SavedUnit {
+                |(unit, &team, transform, mobile, health, harvester, orders)| SavedUnit {
                     team,
                     kind: unit.0,
                     position: transform.translation.to_array(),
                     facing: mobile.facing,
                     health: health.current,
                     cargo: harvester.map_or(0, |h| h.cargo),
+                    orders: orders.map_or_else(Vec::new, |orders| {
+                        orders
+                            .current
+                            .iter()
+                            .chain(orders.queued.iter())
+                            .copied()
+                            .collect()
+                    }),
                 },
             )
             .collect(),
@@ -325,6 +339,11 @@ pub fn restore_pending_load(
             current: saved.health,
             max: saved.kind.spec().max_health,
         });
+        if let Some(rally) = saved.rally {
+            commands
+                .entity(entity)
+                .insert(RallyPoint(IVec2::from_array(rally)));
+        }
     }
     for saved in &save.units {
         let position = Vec3::from_array(saved.position);
@@ -339,6 +358,11 @@ pub fn restore_pending_load(
         commands.entity(entity).insert(Health {
             current: saved.health,
             max: saved.kind.spec().max_health,
+        });
+        let mut planned = saved.orders.iter().copied();
+        commands.entity(entity).insert(Orders {
+            current: planned.next(),
+            queued: planned.collect(),
         });
         if saved.kind == UnitKind::Harvester {
             commands.entity(entity).insert(Harvester {

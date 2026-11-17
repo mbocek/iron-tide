@@ -240,7 +240,7 @@ pub fn advance_production(
     economies: Res<Economies>,
     mut production: ResMut<Production>,
     mut notifications: ResMut<Notifications>,
-    buildings: Query<(&Building, &Team)>,
+    buildings: Query<(&Building, &Team, Option<&RallyPoint>)>,
 ) {
     for team in Team::ALL {
         let rate = economies.of(team).production_rate();
@@ -255,13 +255,13 @@ pub fn advance_production(
             let producer = match item {
                 BuildItem::Structure(_) => None,
                 BuildItem::Unit(kind) => {
-                    let producer = buildings.iter().find(|(building, owner)| {
+                    let producer = buildings.iter().find(|(building, owner, _)| {
                         **owner == team && building.kind == kind.spec().producer
                     });
                     if producer.is_none() {
                         continue;
                     }
-                    producer.map(|(building, _)| building)
+                    producer.map(|(building, _, rally)| (building, rally.copied()))
                 }
             };
             lane.progress_secs += time.delta_secs() * rate;
@@ -284,7 +284,15 @@ pub fn advance_production(
             match (item, producer) {
                 (BuildItem::Structure(kind), _) => lane.ready = Some(kind),
                 (BuildItem::Unit(kind), Some(producer)) => {
-                    deploy_unit(&mut commands, &models, &map, kind, team, producer);
+                    deploy_unit(
+                        &mut commands,
+                        &models,
+                        &map,
+                        kind,
+                        team,
+                        producer.0,
+                        producer.1,
+                    );
                 }
                 (BuildItem::Unit(_), None) => {}
             }
@@ -299,11 +307,19 @@ fn deploy_unit(
     kind: UnitKind,
     team: Team,
     producer: &Building,
+    rally: Option<RallyPoint>,
 ) -> Entity {
     let exit = map
         .nearest_passable(exit_cell(producer))
         .unwrap_or(exit_cell(producer));
     let entity = spawn_unit(commands, models, kind, team, cell_center(exit), 0.0);
+    if let Some(rally) = rally.filter(|_| kind != UnitKind::Harvester) {
+        commands.entity(entity).insert(Orders {
+            current: Some(Order::Move(rally.0)),
+            queued: Default::default(),
+        });
+        return entity;
+    }
     let mut rng = rand::rng();
     let rally = exit + IVec2::new(RALLY_DISTANCE_CELLS, rng.random_range(-2..=2));
     let mut mobile = Mobile::new(kind.spec().speed, kind.spec().turn_rate, 0.0);

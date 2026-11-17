@@ -550,6 +550,10 @@ fn spawn_controls_help(commands: &mut Commands, fonts: &UiFonts) {
     let controls = [
         ("Select", "left click / drag a box (Shift adds)"),
         ("Orders", "right click: move, attack, harvest"),
+        ("Attack-move", "Ctrl + right click"),
+        ("Patrol", "Alt + right click"),
+        ("Queue orders", "Shift + right click"),
+        ("Rally point", "select barracks/factory, right click"),
         ("Scroll", "WASD, arrows, screen edge, middle-drag"),
         ("Fast scroll", "hold Shift"),
         ("Minimap", "click or drag to jump"),

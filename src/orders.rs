@@ -25,7 +25,17 @@ pub struct SelectionBoxUi;
 pub struct OrderMarker {
     pub position: Vec3,
     pub remaining_secs: f32,
-    pub hostile: bool,
+    pub kind: MarkerKind,
+}
+
+/// What the last right click ordered, which decides the marker's colour.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum MarkerKind {
+    #[default]
+    Move,
+    Attack,
+    Patrol,
+    Rally,
 }
 
 pub fn spawn_selection_box(mut commands: Commands) {
@@ -150,9 +160,37 @@ type CommandableUnit<'a> = (
     Option<&'a mut Mobile>,
     Option<&'a mut AttackTarget>,
     Option<&'a mut Harvester>,
+    Option<&'a mut Orders>,
 );
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GroundOrder {
+    Move,
+    AttackMove,
+    Patrol,
+}
+
+/// Right click on the ground. Ctrl attack-moves, Alt patrols, Shift queues behind current orders.
+fn ground_order_from_keys(keys: &ButtonInput<KeyCode>) -> (GroundOrder, bool) {
+    let order = if keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]) {
+        GroundOrder::AttackMove
+    } else if keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]) {
+        GroundOrder::Patrol
+    } else {
+        GroundOrder::Move
+    };
+    (
+        order,
+        keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
+    )
+}
+
+fn produces_units(kind: BuildingKind) -> bool {
+    matches!(kind, BuildingKind::Barracks | BuildingKind::Factory)
+}
+
 pub fn issue_orders(
+    mut commands: Commands,
     mut cues: MessageWriter<SoundCue>,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -163,14 +201,18 @@ pub fn issue_orders(
     mut marker: ResMut<OrderMarker>,
     mut units: Query<CommandableUnit, (With<Selected>, With<Unit>)>,
     buildings: Query<&Building>,
+    selected_buildings: Query<(Entity, &Building, &Team), With<Selected>>,
 ) {
     if keys.just_pressed(KeyCode::KeyX) {
-        for (_, _, mobile, attack, _) in &mut units {
+        for (_, _, mobile, attack, _, orders) in &mut units {
             if let Some(mut mobile) = mobile {
                 mobile.stop();
             }
             if let Some(mut attack) = attack {
                 attack.clear();
+            }
+            if let Some(mut orders) = orders {
+                orders.clear();
             }
         }
     }
@@ -183,20 +225,40 @@ pub fn issue_orders(
     let Some(ground) = cursor.ground else { return };
     let hovered = target_under(&targets, ground).copied();
     let goal_cell = world_to_cell(ground);
+    let mut acknowledge = |marker: &mut OrderMarker, position: Vec3, kind: MarkerKind| {
+        cues.write(SoundCue::interface(Sound::UnitAcknowledge));
+        *marker = OrderMarker {
+            position,
+            remaining_secs: ORDER_MARKER_SECS,
+            kind,
+        };
+    };
+
+    if units.is_empty() {
+        let mut rally_set = false;
+        for (entity, building, team) in &selected_buildings {
+            if *team == Team::Player && produces_units(building.kind) {
+                commands.entity(entity).insert(RallyPoint(goal_cell));
+                rally_set = true;
+            }
+        }
+        if rally_set {
+            acknowledge(&mut marker, ground, MarkerKind::Rally);
+        }
+        return;
+    }
 
     if let Some(enemy) = hovered.filter(|t| t.team.is_hostile_to(Team::Player)) {
-        for (_, _, mobile, attack, _) in &mut units {
+        for (_, _, mobile, attack, _, orders) in &mut units {
             if let (Some(mut attack), Some(mut mobile)) = (attack, mobile) {
                 attack.order(enemy.entity);
                 mobile.ordered_move = false;
+                if let Some(mut orders) = orders {
+                    orders.clear();
+                }
             }
         }
-        cues.write(SoundCue::interface(Sound::UnitAcknowledge));
-        *marker = OrderMarker {
-            position: enemy.position,
-            remaining_secs: ORDER_MARKER_SECS,
-            hostile: true,
-        };
+        acknowledge(&mut marker, enemy.position, MarkerKind::Attack);
         return;
     }
 
@@ -206,12 +268,10 @@ pub fn issue_orders(
                 .get(t.entity)
                 .is_ok_and(|b| b.kind == BuildingKind::Refinery)
     });
+    let (ground_order, queue) = ground_order_from_keys(&keys);
     let mut formation = cells_by_distance(goal_cell, 6).filter(|&cell| map.is_passable(cell));
-    for (_, transform, mobile, attack, harvester) in &mut units {
+    for (_, transform, mobile, attack, harvester, orders) in &mut units {
         let Some(mut mobile) = mobile else { continue };
-        if let Some(mut attack) = attack {
-            attack.clear();
-        }
         let position = transform.translation;
         if let Some(mut harvester) = harvester {
             if let Some(refinery) = own_refinery {
@@ -225,14 +285,35 @@ pub fn issue_orders(
                 continue;
             }
             harvester.state = HarvestState::Holding;
+            if let Some(cell) = formation.next() {
+                order_move(&mut mobile, &map, position, cell, true);
+            }
+            continue;
         }
         let Some(cell) = formation.next() else { break };
-        order_move(&mut mobile, &map, position, cell, true);
+        let order = match ground_order {
+            GroundOrder::Move => Order::Move(cell),
+            GroundOrder::AttackMove => Order::AttackMove(cell),
+            GroundOrder::Patrol => Order::Patrol {
+                from: world_to_cell(position),
+                to: cell,
+            },
+        };
+        let Some(mut orders) = orders else { continue };
+        if queue {
+            orders.queue(order);
+            continue;
+        }
+        orders.replace_with(order);
+        mobile.stop();
+        if let Some(mut attack) = attack {
+            attack.clear();
+        }
     }
-    cues.write(SoundCue::interface(Sound::UnitAcknowledge));
-    *marker = OrderMarker {
-        position: ground,
-        remaining_secs: ORDER_MARKER_SECS,
-        hostile: false,
+    let kind = match ground_order {
+        GroundOrder::Move => MarkerKind::Move,
+        GroundOrder::AttackMove => MarkerKind::Attack,
+        GroundOrder::Patrol => MarkerKind::Patrol,
     };
+    acknowledge(&mut marker, ground, kind);
 }

@@ -6,7 +6,8 @@ use crate::camera::RtsCamera;
 use crate::catalog::{HARVESTER_CAPACITY, Team};
 use crate::components::*;
 use crate::fog::FogOfWar;
-use crate::orders::OrderMarker;
+use crate::map::cell_center;
+use crate::orders::{MarkerKind, OrderMarker};
 use crate::settings::{GameSettings, HealthBars};
 
 const HEALTH_BAR_HEIGHT_UNIT: f32 = 2.6;
@@ -38,6 +39,62 @@ fn ground_circle(position: Vec3, radius: f32) -> (Isometry3d, f32) {
         Isometry3d::new(position + Vec3::Y * 0.08, Quat::from_rotation_x(FRAC_PI_2)),
         radius,
     )
+}
+
+const MOVE_COLOR: Color = Color::srgb(0.4, 1.0, 0.5);
+const ATTACK_COLOR: Color = Color::srgb(1.0, 0.35, 0.2);
+const PATROL_COLOR: Color = Color::srgb(0.35, 0.7, 1.0);
+const RALLY_COLOR: Color = Color::srgb(1.0, 0.85, 0.3);
+const ROUTE_HEIGHT: f32 = 0.15;
+const RALLY_FLAG_HEIGHT: f32 = 2.2;
+
+fn marker_color(kind: MarkerKind) -> Color {
+    match kind {
+        MarkerKind::Move => MOVE_COLOR,
+        MarkerKind::Attack => ATTACK_COLOR,
+        MarkerKind::Patrol => PATROL_COLOR,
+        MarkerKind::Rally => RALLY_COLOR,
+    }
+}
+
+fn order_color(order: Order) -> Color {
+    match order {
+        Order::Move(_) => MOVE_COLOR,
+        Order::AttackMove(_) => ATTACK_COLOR,
+        Order::Patrol { .. } => PATROL_COLOR,
+    }
+}
+
+/// Selected units show their queued route; selected production buildings show their rally flag.
+pub fn draw_planned_routes(
+    mut gizmos: Gizmos,
+    units: Query<(&Transform, &Orders), With<Selected>>,
+    rally_points: Query<(&Transform, &RallyPoint), (With<Selected>, With<Building>)>,
+) {
+    let lifted = |cell: IVec2| cell_center(cell) + Vec3::Y * ROUTE_HEIGHT;
+    for (transform, orders) in &units {
+        let mut from = transform.translation + Vec3::Y * ROUTE_HEIGHT;
+        let planned = orders.current.iter().chain(orders.queued.iter());
+        for &order in planned {
+            let to = lifted(order.destination());
+            gizmos.line(from, to, order_color(order).with_alpha(0.7));
+            if let Order::Patrol { from: start, .. } = order {
+                gizmos.line(to, lifted(start), PATROL_COLOR.with_alpha(0.35));
+            }
+            from = to;
+        }
+    }
+    for (transform, rally) in &rally_points {
+        let flag = lifted(rally.0);
+        gizmos.line(
+            transform.translation + Vec3::Y * ROUTE_HEIGHT,
+            flag,
+            RALLY_COLOR.with_alpha(0.6),
+        );
+        gizmos.line(flag, flag + Vec3::Y * RALLY_FLAG_HEIGHT, RALLY_COLOR);
+        let (isometry, radius) = ground_circle(flag, 0.6);
+        gizmos.circle(isometry, radius, RALLY_COLOR);
+    }
 }
 
 pub fn draw_overlays(
@@ -133,11 +190,7 @@ pub fn draw_overlays(
 
     if marker.remaining_secs > 0.0 {
         marker.remaining_secs -= time.delta_secs();
-        let color = if marker.hostile {
-            Color::srgb(1.0, 0.25, 0.2)
-        } else {
-            Color::srgb(0.4, 1.0, 0.5)
-        };
+        let color = marker_color(marker.kind);
         let (isometry, radius) = ground_circle(marker.position, 0.4 + marker.remaining_secs * 1.5);
         gizmos.circle(isometry, radius, color);
     }

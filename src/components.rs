@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::catalog::{ArmorClass, BuildingKind, UnitKind, WeaponSpec};
 
@@ -137,6 +138,69 @@ pub enum HarvestState {
         timer: f32,
     },
 }
+
+/// A standing instruction for a unit, executed by `unit_orders::carry_out_orders`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub enum Order {
+    /// Go there, only returning fire on the way.
+    Move(IVec2),
+    /// Go there, fighting whatever comes into sight along the way.
+    AttackMove(IVec2),
+    /// Attack-move back and forth between two points until told otherwise.
+    Patrol { from: IVec2, to: IVec2 },
+}
+
+impl Order {
+    pub fn destination(self) -> IVec2 {
+        match self {
+            Order::Move(goal) | Order::AttackMove(goal) => goal,
+            Order::Patrol { to, .. } => to,
+        }
+    }
+
+    pub fn engages_on_the_way(self) -> bool {
+        !matches!(self, Order::Move(_))
+    }
+}
+
+/// The order being carried out and the ones queued behind it with Shift.
+#[derive(Component, Default, Clone, Debug)]
+pub struct Orders {
+    pub current: Option<Order>,
+    pub queued: VecDeque<Order>,
+}
+
+impl Orders {
+    pub fn replace_with(&mut self, order: Order) {
+        self.queued.clear();
+        self.current = Some(order);
+    }
+
+    pub fn queue(&mut self, order: Order) {
+        if self.current.is_none() {
+            self.current = Some(order);
+        } else {
+            self.queued.push_back(order);
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.current = None;
+        self.queued.clear();
+    }
+
+    /// The remaining destinations in order, for drawing the planned route.
+    pub fn waypoints(&self) -> impl Iterator<Item = IVec2> + '_ {
+        self.current
+            .iter()
+            .chain(self.queued.iter())
+            .map(|order| order.destination())
+    }
+}
+
+/// Where a barracks or factory sends the units it finishes.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct RallyPoint(pub IVec2);
 
 #[derive(Component)]
 pub struct Harvester {

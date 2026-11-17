@@ -25,6 +25,7 @@ make test-playability   # headless matches on a fixed 50 ms clock
 cargo test --release --test missions   # campaign setups, objectives, multiple enemies, new units
 cargo test --release --test fog        # fog of war: hidden enemies, exploration, spotting, saves
 cargo test --release --test sound      # the simulation asks for the right sounds at the right moments
+cargo test --release --test orders     # attack-move, patrol, waypoint queues, rally points
 ```
 
 The playability tests run the real simulation systems (`SimulationPlugin`) without a window: units cross the
@@ -40,6 +41,10 @@ scripted army wins, and saving then loading restores the battle.
 | LMB / drag | select unit / box-select units (Shift adds) |
 | RMB on ground | move (formation) |
 | RMB on enemy | attack |
+| Ctrl + RMB | attack-move: fight anything met on the way, then carry on |
+| Alt + RMB | patrol between the current position and the target |
+| Shift + RMB | queue the order behind the current ones (route shown for selected units) |
+| RMB with a barracks or factory selected | set its rally point |
 | RMB on crystals / refinery (harvester) | harvest / unload |
 | Menu: tile LMB | build; a finished structure: click, then place it on the map |
 | Menu: tile RMB | cancel and refund |
@@ -154,6 +159,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `lib.rs` | `SimulationPlugin` (battle logic, also used headless by the tests) and `GamePlugin` (the full game) |
 | `levels`, `match_flow`, `main_menu` | level definitions, campaign and custom levels; match setup and states; main menu and battle editor |
 | `medical` | field medics healing infantry |
+| `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `outcome` | mission objectives, victory and defeat |
