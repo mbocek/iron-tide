@@ -65,26 +65,26 @@ make balance MATCHES=40   # tighter numbers
   challenge Normal. Sides alternate every match, so a favoured base site shows up in its own column.
 - **Unit ledger:** how many of each unit the AIs built and lost, and the damage they dealt per credit spent.
 
-Results after tuning (40 matches per pairing):
+Results after tuning (60 matches per pairing):
 
 | Duel ($3000 a side) | Rifleman | Rocketeer | Scout | Tank | Bulwark | Howitzer |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Rifleman** | 0 | +80 | −78 | −52 | −14 | −85 |
-| **Rocketeer** | −80 | 0 | −38 | +56 | +58 | −19 |
-| **Scout Buggy** | +79 | +35 | 0 | −53 | −52 | +32 |
-| **Battle Tank** | +53 | −56 | +56 | 0 | −12 | +56 |
-| **Bulwark** | +12 | −60 | +45 | +12 | 0 | +65 |
-| **Howitzer** | +88 | +45 | −30 | −55 | −66 | −8 |
+| **Rifleman** | 0 | +78 | −81 | −64 | −15 | −56 |
+| **Rocketeer** | −78 | 0 | −42 | +57 | +53 | −91 |
+| **Scout Buggy** | +81 | +40 | 0 | −49 | −45 | +22 |
+| **Battle Tank** | +64 | −57 | +49 | 0 | −8 | +42 |
+| **Bulwark** | +16 | −53 | +45 | +8 | 0 | +59 |
+| **Howitzer** | +68 | +58 | −22 | −44 | −56 | +1 |
 
-| Challenger | vs | wins : losses (unfinished) | median length |
-| --- | --- | --- | --- |
-| Normal | Normal | 16 : 21 (3) | 10.5 min |
-| Hard | Normal | 28 : 10 (2) | 7.9 min |
-| Easy | Normal | 2 : 34 (4) | 8.9 min |
+| Challenger | vs | wins : losses (unfinished) | median length | SW : NE site wins |
+| --- | --- | --- | --- | --- |
+| Normal | Normal | 21 : 24 (15) | 9.9 min | 17 : 28 |
+| Hard | Normal | 56 : 2 (2) | 7.4 min | 28 : 30 |
+| Easy | Normal | 1 : 56 (3) | 7.2 min | 30 : 27 |
 
-Every unit now has a counter: riflemen beat rocketeers, scouts hunt infantry, rocketeers kill armour, tanks and the
+Every unit has a counter: riflemen beat rocketeers, scouts hunt infantry, rocketeers kill armour, tanks and the
 Bulwark beat light vehicles, and howitzers shell infantry but lose to anything fast that reaches them.
-Known imbalance: the terrain is not mirrored, and the south-west base wins about four of five mirror matches.
+Neither corner is favoured: the map is point-symmetric (see Rules), and the site split moves either way between runs.
 
 ## Controls
 
@@ -182,6 +182,9 @@ attack wave and its income (75 % / 100 % / 135 %).
 - **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory; Barracks → Gun Turret.
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Scout Buggy,
   Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Harvester.
+- **Fair corners:** the map is point-symmetric around its centre: the river and its fords, the crystal fields
+  and every tree or rock that blocks movement have a twin in the opposite corner. Bases in the far half face
+  the other way, so every base's doors, refinery dock and new units point towards the middle of the map.
 - **Victory:** depends on the mission objective (destroy everything, destroy the Command Centers, survive, stockpile credits).
 - **Fog of war:** unexplored ground is black; explored ground stays visible but enemy units show only within
   the sight of your units and buildings. Enemy structures stay on the map once spotted. Your units only open

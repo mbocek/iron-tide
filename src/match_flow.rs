@@ -8,7 +8,7 @@ use crate::control_groups::ControlGroups;
 use crate::economy::Economies;
 use crate::fog::FogOfWar;
 use crate::levels::{ActiveLevel, ForceSetup};
-use crate::map::{GameMap, cell_center};
+use crate::map::{GameMap, cell_center, in_far_half};
 use crate::notifications::Notifications;
 use crate::outcome::GameOutcome;
 use crate::production::{BuildItem, Placement, PlacementContext, Production, construct_building};
@@ -139,8 +139,11 @@ fn deploy_force(
 
     let rally = base + force.site.rally_offset();
     let columns = 3;
+    let lines_up_westward = in_far_half(base, BuildingKind::CommandCenter.spec().footprint);
+    let direction = if lines_up_westward { -1 } else { 1 };
     for (i, &kind) in force.units.iter().enumerate() {
-        let wanted = rally + IVec2::new(i as i32 % columns, i as i32 / columns);
+        let slot = IVec2::new(i as i32 % columns, i as i32 / columns);
+        let wanted = rally + slot * direction;
         let cell = map.nearest_passable(wanted).unwrap_or(wanted);
         spawn_unit(
             commands,

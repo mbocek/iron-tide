@@ -23,6 +23,23 @@ pub const BASE_SITES: [IVec2; 4] = [
     IVec2::new(54, 52),
 ];
 pub const PLAYER_BASE_CELL: IVec2 = BASE_SITES[0];
+/// A cell and its mirror image always add up to this, so the map plays the same from opposite corners.
+const MIRROR_SUM: i32 = 62;
+
+pub fn opposite_cell(cell: IVec2) -> IVec2 {
+    IVec2::splat(MIRROR_SUM) - cell
+}
+
+/// Where a structure of `footprint` starting at `origin` lands when the map is mirrored.
+pub fn opposite_origin(origin: IVec2, footprint: IVec2) -> IVec2 {
+    opposite_cell(origin) - (footprint - IVec2::ONE)
+}
+
+/// Structures here are laid out and turned as the mirror image of their twin in the near half.
+pub fn in_far_half(origin: IVec2, footprint: IVec2) -> bool {
+    let opposite = opposite_origin(origin, footprint);
+    origin.x + origin.y > opposite.x + opposite.y
+}
 pub const ENEMY_BASE_CELL: IVec2 = BASE_SITES[1];
 
 const CRYSTAL_VARIANTS: [&str; 3] = ["crystal_a", "crystal_b", "crystal_c"];
@@ -216,13 +233,14 @@ pub struct CrystalField {
     pub radius: f32,
 }
 
+/// In mirrored pairs: every even entry is followed by its opposite.
 pub const CRYSTAL_FIELDS: [CrystalField; 6] = [
     CrystalField {
         center: IVec2::new(15, 46),
         radius: 3.6,
     },
     CrystalField {
-        center: IVec2::new(45, 14),
+        center: IVec2::new(47, 16),
         radius: 3.6,
     },
     CrystalField {
@@ -230,7 +248,7 @@ pub const CRYSTAL_FIELDS: [CrystalField; 6] = [
         radius: 2.6,
     },
     CrystalField {
-        center: IVec2::new(36, 22),
+        center: IVec2::new(38, 24),
         radius: 2.6,
     },
     CrystalField {
@@ -238,7 +256,7 @@ pub const CRYSTAL_FIELDS: [CrystalField; 6] = [
         radius: 3.2,
     },
     CrystalField {
-        center: IVec2::new(54, 38),
+        center: IVec2::new(56, 40),
         radius: 3.2,
     },
 ];
@@ -247,7 +265,7 @@ pub fn near_base(cell: IVec2) -> bool {
     let base_clearance = 9.0;
     BASE_SITES
         .iter()
-        .any(|base| (cell - *base).as_vec2().length() < base_clearance)
+        .any(|base| (cell - (*base + IVec2::ONE)).as_vec2().length() < base_clearance)
 }
 
 pub fn near_crystal_field(cell: IVec2) -> bool {
@@ -318,7 +336,7 @@ fn seed_crystal_fields(
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
-    for field in &CRYSTAL_FIELDS {
+    for field in CRYSTAL_FIELDS.iter().step_by(2) {
         let reach = field.radius.ceil() as i32;
         for cell in cells_by_distance(field.center, reach) {
             let distance = (cell - field.center).as_vec2().length();
@@ -329,9 +347,15 @@ fn seed_crystal_fields(
             if distance + jitter > field.radius || map.terrain_blocked[i] {
                 continue;
             }
+            let Some(mirror) = GameMap::index(opposite_cell(cell)) else {
+                continue;
+            };
             let richness = 1.0 - 0.5 * (distance / field.radius);
-            map.crystal[i] = (CRYSTAL_PER_CELL as f32 * richness) as u32;
-            spawn_crystal_visual(commands, models, rng, cell, map.crystal[i]);
+            let amount = (CRYSTAL_PER_CELL as f32 * richness) as u32;
+            for (index, at) in [(i, cell), (mirror, opposite_cell(cell))] {
+                map.crystal[index] = amount;
+                spawn_crystal_visual(commands, models, rng, at, amount);
+            }
         }
     }
 }
@@ -376,7 +400,7 @@ mod tests {
     }
 
     fn is_ford_column(column: i32) -> bool {
-        [(9, 13), (30, 34), (51, 55)]
+        [(9, 13), (29, 33), (49, 53)]
             .iter()
             .any(|&(start, end)| column >= start && column <= end)
     }
@@ -394,6 +418,38 @@ mod tests {
                 !in_river_band || is_ford_column(cell.x),
                 "crossed the river outside a ford at {cell}"
             );
+        }
+    }
+
+    #[test]
+    fn opposite_base_sites_mirror_each_other() {
+        let command_center = IVec2::splat(3);
+        assert_eq!(
+            opposite_origin(BASE_SITES[0], command_center),
+            BASE_SITES[1]
+        );
+        assert_eq!(
+            opposite_origin(BASE_SITES[2], command_center),
+            BASE_SITES[3]
+        );
+    }
+
+    #[test]
+    fn the_river_and_crystal_fields_are_point_symmetric() {
+        let map = map_with_river();
+        for cell in (0..MAP_CELLS).flat_map(|y| (0..MAP_CELLS).map(move |x| IVec2::new(x, y))) {
+            let mirror = opposite_cell(cell);
+            if GameMap::in_bounds(mirror) {
+                assert_eq!(
+                    map.is_passable(cell),
+                    map.is_passable(mirror),
+                    "{cell} vs {mirror}"
+                );
+            }
+        }
+        for pair in CRYSTAL_FIELDS.chunks(2) {
+            assert_eq!(opposite_cell(pair[0].center), pair[1].center);
+            assert_eq!(pair[0].radius, pair[1].radius);
         }
     }
 

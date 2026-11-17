@@ -11,7 +11,9 @@ pub const OUTLANDS_WIDTH: f32 = 44.0;
 const MESH_SPACING: f32 = 0.5;
 const RIVER_DEPTH: f32 = 1.5;
 const RIVER_HALF_WIDTH_CELLS: f32 = 1.7;
-const RIVER_FORD_COLUMNS: [(f32, f32); 3] = [(9.0, 13.0), (30.0, 34.0), (51.0, 55.0)];
+const RIVER_FORD_COLUMNS: [(f32, f32); 3] = [(9.0, 14.0), (29.0, 34.0), (49.0, 54.0)];
+/// The river winds point-symmetrically around the map centre, like everything else that blocks units.
+const MAP_CENTER_CELLS: f32 = 31.5;
 const ROLLING_HILLS_HEIGHT: f32 = 1.1;
 const MOUNTAIN_HEIGHT: f32 = 16.0;
 const MOUNTAIN_RISE_DISTANCE: f32 = 26.0;
@@ -58,7 +60,8 @@ fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 }
 
 pub fn river_centerline(column: f32) -> f32 {
-    31.0 + 5.0 * (column * 0.13).sin() + 2.0 * (column * 0.31 + 1.0).sin()
+    let offset = column - MAP_CENTER_CELLS;
+    MAP_CENTER_CELLS + 5.0 * (offset * 0.13).sin() + 2.0 * (offset * 0.31).sin()
 }
 
 fn is_ford(column: f32) -> bool {
@@ -147,7 +150,7 @@ fn road_network() -> Vec<Vec<Vec2>> {
         cells(&[
             west_gate(south_west),
             Vec2::new(12.0, 44.0),
-            ford(11.0),
+            ford(11.5),
             Vec2::new(14.0, 20.0),
             west_gate(north_west),
         ]),
@@ -159,7 +162,7 @@ fn road_network() -> Vec<Vec<Vec2>> {
         cells(&[
             west_gate(south_west),
             Vec2::new(28.0, 46.0),
-            ford(32.0),
+            ford(31.5),
             Vec2::new(40.0, 18.0),
             east_gate(north_east),
         ]),
@@ -171,7 +174,7 @@ fn road_network() -> Vec<Vec<Vec2>> {
         cells(&[
             east_gate(south_east),
             Vec2::new(54.0, 44.0),
-            ford(53.0),
+            ford(51.5),
             Vec2::new(55.0, 20.0),
             east_gate(north_east),
         ]),

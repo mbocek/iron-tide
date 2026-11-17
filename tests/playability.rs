@@ -1,10 +1,13 @@
 mod common;
 
 use bevy::prelude::*;
-use common::Battle;
+use common::{Battle, BattleSetup};
 use iron_tide::catalog::{BuildingKind, STARTING_CREDITS, Team, UnitKind};
 use iron_tide::components::*;
-use iron_tide::map::{GameMap, cell_center, footprint_cells, world_to_cell};
+use iron_tide::levels::{LevelDefinition, campaign};
+use iron_tide::map::{
+    GameMap, MAP_CELLS, cell_center, footprint_cells, opposite_cell, world_to_cell,
+};
 use iron_tide::movement::order_move;
 use iron_tide::outcome::GameOutcome;
 use iron_tide::production::BuildItem;
@@ -313,4 +316,35 @@ fn saving_and_loading_restores_the_battle() {
     battle.run_for(0.3);
 
     assert_eq!(snapshot(&mut battle), saved);
+}
+
+#[test]
+fn opposite_corners_get_the_same_ground() {
+    let levels = campaign().into_iter().map(|entry| entry.level);
+    for level in levels.chain([LevelDefinition::default()]) {
+        let name = level.name.clone();
+        let mut battle = Battle::new(BattleSetup {
+            enemy_ai: false,
+            starting_forces: false,
+            level: Some(level),
+        });
+        let map = battle.world().resource::<GameMap>();
+        let cells = (0..MAP_CELLS).flat_map(|y| (0..MAP_CELLS).map(move |x| IVec2::new(x, y)));
+        for cell in cells {
+            let mirror = opposite_cell(cell);
+            if !GameMap::in_bounds(mirror) {
+                continue;
+            }
+            assert_eq!(
+                map.is_passable(cell),
+                map.is_passable(mirror),
+                "{name}: {cell} vs {mirror}"
+            );
+            assert_eq!(
+                map.crystal_at(cell),
+                map.crystal_at(mirror),
+                "{name}: {cell} vs {mirror}"
+            );
+        }
+    }
 }

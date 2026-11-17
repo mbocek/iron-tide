@@ -11,12 +11,14 @@ use crate::components::Building;
 use crate::graphics::FineDecor;
 use crate::map::{
     CELL_SIZE, GameMap, MAP_CELLS, MAP_WORLD_SIZE, cell_center, near_base, near_crystal_field,
+    opposite_cell,
 };
 use crate::terrain::{
     GroundLayers, OUTLANDS_WIDTH, river_centerline, terrain_height, terrain_normal,
 };
 
-const FOREST_COUNT: usize = 16;
+const FOREST_PAIRS: usize = 8;
+const ROCK_PAIRS: usize = 20;
 const CONIFER_FOREST: [&str; 3] = ["tree_pine", "tree_pine", "tree_pine_young"];
 const DECIDUOUS_FOREST: [&str; 4] = ["tree_broadleaf", "tree", "tree_birch", "tree_broadleaf"];
 const MIXED_FOREST: [&str; 5] = [
@@ -69,7 +71,7 @@ fn plant_forests(
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
-    for _ in 0..FOREST_COUNT {
+    for _ in 0..FOREST_PAIRS {
         let center = IVec2::new(
             rng.random_range(2..MAP_CELLS - 2),
             rng.random_range(2..MAP_CELLS - 2),
@@ -121,7 +123,7 @@ fn place_rocks(
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
-    for _ in 0..40 {
+    for _ in 0..ROCK_PAIRS {
         let cell = IVec2::new(
             rng.random_range(0..MAP_CELLS),
             rng.random_range(0..MAP_CELLS),
@@ -259,25 +261,31 @@ fn block_with_prop(
     model_id: &str,
     scale: Range<f32>,
 ) {
-    let free = map.is_buildable(cell) && !near_base(cell) && !near_crystal_field(cell);
-    let Some(i) = GameMap::index(cell).filter(|_| free) else {
+    let free =
+        |cell: IVec2| map.is_buildable(cell) && !near_base(cell) && !near_crystal_field(cell);
+    let pair = [cell, opposite_cell(cell)];
+    if !pair.iter().all(|&cell| free(cell)) {
         return;
-    };
-    map.terrain_blocked[i] = true;
-    let jitter = Vec3::new(
-        rng.random_range(-0.3..0.3),
-        0.0,
-        rng.random_range(-0.3..0.3),
-    );
-    spawn_scenery(
-        commands,
-        models,
-        rng,
-        model_id,
-        cell_center(cell) + jitter,
-        scale,
-        false,
-    );
+    }
+    for cell in pair {
+        if let Some(i) = GameMap::index(cell) {
+            map.terrain_blocked[i] = true;
+        }
+        let jitter = Vec3::new(
+            rng.random_range(-0.3..0.3),
+            0.0,
+            rng.random_range(-0.3..0.3),
+        );
+        spawn_scenery(
+            commands,
+            models,
+            rng,
+            model_id,
+            cell_center(cell) + jitter,
+            scale.clone(),
+            false,
+        );
+    }
 }
 
 fn place_decor(

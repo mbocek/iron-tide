@@ -10,7 +10,7 @@ use crate::economy::Economies;
 use crate::levels::Difficulty;
 use crate::map::{
     CELL_SIZE, GameMap, cell_center, cells_by_distance, footprint_cells, footprint_center,
-    world_to_cell,
+    in_far_half, opposite_cell, opposite_origin, world_to_cell,
 };
 use crate::production::{
     BuildItem, Lane, PlacementContext, Production, construct_building, owned_building_kinds,
@@ -153,12 +153,16 @@ pub fn find_building_site(
     kind: BuildingKind,
 ) -> Option<IVec2> {
     let footprint = kind.spec().footprint;
+    let frame = BaseFrame::of(base);
+    let home = frame.origin(base, BuildingKind::CommandCenter.spec().footprint);
     let search_center = if kind == BuildingKind::Refinery {
-        towards_nearest_crystal(context.map, base)
+        towards_nearest_crystal(context.map, home, frame)
     } else {
-        base
+        home
     };
-    cells_by_distance(search_center, SITE_SEARCH_RADIUS).find(|&origin| {
+    let mut candidates = cells_by_distance(search_center, SITE_SEARCH_RADIUS)
+        .map(|origin| frame.origin(origin, footprint));
+    candidates.find(|&origin| {
         let margin_origin = origin - IVec2::ONE;
         let keeps_lanes_open = footprint_cells(margin_origin, footprint + IVec2::splat(2))
             .all(|cell| !GameMap::in_bounds(cell) || context.map.is_passable(cell));
@@ -166,10 +170,42 @@ pub fn find_building_site(
     })
 }
 
-/// Halfway to the closest crystals, so harvesters have a short haul whichever corner the base is in.
-fn towards_nearest_crystal(map: &GameMap, base: IVec2) -> IVec2 {
-    map.nearest_crystal(base, CRYSTAL_SEARCH_RADIUS)
-        .map_or(base, |crystal| (base + crystal) / 2)
+/// Bases in the far half of the map lay themselves out as the mirror image of their opposite number,
+/// so search-order tie-breaks favour neither corner.
+#[derive(Clone, Copy)]
+struct BaseFrame {
+    mirrored: bool,
+}
+
+impl BaseFrame {
+    fn of(base: IVec2) -> Self {
+        Self {
+            mirrored: in_far_half(base, BuildingKind::CommandCenter.spec().footprint),
+        }
+    }
+
+    fn cell(self, cell: IVec2) -> IVec2 {
+        if self.mirrored {
+            opposite_cell(cell)
+        } else {
+            cell
+        }
+    }
+
+    fn origin(self, origin: IVec2, footprint: IVec2) -> IVec2 {
+        if self.mirrored {
+            opposite_origin(origin, footprint)
+        } else {
+            origin
+        }
+    }
+}
+
+/// Halfway to the closest crystals, so harvesters have a short haul; `home` is in the frame's coordinates.
+fn towards_nearest_crystal(map: &GameMap, home: IVec2, frame: BaseFrame) -> IVec2 {
+    cells_by_distance(home, CRYSTAL_SEARCH_RADIUS)
+        .find(|&cell| map.crystal_at(frame.cell(cell)) > 0)
+        .map_or(home, |crystal| (home + crystal) / 2)
 }
 
 /// Queues the next structure of the build plan; returns the price it is saving up for when it cannot pay yet.
