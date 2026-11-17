@@ -157,7 +157,7 @@ the menu's *Audio* tab.
 
 The game opens in a main menu:
 - **Campaign:** four missions (`assets/levels/*.json`), each with its own objective and unlocking new units.
-  1. Bridgehead (1 enemy, destroy everything)
+  1. Bridgehead (1 enemy, destroy everything; with a step-by-step tutorial)
   2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics)
   3. Iron Hammer (destroy both enemy Command Centers, introduces the Bulwark)
   4. Three Fronts (three Hard enemies)
@@ -181,13 +181,17 @@ A level file is plain JSON; omitted fields take defaults:
   ],
   "objective": { "Survive": { "minutes": 10.0 } },
   "available_units": [],
-  "available_buildings": []
+  "available_buildings": [],
+  "fog_of_war": true,
+  "tutorial": false
 }
 ```
 
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
-Empty `available_*` lists allow everything. Difficulty changes how fast the AI thinks, the size of its first
+Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel
+(select, move, power plant, refinery, barracks, a rifleman, attack-move, destroy the enemy); each step
+completes as soon as the player does it, and the panel can be hidden. Difficulty changes how fast the AI thinks, the size of its first
 attack wave and its income (75 % / 100 % / 135 %).
 
 ## Rules
@@ -246,6 +250,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `medical` | field medics healing infantry |
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
+| `tutorial` | the step-by-step tutorial of levels with `"tutorial": true` |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |

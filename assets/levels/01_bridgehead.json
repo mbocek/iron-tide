@@ -13,5 +13,6 @@
   ],
   "objective": "DestroyAllEnemies",
   "available_units": ["Rifleman", "Scout", "Tank", "Harvester"],
-  "available_buildings": ["PowerPlant", "Refinery", "Barracks", "Factory"]
+  "available_buildings": ["PowerPlant", "Refinery", "Barracks", "Factory"],
+  "tutorial": true
 }

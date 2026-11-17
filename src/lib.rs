@@ -44,6 +44,7 @@ pub mod structure_tools;
 pub mod structures;
 pub mod terrain;
 pub mod terrain_material;
+pub mod tutorial;
 pub mod ui;
 pub mod unit_orders;
 pub mod veterancy;
@@ -233,6 +234,12 @@ impl Plugin for GamePlugin {
             .add_systems(Last, frame_pacing::pace_frames)
             .add_systems(
                 Update,
+                (tutorial::follow_tutorial, tutorial::refresh_tutorial_panel)
+                    .chain()
+                    .in_set(FramePhase::Presentation),
+            )
+            .add_systems(
+                Update,
                 (
                     flat_scenery::merge_scenery_models,
                     flat_scenery::dress_flat_scenery,
@@ -276,6 +283,7 @@ impl Plugin for GamePlugin {
                     minimap::create_minimap,
                     ui::build_interface,
                     structure_tools::prepare_structure_tools,
+                    tutorial::start_tutorial,
                     orders::spawn_selection_box,
                     ambience::light_crystal_fields,
                     ambience::index_trampleable_vegetation,

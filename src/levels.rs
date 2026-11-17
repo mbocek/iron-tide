@@ -173,6 +173,8 @@ pub struct LevelDefinition {
     pub available_buildings: Vec<BuildingKind>,
     /// Hide unexplored ground and unseen enemies.
     pub fog_of_war: bool,
+    /// Walk the player through the basics step by step.
+    pub tutorial: bool,
 }
 
 impl Default for LevelDefinition {
@@ -187,6 +189,7 @@ impl Default for LevelDefinition {
             available_units: Vec::new(),
             available_buildings: Vec::new(),
             fog_of_war: true,
+            tutorial: false,
         }
     }
 }
@@ -422,6 +425,7 @@ impl SkirmishOptions {
             available_units: self.tech.units(),
             available_buildings: Vec::new(),
             fog_of_war: self.fog_of_war,
+            tutorial: false,
         }
     }
 }
