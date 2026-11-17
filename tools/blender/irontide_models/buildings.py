@@ -747,3 +747,24 @@ def _build_defense_turret_head(pivot):
     box("ArmorLight", (0.3, 0.5, 0.3), pivot + Vector((-0.72, 0, 0.35)), bevel=0.02, name="AmmoFeedBox")
     add_antenna(pivot + Vector((-0.5, 0.3, 0.72)), 0.8)
     add_vent_grille(pivot + Vector((-0.35, -0.0, 0.73)), 0.2, 0.3, 3)
+
+
+WALL_HALF_SPAN = 0.99
+
+
+def build_wall():
+    """A concrete barrier block filling its cell, so neighbouring segments join into one wall."""
+    footing = chamfered_rect(WALL_HALF_SPAN * 2, WALL_HALF_SPAN * 2, 0.08)
+    slab("ConcreteDark", footing, 0.0, 0.12, bevel=0.0, name="WallFooting")
+    body = chamfered_rect(1.9, 1.9, 0.12)
+    slab("Concrete", body, 0.12, 1.25, top_scale=0.82, bevel=0.03, name="WallBlock")
+    coping = chamfered_rect(1.62, 1.62, 0.1)
+    slab("ConcreteDark", coping, 1.25, 1.38, top_scale=0.95, bevel=0.02, name="WallCoping")
+    add_outline_band(chamfered_rect(1.8, 1.8, 0.11), chamfered_rect(1.64, 1.64, 0.1), 0.62, 0.74, "TeamColor",
+                     name="WallTeamBand")
+    for side in (-1, 1):
+        for along in (-0.45, 0.45):
+            box("Sandbag", (0.42, 0.24, 0.16), (along, side * 0.62, 1.46), (0, 0, side * 0.08), bevel=0.06,
+                name="WallSandbag")
+    for corner in ((0.7, 0.7), (-0.7, -0.7), (0.7, -0.7), (-0.7, 0.7)):
+        cylinder("Steel", 0.03, 0.18, (corner[0], corner[1], 1.42), segments=6, name="RebarStub")

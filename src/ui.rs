@@ -14,7 +14,9 @@ use crate::minimap::{Minimap, jump_camera_on_drag, jump_camera_on_press};
 use crate::notifications::Notifications;
 use crate::outcome::{GameOutcome, objective_status};
 use crate::perf_overlay::spawn_performance_overlay;
-use crate::production::{BuildItem, Lane, Placement, Production, owned_building_kinds};
+use crate::production::{
+    BuildItem, EnqueueRefusal, Lane, Placement, Production, owned_building_kinds,
+};
 use crate::queue_bar::spawn_queue_bar;
 use crate::sound::{Sound, SoundCue};
 
@@ -717,6 +719,24 @@ fn click_build_tile(
         && production.lane(Team::Player, item.lane()).ready == Some(kind)
     {
         placement.active = Some(kind);
+        return;
+    }
+    if let BuildItem::Structure(kind) = item
+        && kind.is_wall()
+    {
+        let refusal = if !production.allows(Team::Player, item) {
+            Some(EnqueueRefusal::NotInMission.message())
+        } else {
+            item.missing_requirement(&owned)
+                .map(|missing| format!("Requires {}", missing.spec().name))
+        };
+        match refusal {
+            Some(message) => {
+                notifications.push(message);
+                cues.write(SoundCue::interface(Sound::UiError));
+            }
+            None => placement.active = Some(kind),
+        }
         return;
     }
     if let Some(missing) = item.missing_requirement(&owned) {

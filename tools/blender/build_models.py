@@ -37,6 +37,7 @@ TEAM_MODELS = {
     "barracks": (buildings.build_barracks, BUILDING_TRIANGLE_BUDGET),
     "factory": (buildings.build_factory, BUILDING_TRIANGLE_BUDGET),
     "gun_turret": (buildings.build_gun_turret, BUILDING_TRIANGLE_BUDGET),
+    "wall": (buildings.build_wall, 4_000),
 }
 NEUTRAL_MODELS = {
     "crystal": (ore.build_crystal_a, 3_000),

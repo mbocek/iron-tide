@@ -7,6 +7,7 @@ use iron_tide::components::*;
 use iron_tide::levels::{
     BaseSite, Difficulty, LevelDefinition, Objective, SkirmishOptions, campaign,
 };
+use iron_tide::map::GameMap;
 use iron_tide::outcome::GameOutcome;
 use iron_tide::production::BuildItem;
 use iron_tide::savegame::SaveRequests;
@@ -224,4 +225,40 @@ fn a_saved_mission_reloads_with_its_level() {
         level
     );
     assert_eq!(battle.buildings(Team::Amber).len(), amber_buildings);
+}
+
+#[test]
+fn walls_left_standing_do_not_keep_the_enemy_alive() {
+    let mut battle = Battle::on_level(LevelDefinition {
+        objective: Objective::DestroyAllEnemies,
+        ..default()
+    });
+    battle.construct(BuildingKind::Wall, Team::Crimson, IVec2::new(48, 14));
+    let world = battle.world();
+    let enemies: Vec<(Entity, bool)> = world
+        .query::<(Entity, &Team, Option<&Building>)>()
+        .iter(world)
+        .filter(|(_, team, _)| **team == Team::Crimson)
+        .map(|(entity, _, building)| {
+            (
+                entity,
+                building.is_some_and(|b| b.kind == BuildingKind::Wall),
+            )
+        })
+        .collect();
+    for (entity, is_wall) in enemies {
+        if !is_wall {
+            world.entity_mut(entity).despawn();
+        }
+    }
+    battle.run_for(0.5);
+    assert_eq!(battle.outcome(), GameOutcome::Victory);
+}
+
+#[test]
+fn walls_block_movement() {
+    let mut battle = Battle::sandbox();
+    let wall = IVec2::new(25, 45);
+    battle.construct(BuildingKind::Wall, Team::Player, wall);
+    assert!(!battle.world().resource::<GameMap>().is_passable(wall));
 }

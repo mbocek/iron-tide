@@ -407,6 +407,8 @@ pub fn placement_context<'a>(
 pub struct Placement {
     pub active: Option<BuildingKind>,
     ghost: Option<Entity>,
+    /// Where the current wall drag started.
+    wall_anchor: Option<IVec2>,
 }
 
 #[derive(Component)]
@@ -440,6 +442,40 @@ fn placement_origin(cursor_ground: Vec3, footprint: IVec2) -> IVec2 {
     world_to_cell(centered)
 }
 
+/// Cells of a straight wall from `from` towards `to`, along whichever axis the drag mostly follows.
+pub fn wall_line(from: IVec2, to: IVec2) -> Vec<IVec2> {
+    let delta = to - from;
+    let (step, length) = if delta.x.abs() >= delta.y.abs() {
+        (IVec2::new(delta.x.signum(), 0), delta.x.abs())
+    } else {
+        (IVec2::new(0, delta.y.signum()), delta.y.abs())
+    };
+    (0..=length).map(|i| from + step * i).collect()
+}
+
+/// The wall segments that can be placed along the line, in order, until the credits run out. Each placed
+/// segment extends the base, so a wall can be laid outwards beyond the usual building radius.
+pub fn affordable_wall_line(
+    context: &mut PlacementContext,
+    from: IVec2,
+    to: IVec2,
+    credits: i32,
+) -> Vec<IVec2> {
+    let segment_cost = BuildingKind::Wall.spec().cost;
+    let mut placed = Vec::new();
+    for cell in wall_line(from, to) {
+        if (placed.len() as i32 + 1) * segment_cost > credits {
+            break;
+        }
+        if context.can_place(BuildingKind::Wall, cell) {
+            context.own_buildings.push((cell, IVec2::ONE));
+            context.occupied_cells.push(cell);
+            placed.push(cell);
+        }
+    }
+    placed
+}
+
 pub fn place_structure(
     mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
@@ -452,6 +488,7 @@ pub fn place_structure(
     mut map: ResMut<GameMap>,
     mut placement: ResMut<Placement>,
     mut production: ResMut<Production>,
+    mut economies: ResMut<Economies>,
     buildings: Query<(&Building, &Team)>,
     units: Query<&Transform, With<Unit>>,
     mut ghosts: Query<
@@ -467,6 +504,7 @@ pub fn place_structure(
     };
     if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
         placement.active = None;
+        placement.wall_anchor = None;
         return;
     }
     let footprint = kind.spec().footprint;
@@ -494,6 +532,33 @@ pub fn place_structure(
             ghost_materials.invalid.clone()
         };
     }
+    if kind.is_wall() {
+        if mouse.just_pressed(MouseButton::Left) {
+            placement.wall_anchor = Some(origin);
+        }
+        let Some(anchor) = placement
+            .wall_anchor
+            .filter(|_| mouse.just_released(MouseButton::Left))
+        else {
+            return;
+        };
+        placement.wall_anchor = None;
+        let credits = economies.of(Team::Player).credits;
+        let segments = {
+            let mut context = placement_context(&map, Team::Player, &buildings, &units);
+            affordable_wall_line(&mut context, anchor, origin, credits)
+        };
+        if segments.is_empty() {
+            cues.write(SoundCue::interface(Sound::UiError));
+            return;
+        }
+        for &cell in &segments {
+            construct_building(&mut commands, &models, &mut map, kind, Team::Player, cell);
+        }
+        economies.of_mut(Team::Player).credits -= segments.len() as i32 * kind.spec().cost;
+        cues.write(SoundCue::at(Sound::BuildingPlaced, cell_center(origin)));
+        return;
+    }
     if valid && mouse.just_pressed(MouseButton::Left) {
         construct_building(&mut commands, &models, &mut map, kind, Team::Player, origin);
         cues.write(SoundCue::at(
@@ -520,6 +585,55 @@ mod tests {
         BuildingKind::PowerPlant,
         BuildingKind::Barracks,
     ];
+
+    #[test]
+    fn a_wall_follows_the_dominant_axis_of_the_drag() {
+        let from = IVec2::new(10, 10);
+        assert_eq!(
+            wall_line(from, IVec2::new(13, 11)),
+            vec![
+                from,
+                IVec2::new(11, 10),
+                IVec2::new(12, 10),
+                IVec2::new(13, 10)
+            ]
+        );
+        assert_eq!(
+            wall_line(from, IVec2::new(9, 8)).last(),
+            Some(&IVec2::new(10, 8))
+        );
+        assert_eq!(wall_line(from, from), vec![from]);
+    }
+
+    #[test]
+    fn walls_extend_the_base_and_stop_when_the_credits_run_out() {
+        let map = GameMap::open_field();
+        let command_center = IVec2::new(10, 10);
+        let mut context = PlacementContext {
+            map: &map,
+            own_buildings: vec![(command_center, IVec2::splat(3))],
+            occupied_cells: Vec::new(),
+        };
+        let start = IVec2::new(14, 11);
+        let far_end = start + IVec2::new(BUILD_RADIUS_CELLS * 3, 0);
+        let all = affordable_wall_line(&mut context, start, far_end, 100_000);
+        assert_eq!(
+            all.len() as i32,
+            BUILD_RADIUS_CELLS * 3 + 1,
+            "the wall stopped at the build radius"
+        );
+
+        let mut context = PlacementContext {
+            map: &map,
+            own_buildings: vec![(command_center, IVec2::splat(3))],
+            occupied_cells: Vec::new(),
+        };
+        let three_segments = BuildingKind::Wall.spec().cost * 3 + 10;
+        assert_eq!(
+            affordable_wall_line(&mut context, start, far_end, three_segments).len(),
+            3
+        );
+    }
 
     #[test]
     fn enqueueing_charges_and_cancelling_refunds() {

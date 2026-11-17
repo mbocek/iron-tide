@@ -171,6 +171,7 @@ pub enum BuildingKind {
     Barracks,
     Factory,
     GunTurret,
+    Wall,
 }
 
 pub struct BuildingSpec {
@@ -189,13 +190,19 @@ pub struct BuildingSpec {
 }
 
 impl BuildingKind {
-    pub const CONSTRUCTIBLE: [BuildingKind; 5] = [
+    pub const CONSTRUCTIBLE: [BuildingKind; 6] = [
         BuildingKind::PowerPlant,
         BuildingKind::Refinery,
         BuildingKind::Barracks,
         BuildingKind::Factory,
         BuildingKind::GunTurret,
+        BuildingKind::Wall,
     ];
+
+    /// Walls are bought segment by segment while being placed, and do not keep a defeated side alive.
+    pub fn is_wall(self) -> bool {
+        self == BuildingKind::Wall
+    }
 
     pub fn spec(self) -> &'static BuildingSpec {
         match self {
@@ -205,6 +212,7 @@ impl BuildingKind {
             BuildingKind::Barracks => &BARRACKS,
             BuildingKind::Factory => &FACTORY,
             BuildingKind::GunTurret => &GUN_TURRET,
+            BuildingKind::Wall => &WALL,
         }
     }
 }
@@ -526,6 +534,20 @@ const GUN_TURRET: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Barracks],
     weapon: Some(TURRET_CANNON),
     sight: 16.0,
+};
+
+const WALL: BuildingSpec = BuildingSpec {
+    name: "Wall",
+    role: "Concrete barrier. Drag to lay a line; each segment is paid as it is placed.",
+    model_id: "wall",
+    footprint: IVec2::new(1, 1),
+    cost: 50,
+    build_secs: 0.0,
+    max_health: 600.0,
+    power: 0,
+    prerequisites: &[BuildingKind::Barracks],
+    weapon: None,
+    sight: 4.0,
 };
 
 pub const STARTING_CREDITS: i32 = 5000;

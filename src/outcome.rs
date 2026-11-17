@@ -26,8 +26,11 @@ pub fn decide_outcome(
     if *outcome != GameOutcome::Ongoing {
         return;
     }
+    let standing = |building: &Building| !building.kind.is_wall();
     let player_alive = units.iter().any(|&t| t == Team::Player)
-        || buildings.iter().any(|(&t, _)| t == Team::Player);
+        || buildings
+            .iter()
+            .any(|(&t, building)| t == Team::Player && standing(building));
     if !player_alive {
         *outcome = GameOutcome::Defeat;
         return;
@@ -35,7 +38,10 @@ pub fn decide_outcome(
     let hostile = |team: &Team| team.is_hostile_to(Team::Player);
     let achieved = match level.0.objective {
         Objective::DestroyAllEnemies => {
-            !units.iter().any(hostile) && !buildings.iter().any(|(team, _)| hostile(team))
+            !units.iter().any(hostile)
+                && !buildings
+                    .iter()
+                    .any(|(team, building)| hostile(team) && standing(building))
         }
         Objective::DestroyCommandCenters => !buildings
             .iter()

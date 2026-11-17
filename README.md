@@ -104,6 +104,7 @@ Without fog the north-east has had a slight edge over several runs; the cause is
 | RMB on crystals / refinery (harvester) | harvest / unload |
 | Menu: tile LMB | build; a finished structure: click, then place it on the map |
 | Menu: tile RMB | cancel and refund |
+| Wall tile, then LMB drag on the map | lay a straight wall, $50 per segment (RMB / Esc ends) |
 | T or REPAIR, then LMB on own structure | start or stop repairing it (stays on for more clicks; RMB / Esc ends it) |
 | Y or SELL, then LMB on own structure | sell it for half its price (stays on for more clicks; RMB / Esc ends it) |
 | WASD, arrows, screen edge | scroll the camera (Shift = faster) |
@@ -200,12 +201,16 @@ attack wave and its income (75 % / 100 % / 135 %).
   (Crimson red, Amber orange, Violet purple), each with its own base, economy and AI.
 - **Economy:** the harvester mines crystals and unloads them at the refinery. Every refinery comes with a free harvester.
 - **Power:** when consumption exceeds production, all production runs at half speed.
+- **Walls:** $50 concrete segments that block movement. Click the Wall tile, then drag on the map to lay a
+  straight line; each segment is paid as it is placed and the mode stays on until right click / Esc. Every
+  segment extends the area you may build in, so walls can reach out from the base. Walls do not keep a
+  defeated side alive, and the computer does not pick them as targets for its attack waves.
 - **Repair and sell:** a structure under repair regains 4 % of its health per second and pays as it goes:
   a repair from rubble to full health costs half its price (the Command Center counts as $3000). Repairs pause
   while the credits run out and stop at full health; a green cross turns above it meanwhile. Selling refunds
   half the price and the structure sinks into the ground. The Command Center cannot be sold. The computer
   repairs its own structures below 60 % health when it has credits to spare.
-- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory; Barracks → Gun Turret.
+- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory; Barracks → Gun Turret, Wall.
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Scout Buggy,
   Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Harvester.
 - **Fair corners:** the map is point-symmetric around its centre: the river and its fords, the crystal fields

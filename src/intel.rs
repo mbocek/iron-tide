@@ -86,7 +86,7 @@ pub fn update_intel(
     mut intel: ResMut<Intel>,
     player_fog: Res<FogOfWar>,
     viewers: Query<(&Team, &Transform, &Sight), Or<(With<Unit>, With<Building>)>>,
-    buildings: Query<(Entity, &Team, &Transform), With<Building>>,
+    buildings: Query<(Entity, &Building, &Team, &Transform)>,
 ) {
     *countdown -= time.delta_secs();
     if *countdown > 0.0 {
@@ -103,7 +103,10 @@ pub fn update_intel(
     for known in &mut intel.known_structures {
         known.retain(|&entity, _| buildings.contains(entity));
     }
-    for (entity, &team, transform) in &buildings {
+    for (entity, building, &team, transform) in &buildings {
+        if building.kind.is_wall() {
+            continue;
+        }
         let position = transform.translation;
         for viewer in [Team::Player, Team::Crimson] {
             let spotted = team.is_hostile_to(viewer)
