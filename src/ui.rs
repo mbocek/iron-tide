@@ -15,6 +15,7 @@ use crate::outcome::{GameOutcome, objective_status};
 use crate::perf_overlay::spawn_performance_overlay;
 use crate::production::{BuildItem, Lane, Placement, Production, owned_building_kinds};
 use crate::queue_bar::spawn_queue_bar;
+use crate::sound::{Sound, SoundCue};
 
 pub const SIDEBAR_WIDTH: f32 = 300.0;
 
@@ -664,6 +665,7 @@ fn select_tab(click: On<PointerClick>, tabs: Query<&TabButton>, mut active: ResM
 
 fn click_build_tile(
     mut click: On<PointerClick>,
+    mut cues: MessageWriter<SoundCue>,
     keys: Res<ButtonInput<KeyCode>>,
     tiles: Query<&BuildTile>,
     mut production: ResMut<Production>,
@@ -711,6 +713,7 @@ fn click_build_tile(
     for _ in 0..batch {
         if let Err(refusal) = production.enqueue(&mut economies, Team::Player, item, &owned) {
             notifications.push(refusal.message());
+            cues.write(SoundCue::interface(Sound::UiError));
             return;
         }
     }

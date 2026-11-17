@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::sound::Sound;
+
 /// The player plus up to three computer opponents, who are allied with each other against the player.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub enum Team {
@@ -81,6 +83,8 @@ pub struct WeaponSpec {
     pub versus_infantry: f32,
     pub versus_vehicle: f32,
     pub versus_structure: f32,
+    /// What firing it sounds like.
+    pub report: Sound,
 }
 
 impl WeaponSpec {
@@ -215,6 +219,7 @@ const RIFLE: WeaponSpec = WeaponSpec {
     versus_infantry: 1.0,
     versus_vehicle: 0.3,
     versus_structure: 0.25,
+    report: Sound::RifleShot,
 };
 
 const SCOUT_MACHINE_GUN: WeaponSpec = WeaponSpec {
@@ -227,6 +232,7 @@ const SCOUT_MACHINE_GUN: WeaponSpec = WeaponSpec {
     versus_infantry: 1.0,
     versus_vehicle: 0.45,
     versus_structure: 0.3,
+    report: Sound::MachineGunShot,
 };
 
 const TANK_CANNON: WeaponSpec = WeaponSpec {
@@ -239,6 +245,7 @@ const TANK_CANNON: WeaponSpec = WeaponSpec {
     versus_infantry: 0.4,
     versus_vehicle: 1.0,
     versus_structure: 0.8,
+    report: Sound::CannonShot,
 };
 
 const HOWITZER: WeaponSpec = WeaponSpec {
@@ -251,6 +258,7 @@ const HOWITZER: WeaponSpec = WeaponSpec {
     versus_infantry: 1.0,
     versus_vehicle: 0.6,
     versus_structure: 1.2,
+    report: Sound::HowitzerShot,
 };
 
 const TURRET_CANNON: WeaponSpec = WeaponSpec {
@@ -263,6 +271,7 @@ const TURRET_CANNON: WeaponSpec = WeaponSpec {
     versus_infantry: 0.8,
     versus_vehicle: 1.0,
     versus_structure: 0.5,
+    report: Sound::CannonShot,
 };
 
 const RIFLEMAN: UnitSpec = UnitSpec {
@@ -365,6 +374,7 @@ const MISSILE_LAUNCHER: WeaponSpec = WeaponSpec {
     versus_infantry: 0.3,
     versus_vehicle: 1.25,
     versus_structure: 0.7,
+    report: Sound::MissileLaunch,
 };
 
 const TWIN_CANNON: WeaponSpec = WeaponSpec {
@@ -377,6 +387,7 @@ const TWIN_CANNON: WeaponSpec = WeaponSpec {
     versus_infantry: 0.5,
     versus_vehicle: 1.0,
     versus_structure: 1.0,
+    report: Sound::HeavyCannonShot,
 };
 
 const ROCKETEER: UnitSpec = UnitSpec {

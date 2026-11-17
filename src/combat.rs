@@ -11,6 +11,7 @@ use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::fog::FogOfWar;
 use crate::map::{GameMap, world_to_cell};
 use crate::movement::order_move;
+use crate::sound::{Sound, SoundCue};
 
 const SIGHT_BEYOND_RANGE: f32 = 6.0;
 const CHASE_REPATH_SECS: f32 = 1.0;
@@ -191,6 +192,7 @@ pub fn chase_targets(
 }
 
 pub fn aim_and_fire(
+    mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
     time: Res<Time>,
     targets: Res<Targets>,
@@ -242,6 +244,7 @@ pub fn aim_and_fire(
         let barrel_direction = Quat::from_rotation_y(aimed_yaw) * Vec3::X;
         let muzzle = position + Vec3::Y * MUZZLE_HEIGHT + barrel_direction * BARREL_LENGTH;
         fire_projectile(&mut commands, &effects, team, muzzle, target, weapon.spec);
+        cues.write(SoundCue::at(weapon.spec.report, muzzle));
     }
 }
 
@@ -295,6 +298,7 @@ fn fire_projectile(
 }
 
 pub fn fly_projectiles(
+    mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
     time: Res<Time>,
     targets: Res<Targets>,
@@ -355,6 +359,13 @@ pub fn fly_projectiles(
             }
         };
         spawn_blast(&mut commands, &effects, impact, blast);
+        let impact_sound = match weapon.style {
+            ProjectileStyle::Bullet => Sound::BulletImpact,
+            ProjectileStyle::Shell | ProjectileStyle::ArtilleryShell | ProjectileStyle::Missile => {
+                Sound::ShellExplosion
+            }
+        };
+        cues.write(SoundCue::at(impact_sound, impact));
     }
 }
 
@@ -383,6 +394,7 @@ fn apply_damage(
 }
 
 pub fn remove_destroyed(
+    mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
     effects: Res<EffectAssets>,
     models: Res<ModelLibrary>,
@@ -416,6 +428,14 @@ pub fn remove_destroyed(
             }
             _ => BlastSize::VehicleWreck,
         };
+        let destruction_sound = match blast {
+            BlastSize::BuildingCollapse => Some(Sound::BuildingCollapse),
+            BlastSize::VehicleWreck => Some(Sound::VehicleExplosion),
+            _ => None,
+        };
+        if let Some(sound) = destruction_sound {
+            cues.write(SoundCue::at(sound, transform.translation));
+        }
         spawn_blast(
             &mut commands,
             &effects,

@@ -24,14 +24,16 @@ enum MenuPage {
     Game,
     Graphics,
     Gameplay,
+    Audio,
     SaveLoad,
 }
 
 impl MenuPage {
-    const ALL: [MenuPage; 4] = [
+    const ALL: [MenuPage; 5] = [
         MenuPage::Game,
         MenuPage::Graphics,
         MenuPage::Gameplay,
+        MenuPage::Audio,
         MenuPage::SaveLoad,
     ];
 
@@ -40,6 +42,7 @@ impl MenuPage {
             MenuPage::Game => "GAME",
             MenuPage::Graphics => "GRAPHICS",
             MenuPage::Gameplay => "GAMEPLAY",
+            MenuPage::Audio => "AUDIO",
             MenuPage::SaveLoad => "SAVE / LOAD",
         }
     }
@@ -69,6 +72,9 @@ enum Setting {
     DamageNumbers,
     HealthBars,
     PerformanceOverlay,
+    MasterVolume,
+    MusicVolume,
+    EffectsVolume,
 }
 
 const GRAPHICS_SETTINGS: [Setting; 9] = [
@@ -83,6 +89,13 @@ const GRAPHICS_SETTINGS: [Setting; 9] = [
     Setting::Fullscreen,
 ];
 
+const AUDIO_SETTINGS: [Setting; 3] = [
+    Setting::MasterVolume,
+    Setting::MusicVolume,
+    Setting::EffectsVolume,
+];
+const VOLUME_STEP: f32 = 0.1;
+
 const GAMEPLAY_SETTINGS: [Setting; 6] = [
     Setting::GameSpeed,
     Setting::EdgeScroll,
@@ -91,6 +104,22 @@ const GAMEPLAY_SETTINGS: [Setting; 6] = [
     Setting::HealthBars,
     Setting::PerformanceOverlay,
 ];
+
+fn percent(volume: f32) -> String {
+    format!("{:.0} %", volume * 100.0)
+}
+
+/// Cycles 0 % to 100 % in steps of ten, wrapping at both ends.
+fn step_volume(volume: f32, forward: bool) -> f32 {
+    let steps = (1.0 / VOLUME_STEP).round() as i32;
+    let current = (volume / VOLUME_STEP).round() as i32;
+    let next = if forward {
+        (current + 1) % (steps + 1)
+    } else {
+        (current + steps) % (steps + 1)
+    };
+    next as f32 * VOLUME_STEP
+}
 
 fn on_off(value: bool) -> String {
     if value { "On".into() } else { "Off".into() }
@@ -128,6 +157,9 @@ impl Setting {
             Setting::DamageNumbers => "Damage numbers",
             Setting::HealthBars => "Health bars",
             Setting::PerformanceOverlay => "Performance overlay (F3)",
+            Setting::MasterVolume => "Master volume",
+            Setting::MusicVolume => "Music volume",
+            Setting::EffectsVolume => "Effects volume",
         }
     }
 
@@ -152,6 +184,9 @@ impl Setting {
                 HealthBars::SelectedOnly => "Selected only".into(),
             },
             Setting::PerformanceOverlay => on_off(settings.performance_overlay),
+            Setting::MasterVolume => percent(settings.master_volume),
+            Setting::MusicVolume => percent(settings.music_volume),
+            Setting::EffectsVolume => percent(settings.effects_volume),
         }
     }
 
@@ -226,6 +261,15 @@ impl Setting {
             }
             Setting::PerformanceOverlay => {
                 settings.performance_overlay = !settings.performance_overlay
+            }
+            Setting::MasterVolume => {
+                settings.master_volume = step_volume(settings.master_volume, forward)
+            }
+            Setting::MusicVolume => {
+                settings.music_volume = step_volume(settings.music_volume, forward)
+            }
+            Setting::EffectsVolume => {
+                settings.effects_volume = step_volume(settings.effects_volume, forward)
             }
         }
         if self.is_detail_option() {
@@ -615,6 +659,11 @@ pub fn rebuild_menu_page(
                 spawn_setting_row(content, &fonts, &settings, setting);
             }
         }
+        MenuPage::Audio => {
+            for setting in AUDIO_SETTINGS {
+                spawn_setting_row(content, &fonts, &settings, setting);
+            }
+        }
         MenuPage::SaveLoad => {
             spawn_slot_row(content, &fonts, &save_directory, QUICK_SAVE_SLOT);
             for slot in NAMED_SLOTS {
@@ -667,6 +716,13 @@ pub fn refresh_menu(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn volume_steps_by_ten_percent_and_wraps() {
+        assert!((step_volume(0.5, true) - 0.6).abs() < 1e-6);
+        assert_eq!(step_volume(1.0, true), 0.0);
+        assert!((step_volume(0.0, false) - 1.0).abs() < 1e-6);
+    }
 
     #[test]
     fn stepping_wraps_in_both_directions() {

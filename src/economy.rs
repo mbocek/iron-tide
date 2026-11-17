@@ -4,6 +4,7 @@ use crate::catalog::{BuildingKind, HARVESTER_CAPACITY, STARTING_CREDITS, Team};
 use crate::components::*;
 use crate::map::{CrystalVisual, GameMap, cell_center, crystal_scale, world_to_cell};
 use crate::movement::order_move;
+use crate::sound::{Sound, SoundCue};
 use crate::spawn::exit_cell;
 
 const MINING_TICK_SECS: f32 = 0.5;
@@ -79,6 +80,7 @@ pub fn tally_power(mut economies: ResMut<Economies>, buildings: Query<(&Building
 }
 
 pub fn run_harvesters(
+    mut cues: MessageWriter<SoundCue>,
     time: Res<Time>,
     mut map: ResMut<GameMap>,
     mut economies: ResMut<Economies>,
@@ -173,6 +175,9 @@ pub fn run_harvesters(
                     economy.credits +=
                         (harvester.cargo as f32 * economy.income_rate).round() as i32;
                     harvester.cargo = 0;
+                    if team == Team::Player {
+                        cues.write(SoundCue::at(Sound::Credits, position));
+                    }
                     Some(HarvestState::SeekingField)
                 }
             }

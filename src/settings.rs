@@ -72,6 +72,9 @@ pub struct GameSettings {
     pub damage_numbers: bool,
     pub health_bars: HealthBars,
     pub performance_overlay: bool,
+    pub master_volume: f32,
+    pub music_volume: f32,
+    pub effects_volume: f32,
 }
 
 impl Default for GameSettings {
@@ -92,6 +95,9 @@ impl Default for GameSettings {
             damage_numbers: true,
             health_bars: HealthBars::DamagedOrSelected,
             performance_overlay: false,
+            master_volume: 0.8,
+            music_volume: 0.6,
+            effects_volume: 0.8,
         };
         settings.apply_preset(QualityPreset::High);
         settings

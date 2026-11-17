@@ -1,0 +1,400 @@
+import random
+
+from dsp import (
+    adsr, biquad, brown_noise, exponential_decay, exponential_glide, fade_in, fade_out,
+    feedback_echoes, fit_length, linear_glide, midi_to_frequency, mix_into, multiplied, normalized_stereo,
+    one_pole_lowpass, partials, reverb, samples, saw, scaled, segments, silence, sine,
+    soft_clip, square, summed, white_noise,
+)
+from instruments import chime_voice
+
+SFX_PEAK_DBFS = -1.5
+END_FADE_SECONDS = 0.015
+START_FADE_SECONDS = 0.0008
+GUNSHOT_CRACK_CEILING_HZ = 9000.0
+
+
+def finished_effect(dry, duration, reverb_seconds=0.0, reverb_wet=0.0, end_fade=END_FADE_SECONDS):
+    """Mono dry signal -> trimmed, faded, normalized stereo with an optional room tail."""
+    length = samples(duration)
+    dry = fit_length(dry, length)
+    left, right = list(dry), list(dry)
+    if reverb_wet > 0.0:
+        wet_left, wet_right = reverb(dry, reverb_seconds, predelay=0.012)
+        mix_into(left, wet_left, 0, reverb_wet)
+        mix_into(right, wet_right, 0, reverb_wet)
+    left = fade_out(fade_in(left, START_FADE_SECONDS), end_fade)
+    right = fade_out(fade_in(right, START_FADE_SECONDS), end_fade)
+    return normalized_stereo(left, right, SFX_PEAK_DBFS)
+
+
+def finished_stereo_effect(left, right, duration, end_fade=END_FADE_SECONDS):
+    length = samples(duration)
+    left = fade_out(fade_in(fit_length(left, length), START_FADE_SECONDS), end_fade)
+    right = fade_out(fade_in(fit_length(right, length), START_FADE_SECONDS), end_fade)
+    return normalized_stereo(left, right, SFX_PEAK_DBFS)
+
+
+def decaying_noise(rng, length, decay, kind="white"):
+    noise = brown_noise(length, rng) if kind == "brown" else white_noise(length, rng)
+    return multiplied(noise, exponential_decay(length, decay))
+
+
+def pitch_drop(start_hz, end_hz, glide_time, decay, length):
+    return multiplied(sine(exponential_glide(start_hz, end_hz, length, glide_time), length), exponential_decay(length, decay))
+
+
+def gunshot_layers(rng, length, crack_cutoff, crack_decay, body_hz, body_decay, thump_hz, thump_decay, tail_decay):
+    crack = one_pole_lowpass(biquad(decaying_noise(rng, length, crack_decay), "highpass", crack_cutoff), GUNSHOT_CRACK_CEILING_HZ)
+    body = biquad(decaying_noise(rng, length, body_decay), "bandpass", body_hz, 0.9)
+    thump = pitch_drop(thump_hz, thump_hz * 0.4, 0.02, thump_decay, length)
+    tail = one_pole_lowpass(decaying_noise(rng, length, tail_decay, "brown"), 1800.0)
+    return summed(crack, scaled(body, 1.6), scaled(thump, 0.7), scaled(tail, 2.5))
+
+
+def rifle_shot(variant):
+    rng = random.Random(1000 + variant)
+    duration = 0.25
+    length = samples(duration)
+    jitter = 1.0 + 0.12 * (variant - 1)
+    shot = gunshot_layers(
+        rng, length,
+        crack_cutoff=2600.0 * jitter, crack_decay=0.006,
+        body_hz=900.0 * jitter, body_decay=0.024 / jitter,
+        thump_hz=170.0 * jitter, thump_decay=0.035,
+        tail_decay=0.07 * (2.0 - jitter),
+    )
+    return finished_effect(soft_clip(shot, 2.2), duration, reverb_seconds=0.5, reverb_wet=0.18)
+
+
+def machine_gun_shot():
+    rng = random.Random(1100)
+    duration = 0.15
+    length = samples(duration)
+    shot = gunshot_layers(
+        rng, length,
+        crack_cutoff=3200.0, crack_decay=0.004,
+        body_hz=1350.0, body_decay=0.016,
+        thump_hz=230.0, thump_decay=0.02,
+        tail_decay=0.035,
+    )
+    bolt = partials([2830.0, 4170.0], [0.25, 0.15], [0.006, 0.004], length)
+    mix_into(shot, bolt, samples(0.002))
+    return finished_effect(soft_clip(shot, 2.0), duration, reverb_seconds=0.35, reverb_wet=0.12)
+
+
+def cannon_blast(rng, length, boom_start_hz, boom_end_hz, boom_decay, noise_decay, crack_gain=0.9):
+    crack = biquad(decaying_noise(rng, length, 0.01), "highpass", 1500.0)
+    boom = pitch_drop(boom_start_hz, boom_end_hz, 0.07, boom_decay, length)
+    blast_cutoff = exponential_glide(4500.0, 180.0, length, noise_decay * 0.5)
+    blast = one_pole_lowpass(one_pole_lowpass(decaying_noise(rng, length, noise_decay), blast_cutoff), blast_cutoff)
+    rumble = one_pole_lowpass(decaying_noise(rng, length, noise_decay * 1.4, "brown"), 300.0)
+    return soft_clip(summed(scaled(crack, crack_gain), scaled(boom, 1.1), scaled(blast, 2.6), scaled(rumble, 3.0)), 2.5)
+
+
+def cannon_shot():
+    rng = random.Random(1200)
+    duration = 0.9
+    blast = cannon_blast(rng, samples(duration), 115.0, 42.0, 0.26, 0.22)
+    return finished_effect(blast, duration, reverb_seconds=1.2, reverb_wet=0.25, end_fade=0.08)
+
+
+def heavy_cannon_shot():
+    rng = random.Random(1300)
+    duration = 1.1
+    length = samples(duration)
+    first = cannon_blast(rng, length, 95.0, 34.0, 0.32, 0.28)
+    second = cannon_blast(rng, length, 88.0, 32.0, 0.34, 0.3, crack_gain=0.7)
+    mix_into(first, second, samples(0.075), 0.85)
+    return finished_effect(first, duration, reverb_seconds=1.5, reverb_wet=0.28, end_fade=0.1)
+
+
+def howitzer_shot():
+    rng = random.Random(1400)
+    duration = 1.6
+    length = samples(duration)
+    crack = biquad(decaying_noise(rng, length, 0.015), "highpass", 1000.0)
+    boom = pitch_drop(72.0, 26.0, 0.12, 0.5, length)
+    rumble_cutoff = exponential_glide(2200.0, 110.0, length, 0.3)
+    rumble = one_pole_lowpass(one_pole_lowpass(decaying_noise(rng, length, 0.55), rumble_cutoff), rumble_cutoff)
+    sub_rumble = one_pole_lowpass(decaying_noise(rng, length, 0.7, "brown"), 160.0)
+    blast = soft_clip(summed(scaled(crack, 0.6), scaled(boom, 1.2), scaled(rumble, 3.0), scaled(sub_rumble, 4.0)), 2.2)
+    distant_echo = one_pole_lowpass(feedback_echoes(blast, samples(0.29), 0.3), 900.0)
+    mix_into(blast, distant_echo, 0, 0.35)
+    return finished_effect(blast, duration, reverb_seconds=2.2, reverb_wet=0.3, end_fade=0.25)
+
+
+def missile_launch():
+    rng = random.Random(1500)
+    duration = 0.9
+    length = samples(duration)
+    ignition = summed(
+        biquad(decaying_noise(rng, length, 0.012), "highpass", 800.0),
+        pitch_drop(320.0, 90.0, 0.03, 0.05, length),
+    )
+    whoosh_center = segments([(0.0, 600.0), (0.18, 3400.0), (0.9, 900.0)], length)
+    whoosh = biquad(white_noise(length, rng), "bandpass", whoosh_center, 1.1)
+    whoosh_envelope = segments([(0.0, 0.0), (0.04, 1.0), (0.22, 0.85), (0.5, 0.3), (0.9, 0.0)], length)
+    hiss = biquad(white_noise(length, rng), "highpass", 5000.0)
+    hiss_envelope = segments([(0.0, 0.0), (0.01, 1.0), (0.12, 0.3), (0.5, 0.08), (0.9, 0.0)], length)
+    exhaust = one_pole_lowpass(brown_noise(length, rng), 450.0)
+    exhaust_envelope = segments([(0.0, 0.0), (0.05, 1.0), (0.3, 0.45), (0.6, 0.15), (0.9, 0.0)], length)
+    crackle = [n if rng.random() < 0.03 else 0.0 for n in white_noise(length, rng)]
+    crackle = multiplied(biquad(crackle, "bandpass", 2500.0, 0.7), whoosh_envelope)
+    launch = summed(
+        scaled(ignition, 0.8),
+        scaled(multiplied(whoosh, whoosh_envelope), 2.4),
+        scaled(multiplied(hiss, hiss_envelope), 0.5),
+        scaled(multiplied(exhaust, exhaust_envelope), 5.0),
+        scaled(crackle, 1.5),
+    )
+    return finished_effect(soft_clip(launch, 1.5), duration, reverb_seconds=0.9, reverb_wet=0.2, end_fade=0.06)
+
+
+def dirt_impact():
+    rng = random.Random(1600)
+    duration = 0.2
+    length = samples(duration)
+    thud = pitch_drop(160.0, 60.0, 0.02, 0.03, length)
+    burst = one_pole_lowpass(decaying_noise(rng, length, 0.02), 2500.0)
+    impact = summed(scaled(thud, 0.9), scaled(burst, 1.4))
+    for _ in range(7):
+        grain_length = samples(0.012)
+        grain = biquad(decaying_noise(rng, grain_length, 0.003), "bandpass", rng.uniform(1500.0, 4500.0), 1.5)
+        mix_into(impact, grain, samples(rng.uniform(0.008, 0.11)), rng.uniform(0.3, 0.8))
+    return finished_effect(impact, duration, reverb_seconds=0.3, reverb_wet=0.1)
+
+
+def metal_impact():
+    rng = random.Random(1700)
+    duration = 0.2
+    length = samples(duration)
+    click = biquad(decaying_noise(rng, length, 0.002), "highpass", 3000.0)
+    ring = partials([2350.0, 3710.0, 5180.0, 6930.0], [1.0, 0.6, 0.4, 0.25], [0.06, 0.045, 0.03, 0.02], length)
+    thud = pitch_drop(240.0, 120.0, 0.01, 0.015, length)
+    return finished_effect(summed(click, scaled(ring, 0.55), scaled(thud, 0.4)), duration, reverb_seconds=0.3, reverb_wet=0.1)
+
+
+def explosion_core(rng, length, boom_start_hz, boom_end_hz, brightness_decay, rumble_decay):
+    crack = biquad(decaying_noise(rng, length, 0.012), "highpass", 1200.0)
+    boom = pitch_drop(boom_start_hz, boom_end_hz, 0.1, 0.35, length)
+    body_cutoff = exponential_glide(7000.0, 220.0, length, brightness_decay)
+    body_envelope = multiplied(segments([(0.0, 0.0), (0.003, 1.0)], length), exponential_decay(length, 0.3))
+    body = one_pole_lowpass(one_pole_lowpass(multiplied(white_noise(length, rng), body_envelope), body_cutoff), body_cutoff)
+    rumble = one_pole_lowpass(decaying_noise(rng, length, rumble_decay, "brown"), 280.0)
+    return soft_clip(summed(scaled(crack, 0.7), scaled(boom, 1.0), scaled(body, 2.8), scaled(rumble, 4.0)), 3.0)
+
+
+def explosion(variant):
+    rng = random.Random(1800 + variant)
+    duration = 1.3
+    length = samples(duration)
+    if variant == 1:
+        blast = explosion_core(rng, length, 95.0, 35.0, 0.22, 0.45)
+    else:
+        blast = explosion_core(rng, length, 85.0, 32.0, 0.16, 0.5)
+        secondary = explosion_core(rng, length, 120.0, 50.0, 0.08, 0.2)
+        mix_into(blast, secondary, samples(0.06), 0.45)
+    return finished_effect(blast, duration, reverb_seconds=1.5, reverb_wet=0.25, end_fade=0.15)
+
+
+def debris_shower(rng, length, count, start, end, gain):
+    debris = silence(length)
+    for _ in range(count):
+        when = rng.uniform(start, end)
+        loudness = gain * rng.uniform(0.3, 1.0) * (1.0 - 0.7 * (when - start) / (end - start))
+        piece_length = samples(0.05)
+        if rng.random() < 0.3:
+            base = rng.uniform(900.0, 2600.0)
+            piece = partials([base, base * 1.53, base * 2.31], [1.0, 0.5, 0.3], [0.03, 0.02, 0.012], piece_length)
+        else:
+            piece = biquad(decaying_noise(rng, piece_length, rng.uniform(0.003, 0.01)), "bandpass", rng.uniform(600.0, 4000.0), 1.2)
+            piece = scaled(piece, 2.0)
+        mix_into(debris, piece, samples(when), loudness)
+    return debris
+
+
+def large_explosion():
+    rng = random.Random(1900)
+    duration = 2.2
+    length = samples(duration)
+    blast = explosion_core(rng, length, 80.0, 28.0, 0.28, 0.9)
+    secondary = explosion_core(rng, length, 70.0, 30.0, 0.2, 0.7)
+    mix_into(blast, secondary, samples(0.11), 0.6)
+    mix_into(blast, debris_shower(rng, length, 34, 0.2, 1.8, 0.35))
+    return finished_effect(blast, duration, reverb_seconds=2.4, reverb_wet=0.3, end_fade=0.3)
+
+
+def building_collapse():
+    rng = random.Random(2000)
+    duration = 3.5
+    length = samples(duration)
+    blast = scaled(explosion_core(rng, length, 90.0, 35.0, 0.18, 0.4), 0.8)
+    crumble_envelope = segments([(0.0, 0.0), (0.25, 0.7), (0.6, 1.0), (1.8, 0.75), (3.0, 0.25), (3.5, 0.0)], length)
+    wobble = one_pole_lowpass(white_noise(length, rng), 7.0)
+    wobble_peak = max(abs(w) for w in wobble) or 1.0
+    crumble_modulation = [0.6 + 0.4 * abs(w) / wobble_peak for w in wobble]
+    crumble = one_pole_lowpass(brown_noise(length, rng), 700.0)
+    crumble = multiplied(multiplied(crumble, crumble_envelope), crumble_modulation)
+    grit = biquad(white_noise(length, rng), "bandpass", 1200.0, 0.6)
+    grit = multiplied(multiplied(grit, crumble_envelope), crumble_modulation)
+    groan_length = samples(2.6)
+    groan_pitch = linear_glide(62.0, 41.0, groan_length)
+    groan = one_pole_lowpass(saw(groan_pitch, groan_length), 260.0)
+    groan = multiplied(groan, segments([(0.0, 0.0), (0.6, 0.6), (1.8, 0.4), (2.6, 0.0)], groan_length))
+    collapse = summed(blast, scaled(crumble, 5.0), scaled(grit, 0.25))
+    mix_into(collapse, groan, samples(0.35), 0.35)
+    for _ in range(26):
+        when = 0.3 + 2.8 * rng.random() ** 1.6
+        thud_hz = rng.uniform(70.0, 150.0)
+        thud = pitch_drop(thud_hz * 1.5, thud_hz, 0.015, rng.uniform(0.05, 0.12), samples(0.3))
+        thud = summed(thud, scaled(one_pole_lowpass(decaying_noise(rng, samples(0.3), 0.04), 900.0), 1.5))
+        mix_into(collapse, thud, samples(when), rng.uniform(0.25, 0.6) * (1.2 - when / 3.5))
+    mix_into(collapse, debris_shower(rng, length, 40, 0.3, 3.0, 0.25))
+    return finished_effect(soft_clip(collapse, 1.5), duration, reverb_seconds=2.5, reverb_wet=0.3, end_fade=0.3)
+
+
+def ui_click():
+    rng = random.Random(2100)
+    duration = 0.06
+    length = samples(duration)
+    tick = summed(
+        multiplied(sine(1850.0, length), exponential_decay(length, 0.007)),
+        scaled(multiplied(sine(3700.0, length), exponential_decay(length, 0.003)), 0.3),
+        scaled(biquad(decaying_noise(rng, length, 0.0008), "highpass", 4000.0), 0.4),
+    )
+    return finished_effect(tick, duration, end_fade=0.01)
+
+
+def soft_tone(frequency, length, cutoff=1600.0):
+    body = summed(scaled(square(frequency, length), 0.5), sine(frequency, length), scaled(sine(frequency * 0.5, length), 0.3))
+    return one_pole_lowpass(one_pole_lowpass(body, cutoff), cutoff)
+
+
+def ui_error():
+    duration = 0.3
+    length = samples(duration)
+    denied = silence(length)
+    for start, frequency, note_seconds in ((0.0, 392.0, 0.13), (0.15, 311.13, 0.15)):
+        note_length = samples(note_seconds)
+        note = multiplied(soft_tone(frequency, note_length), adsr(note_length, 0.006, 0.05, 0.8, 0.04))
+        mix_into(denied, note, samples(start))
+    return finished_effect(denied, duration, reverb_seconds=0.4, reverb_wet=0.08)
+
+
+def chime_sequence(notes, duration, reverb_wet=0.2):
+    """`notes` are (start seconds, frequency, decay, pan) tuples."""
+    length = samples(duration)
+    left, right = silence(length), silence(length)
+    for start, frequency, decay, pan in notes:
+        tone = chime_voice(frequency, decay)
+        offset = samples(start)
+        mix_into(left, tone, offset, 1.0 - 0.5 * max(0.0, pan))
+        mix_into(right, tone, offset, 1.0 + 0.5 * min(0.0, pan))
+    mono_send = [0.5 * (l + r) for l, r in zip(left, right)]
+    wet_left, wet_right = reverb(mono_send, 1.1, predelay=0.015)
+    mix_into(left, wet_left, 0, reverb_wet)
+    mix_into(right, wet_right, 0, reverb_wet)
+    return finished_stereo_effect(left, right, duration, end_fade=0.08)
+
+
+def construction_complete():
+    c5, e5, g5 = (midi_to_frequency(n) for n in (72, 76, 79))
+    return chime_sequence([(0.0, c5, 0.25, -0.3), (0.12, e5, 0.28, 0.0), (0.24, g5, 0.45, 0.3)], 0.9)
+
+
+def unit_ready():
+    a5, e6 = (midi_to_frequency(n) for n in (81, 88))
+    return chime_sequence([(0.0, a5, 0.15, -0.15), (0.1, e6, 0.25, 0.15)], 0.5, reverb_wet=0.15)
+
+
+def credits_chime():
+    rng = random.Random(2200)
+    duration = 0.4
+    b5, e6 = (midi_to_frequency(n) for n in (83, 88))
+    left, right = chime_sequence([(0.0, b5, 0.08, -0.1), (0.065, e6, 0.14, 0.1)], duration, reverb_wet=0.1)
+    tick_length = samples(0.01)
+    tick = biquad(decaying_noise(rng, tick_length, 0.0015), "highpass", 6000.0)
+    mix_into(left, tick, 0, 0.3)
+    mix_into(right, tick, 0, 0.3)
+    return finished_stereo_effect(left, right, duration, end_fade=0.05)
+
+
+def building_placed():
+    rng = random.Random(2300)
+    duration = 0.6
+    length = samples(duration)
+    thud = summed(
+        pitch_drop(95.0, 44.0, 0.05, 0.12, length),
+        scaled(one_pole_lowpass(decaying_noise(rng, length, 0.06), 450.0), 2.0),
+    )
+    clank = partials([182.0, 431.0, 697.0, 1123.0, 1716.0], [0.6, 0.5, 0.4, 0.3, 0.2], [0.16, 0.12, 0.09, 0.06, 0.04], length)
+    clank = summed(clank, scaled(biquad(decaying_noise(rng, length, 0.006), "highpass", 2000.0), 0.4))
+    bounce = partials([205.0, 467.0, 742.0, 1188.0], [0.5, 0.4, 0.3, 0.2], [0.1, 0.07, 0.05, 0.03], length)
+    impact = summed(scaled(thud, 1.1), scaled(clank, 0.8))
+    mix_into(impact, bounce, samples(0.09), 0.4)
+    mix_into(impact, scaled(thud, 0.3), samples(0.09))
+    return finished_effect(soft_clip(impact, 1.6), duration, reverb_seconds=0.7, reverb_wet=0.15, end_fade=0.05)
+
+
+def base_alert():
+    duration = 1.2
+    length = samples(duration)
+    alarm = silence(length)
+    pulse_length = samples(0.48)
+    pitch = segments([(0.0, 520.0), (0.28, 700.0), (0.48, 690.0)], pulse_length)
+    pulse = summed(
+        scaled(saw(pitch, pulse_length), 0.5),
+        scaled(square([p * 1.5 for p in pitch], pulse_length), 0.25),
+        sine([p * 0.5 for p in pitch], pulse_length),
+    )
+    pulse = one_pole_lowpass(one_pole_lowpass(pulse, 2200.0), 2200.0)
+    pulse = multiplied(pulse, adsr(pulse_length, 0.015, 0.1, 0.85, 0.07))
+    for start in (0.0, 0.6):
+        mix_into(alarm, pulse, samples(start))
+    return finished_effect(soft_clip(alarm, 1.3), duration, reverb_seconds=0.6, reverb_wet=0.12, end_fade=0.05)
+
+
+def unit_acknowledge():
+    rng = random.Random(2400)
+    duration = 0.15
+    length = samples(duration)
+    blip = silence(length)
+    squelch_length = samples(0.018)
+    squelch = biquad(white_noise(squelch_length, rng), "bandpass", 2200.0, 0.8)
+    mix_into(blip, multiplied(squelch, adsr(squelch_length, 0.001, 0.005, 0.7, 0.006)), 0, 0.8)
+    for start, frequency, note_seconds in ((0.014, 1050.0, 0.045), (0.062, 1400.0, 0.05)):
+        note_length = samples(note_seconds)
+        note = multiplied(square(frequency, note_length), adsr(note_length, 0.002, 0.01, 0.8, 0.006))
+        mix_into(blip, note, samples(start), 0.6)
+    tail_length = samples(0.03)
+    tail = multiplied(biquad(white_noise(tail_length, rng), "bandpass", 1800.0, 0.8), exponential_decay(tail_length, 0.008))
+    mix_into(blip, tail, samples(0.112), 0.5)
+    radio_band = one_pole_lowpass(biquad(blip, "highpass", 400.0), 3200.0)
+    return finished_effect(soft_clip(radio_band, 2.5), duration, end_fade=0.01)
+
+
+SOUND_EFFECTS = {
+    "sfx/rifle_shot_1": lambda: rifle_shot(0),
+    "sfx/rifle_shot_2": lambda: rifle_shot(1),
+    "sfx/rifle_shot_3": lambda: rifle_shot(2),
+    "sfx/mg_shot": machine_gun_shot,
+    "sfx/cannon_shot": cannon_shot,
+    "sfx/heavy_cannon_shot": heavy_cannon_shot,
+    "sfx/howitzer_shot": howitzer_shot,
+    "sfx/missile_launch": missile_launch,
+    "sfx/impact_small_1": dirt_impact,
+    "sfx/impact_small_2": metal_impact,
+    "sfx/explosion_1": lambda: explosion(1),
+    "sfx/explosion_2": lambda: explosion(2),
+    "sfx/explosion_large": large_explosion,
+    "sfx/building_collapse": building_collapse,
+    "sfx/ui_click": ui_click,
+    "sfx/ui_error": ui_error,
+    "sfx/construction_complete": construction_complete,
+    "sfx/unit_ready": unit_ready,
+    "sfx/building_placed": building_placed,
+    "sfx/base_alert": base_alert,
+    "sfx/credits": credits_chime,
+    "sfx/unit_acknowledge": unit_acknowledge,
+}

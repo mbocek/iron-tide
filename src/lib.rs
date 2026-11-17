@@ -34,6 +34,7 @@ pub mod queue_bar;
 pub mod savegame;
 pub mod scenery;
 pub mod settings;
+pub mod sound;
 pub mod spawn;
 pub mod terrain;
 pub mod terrain_material;
@@ -116,6 +117,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<savegame::SaveRequests>()
             .init_resource::<savegame::SaveDirectory>()
             .add_message::<combat::DamageDealt>()
+            .add_message::<sound::SoundCue>()
             .add_systems(
                 OnEnter(match_flow::GameState::Playing),
                 (
@@ -189,6 +191,21 @@ impl Plugin for GamePlugin {
             .init_resource::<ambience::CrystalCores>()
             .init_resource::<animation::AnimationLibrary>()
             .init_resource::<menu::MenuState>()
+            .init_resource::<sound::MusicDirector>()
+            .add_observer(sound::click_feedback)
+            .add_systems(
+                OnEnter(match_flow::GameState::Playing),
+                sound::count_match_start,
+            )
+            .add_systems(
+                Update,
+                (
+                    sound::play_sound_cues,
+                    sound::direct_music,
+                    sound::apply_master_volume,
+                )
+                    .after(FramePhase::Presentation),
+            )
             .insert_resource(settings::load_settings())
             .init_gizmo_group::<overlay::HealthBarGizmos>()
             .add_plugins((
@@ -212,6 +229,7 @@ impl Plugin for GamePlugin {
                     overlay::configure_gizmos,
                     ui::load_fonts,
                     fog_view::create_fog_texture,
+                    sound::load_sounds,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),

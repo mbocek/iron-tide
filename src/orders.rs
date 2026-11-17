@@ -7,6 +7,7 @@ use crate::components::*;
 use crate::map::{GameMap, cells_by_distance, world_to_cell};
 use crate::movement::order_move;
 use crate::production::Placement;
+use crate::sound::{Sound, SoundCue};
 
 const DRAG_THRESHOLD_PX: f32 = 8.0;
 const CLICK_SLACK: f32 = 0.6;
@@ -152,6 +153,7 @@ type CommandableUnit<'a> = (
 );
 
 pub fn issue_orders(
+    mut cues: MessageWriter<SoundCue>,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Res<Cursor>,
@@ -189,6 +191,7 @@ pub fn issue_orders(
                 mobile.ordered_move = false;
             }
         }
+        cues.write(SoundCue::interface(Sound::UnitAcknowledge));
         *marker = OrderMarker {
             position: enemy.position,
             remaining_secs: ORDER_MARKER_SECS,
@@ -226,6 +229,7 @@ pub fn issue_orders(
         let Some(cell) = formation.next() else { break };
         order_move(&mut mobile, &map, position, cell, true);
     }
+    cues.write(SoundCue::interface(Sound::UnitAcknowledge));
     *marker = OrderMarker {
         position: ground,
         remaining_secs: ORDER_MARKER_SECS,

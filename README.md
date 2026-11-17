@@ -24,6 +24,7 @@ make test-unit          # game logic: pathfinding, terrain, production, placemen
 make test-playability   # headless matches on a fixed 50 ms clock
 cargo test --release --test missions   # campaign setups, objectives, multiple enemies, new units
 cargo test --release --test fog        # fog of war: hidden enemies, exploration, spotting, saves
+cargo test --release --test sound      # the simulation asks for the right sounds at the right moments
 ```
 
 The playability tests run the real simulation systems (`SimulationPlugin`) without a window: units cross the
@@ -63,6 +64,20 @@ Settings (graphics: preset, shadows, AO, bloom, SMAA, vegetation, wind, VSync, f
 game speed, edge scrolling, scroll speed, damage numbers, health bars, overlay) are saved automatically to
 `~/.config/iron_tide/settings.json` (Windows: `%APPDATA%\iron_tide`). Saved games live in the `saves/`
 directory next to it: a quick save plus 3 slots.
+
+## Sound and music
+
+All sound effects and music are original and synthesized by code (`tools/audio/generate_audio.py`,
+pure Python plus ffmpeg), so there are no third-party licenses:
+
+```sh
+python3 tools/audio/generate_audio.py --out assets/audio
+```
+
+Battle sounds fade with distance from the camera and stay silent under the fog of war; repeated sounds
+are throttled so a firing squad stays readable. The menu has its own theme, matches alternate two battle
+themes, and the end of a match plays a victory or defeat sting. Master, music and effects volume live in
+the menu's *Audio* tab.
 
 ## Missions and custom levels
 
@@ -139,6 +154,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `lib.rs` | `SimulationPlugin` (battle logic, also used headless by the tests) and `GamePlugin` (the full game) |
 | `levels`, `match_flow`, `main_menu` | level definitions, campaign and custom levels; match setup and states; main menu and battle editor |
 | `medical` | field medics healing infantry |
+| `sound` | sound cues from the simulation, playback with distance and fog, music director |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `outcome` | mission objectives, victory and defeat |
 | `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves) |

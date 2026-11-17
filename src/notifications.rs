@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::catalog::Team;
 use crate::components::{Building, Health};
 use crate::economy::Economies;
+use crate::sound::{Sound, SoundCue};
 
 const MESSAGE_LIFETIME_SECS: f32 = 4.0;
 const MAX_VISIBLE_MESSAGES: usize = 4;
@@ -46,6 +47,7 @@ pub struct BaseWatch {
 }
 
 pub fn watch_base(
+    mut cues: MessageWriter<SoundCue>,
     time: Res<Time>,
     economies: Res<Economies>,
     mut notifications: ResMut<Notifications>,
@@ -63,6 +65,7 @@ pub fn watch_base(
         .sum();
     if base_health < watch.previous_health - 0.5 && watch.warning_cooldown <= 0.0 {
         notifications.push("Our base is under attack!");
+        cues.write(SoundCue::interface(Sound::BaseAlert));
         watch.warning_cooldown = ATTACK_WARNING_COOLDOWN_SECS;
     }
     watch.previous_health = base_health;

@@ -14,6 +14,7 @@ use crate::map::{
 };
 use crate::movement::order_move;
 use crate::notifications::Notifications;
+use crate::sound::{Sound, SoundCue};
 use crate::spawn::{exit_cell, spawn_building, spawn_unit};
 
 pub const MAX_QUEUE_LENGTH: usize = 8;
@@ -231,6 +232,7 @@ pub fn owned_building_kinds(
 }
 
 pub fn advance_production(
+    mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
     time: Res<Time>,
     models: Res<ModelLibrary>,
@@ -269,6 +271,11 @@ pub fn advance_production(
             lane.queue.pop_front();
             lane.progress_secs = 0.0;
             if team == Team::Player {
+                let fanfare = match item {
+                    BuildItem::Structure(_) => Sound::ConstructionComplete,
+                    BuildItem::Unit(_) => Sound::UnitReady,
+                };
+                cues.write(SoundCue::interface(fanfare));
                 notifications.push(match item {
                     BuildItem::Structure(_) => "Construction complete".to_string(),
                     BuildItem::Unit(kind) => format!("{} ready", kind.spec().name),
@@ -418,6 +425,7 @@ fn placement_origin(cursor_ground: Vec3, footprint: IVec2) -> IVec2 {
 }
 
 pub fn place_structure(
+    mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mouse: Res<ButtonInput<MouseButton>>,
@@ -472,6 +480,10 @@ pub fn place_structure(
     }
     if valid && mouse.just_pressed(MouseButton::Left) {
         construct_building(&mut commands, &models, &mut map, kind, Team::Player, origin);
+        cues.write(SoundCue::at(
+            Sound::BuildingPlaced,
+            footprint_center(origin, footprint),
+        ));
         production.lane_mut(Team::Player, Lane::Structures).ready = None;
         placement.active = None;
     }

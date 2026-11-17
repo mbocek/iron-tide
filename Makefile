@@ -44,7 +44,7 @@ test-unit: ## Unit tests of the game logic only
 	cargo test --release --lib
 
 test-playability: ## Headless matches: movement, economy, production, combat, AI, missions, objectives, save/load
-	cargo test --release --test playability --test missions --test fog
+	cargo test --release --test playability --test missions --test fog --test sound
 
 check: fmt-check lint test ## Formatting, lints and tests
 

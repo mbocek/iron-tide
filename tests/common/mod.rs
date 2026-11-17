@@ -19,6 +19,7 @@ use iron_tide::movement::order_move;
 use iron_tide::outcome::GameOutcome;
 use iron_tide::production::{BuildItem, Production, construct_building};
 use iron_tide::savegame::SaveDirectory;
+use iron_tide::sound::{Sound, SoundCue};
 use iron_tide::spawn::spawn_unit;
 
 /// Simulation step; small enough that the fastest projectiles and units behave as in the real game.
@@ -28,6 +29,16 @@ pub const STEP: Duration = Duration::from_millis(50);
 #[derive(Resource, Default)]
 pub struct DamageLedger {
     pub taken: [f32; 4],
+}
+
+/// Every sound the simulation asked for, in order.
+#[derive(Resource, Default)]
+pub struct SoundLedger {
+    pub heard: Vec<SoundCue>,
+}
+
+fn record_sounds(mut cues: MessageReader<SoundCue>, mut ledger: ResMut<SoundLedger>) {
+    ledger.heard.extend(cues.read().copied());
 }
 
 fn record_damage(mut hits: MessageReader<DamageDealt>, mut ledger: ResMut<DamageLedger>) {
@@ -64,13 +75,14 @@ impl Battle {
             .insert_resource(EffectAssets::placeholder())
             .insert_resource(SaveDirectory(save_directory.clone()))
             .init_resource::<DamageLedger>()
+            .init_resource::<SoundLedger>()
             .add_plugins(SimulationPlugin {
                 enemy_ai: setup.enemy_ai,
                 starting_forces: setup.starting_forces,
             })
             .add_systems(
                 Update,
-                record_damage.after(iron_tide::FramePhase::Simulation),
+                (record_damage, record_sounds).after(iron_tide::FramePhase::Simulation),
             );
         if let Some(level) = setup.level {
             app.insert_resource(ActiveLevel(level));
@@ -282,6 +294,17 @@ impl Battle {
             .query::<&Team>()
             .iter(world)
             .filter(|owner| owner.is_hostile_to(team))
+            .count()
+    }
+}
+
+impl Battle {
+    pub fn heard(&mut self, sound: Sound) -> usize {
+        self.world()
+            .resource::<SoundLedger>()
+            .heard
+            .iter()
+            .filter(|cue| cue.sound == sound)
             .count()
     }
 }
