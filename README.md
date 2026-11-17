@@ -123,10 +123,15 @@ Without fog the north-east has had a slight edge over several runs; the cause is
 
 ## Settings and saves
 
-Settings (graphics: preset, shadows, AO, bloom, SMAA, vegetation, wind, VSync, fullscreen; gameplay:
-game speed, edge scrolling, scroll speed, damage numbers, health bars, overlay) are saved automatically to
-`~/.config/iron_tide/settings.json` (Windows: `%APPDATA%\iron_tide`). Saved games live in the `saves/`
-directory next to it: a quick save plus 3 slots.
+Settings (graphics: preset, shadows, AO, bloom, SMAA, vegetation, wind, VSync, frame rate limit, fullscreen;
+gameplay: game speed, edge scrolling, scroll speed, damage numbers, health bars, overlay) are saved
+automatically to `~/.config/iron_tide/settings.json` (Windows: `%APPDATA%\iron_tide`). Saved games live in
+the `saves/` directory next to it: a quick save plus 3 slots.
+
+The frame rate limit (30 / 60 / 120 fps or unlimited, default 60) keeps the game from spending CPU on frames
+a display cannot show. While the window is in the background the game keeps playing, but at no more than
+30 frames per second. Measured in the main menu on the development Mac: unlimited 79 % of one core, 60 fps 66 %,
+30 fps 48 %.
 
 ## Sound and music
 
@@ -224,7 +229,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `scenery` | forests, meadows, reeds, mountains with boulders |
 | `minimap`, `notifications` | minimap, status messages |
 | `ui`, `overlay` | sidebar (tabs, tiles with icons), health bars, selection |
-| `settings`, `menu`, `perf_overlay` | settings and their persistence, in-game menu, performance overlay |
+| `settings`, `menu`, `perf_overlay`, `frame_pacing` | settings and their persistence, in-game menu, performance overlay, frame rate limit |
 | `savegame` | saving and loading games (JSON) |
 | `lib.rs` | `SimulationPlugin` (battle logic, also used headless by the tests) and `GamePlugin` (the full game) |
 | `levels`, `match_flow`, `main_menu` | level definitions, campaign and custom levels; match setup and states; main menu and battle editor |

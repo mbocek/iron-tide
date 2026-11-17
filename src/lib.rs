@@ -15,6 +15,7 @@ pub mod economy;
 pub mod effects;
 pub mod fog;
 pub mod fog_view;
+pub mod frame_pacing;
 pub mod graphics;
 pub mod headless;
 pub mod intel;
@@ -222,6 +223,7 @@ impl Plugin for GamePlugin {
             )
             .insert_resource(settings::load_settings())
             .init_gizmo_group::<overlay::HealthBarGizmos>()
+            .add_systems(Last, frame_pacing::pace_frames)
             .init_resource::<structure_tools::StructureTool>()
             .add_plugins((
                 bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),

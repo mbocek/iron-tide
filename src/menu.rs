@@ -9,7 +9,7 @@ use crate::savegame::{
     NAMED_SLOTS, QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_label, slot_summary,
 };
 use crate::settings::{
-    GameSettings, GameSpeed, HealthBars, QualityPreset, ScrollSpeed, ShadowQuality,
+    FrameLimit, GameSettings, GameSpeed, HealthBars, QualityPreset, ScrollSpeed, ShadowQuality,
     VegetationDetail,
 };
 use crate::ui::{ACCENT, FRAME, FRAME_BRIGHT, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
@@ -66,6 +66,7 @@ enum Setting {
     Vegetation,
     Wind,
     Vsync,
+    FrameLimit,
     Fullscreen,
     GameSpeed,
     EdgeScroll,
@@ -78,7 +79,7 @@ enum Setting {
     EffectsVolume,
 }
 
-const GRAPHICS_SETTINGS: [Setting; 9] = [
+const GRAPHICS_SETTINGS: [Setting; 10] = [
     Setting::Preset,
     Setting::Shadows,
     Setting::AmbientOcclusion,
@@ -87,6 +88,7 @@ const GRAPHICS_SETTINGS: [Setting; 9] = [
     Setting::Vegetation,
     Setting::Wind,
     Setting::Vsync,
+    Setting::FrameLimit,
     Setting::Fullscreen,
 ];
 
@@ -151,6 +153,7 @@ impl Setting {
             Setting::Vegetation => "Grass and flowers",
             Setting::Wind => "Wind in vegetation",
             Setting::Vsync => "VSync",
+            Setting::FrameLimit => "Frame rate limit",
             Setting::Fullscreen => "Fullscreen",
             Setting::GameSpeed => "Game speed",
             Setting::EdgeScroll => "Edge scrolling",
@@ -174,6 +177,10 @@ impl Setting {
             Setting::Vegetation => format!("{:?}", settings.vegetation),
             Setting::Wind => on_off(settings.wind),
             Setting::Vsync => on_off(settings.vsync),
+            Setting::FrameLimit => settings
+                .frame_limit
+                .max_fps()
+                .map_or("Unlimited".into(), |fps| format!("{fps:.0} fps")),
             Setting::Fullscreen => on_off(settings.fullscreen),
             Setting::GameSpeed => format!("{:.2}x", settings.game_speed_factor()),
             Setting::EdgeScroll => on_off(settings.edge_scroll),
@@ -236,6 +243,15 @@ impl Setting {
             }
             Setting::Wind => settings.wind = !settings.wind,
             Setting::Vsync => settings.vsync = !settings.vsync,
+            Setting::FrameLimit => {
+                let limits = [
+                    FrameLimit::Fps30,
+                    FrameLimit::Fps60,
+                    FrameLimit::Fps120,
+                    FrameLimit::Unlimited,
+                ];
+                settings.frame_limit = step(&limits, settings.frame_limit, forward);
+            }
             Setting::Fullscreen => settings.fullscreen = !settings.fullscreen,
             Setting::GameSpeed => {
                 let speeds = [

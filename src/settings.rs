@@ -47,6 +47,25 @@ pub enum ScrollSpeed {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub enum FrameLimit {
+    Fps30,
+    Fps60,
+    Fps120,
+    Unlimited,
+}
+
+impl FrameLimit {
+    pub fn max_fps(self) -> Option<f32> {
+        match self {
+            FrameLimit::Fps30 => Some(30.0),
+            FrameLimit::Fps60 => Some(60.0),
+            FrameLimit::Fps120 => Some(120.0),
+            FrameLimit::Unlimited => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum HealthBars {
     Always,
     DamagedOrSelected,
@@ -65,6 +84,7 @@ pub struct GameSettings {
     pub vegetation: VegetationDetail,
     pub wind: bool,
     pub vsync: bool,
+    pub frame_limit: FrameLimit,
     pub fullscreen: bool,
     pub game_speed: GameSpeed,
     pub edge_scroll: bool,
@@ -88,6 +108,7 @@ impl Default for GameSettings {
             vegetation: VegetationDetail::Far,
             wind: true,
             vsync: true,
+            frame_limit: FrameLimit::Fps60,
             fullscreen: false,
             game_speed: GameSpeed::Normal,
             edge_scroll: true,
