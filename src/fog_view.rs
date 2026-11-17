@@ -6,7 +6,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::catalog::Team;
 use crate::components::{Building, Unit};
 use crate::fog::{CellSight, FogOfWar};
-use crate::map::{CrystalVisual, MAP_CELLS, footprint_cells, world_to_cell};
+use crate::map::{CrystalVisual, MAP_CELLS, footprint_cells};
 use crate::scenery::Scenery;
 
 const TEXELS_PER_CELL: i32 = 4;
@@ -120,8 +120,7 @@ pub fn shroud_unexplored_scenery(
     scenery: Query<(Entity, &Transform), Or<(With<Scenery>, With<CrystalVisual>)>>,
 ) {
     for (entity, transform) in &scenery {
-        let in_map = crate::map::GameMap::in_bounds(world_to_cell(transform.translation));
-        if in_map && !fog.is_explored(transform.translation) {
+        if !fog.is_explored(transform.translation) {
             commands
                 .entity(entity)
                 .insert((Shrouded, Visibility::Hidden));

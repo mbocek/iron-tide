@@ -15,7 +15,7 @@ pub enum CellSight {
     Visible,
 }
 
-/// What the player knows about each map cell. The computer opponents ignore it and see everything.
+/// What one side knows about each map cell: the player's view, or the Syndicate's inside `Intel`.
 #[derive(Resource, Clone)]
 pub struct FogOfWar {
     enabled: bool,
@@ -50,9 +50,10 @@ impl FogOfWar {
         GameMap::in_bounds(cell).then(|| (cell.y * MAP_CELLS + cell.x) as usize)
     }
 
-    /// Cells outside the playable map count as explored scenery.
+    /// Ground outside the playable map shares the sight of the nearest map edge, so the fog runs on past it.
     pub fn sight_at(&self, cell: IVec2) -> CellSight {
-        Self::index(cell).map_or(CellSight::Explored, |i| self.cells[i])
+        let nearest_map_cell = cell.clamp(IVec2::ZERO, IVec2::splat(MAP_CELLS - 1));
+        Self::index(nearest_map_cell).map_or(CellSight::Explored, |i| self.cells[i])
     }
 
     pub fn is_visible(&self, position: Vec3) -> bool {

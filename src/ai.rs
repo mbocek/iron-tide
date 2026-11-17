@@ -7,10 +7,12 @@ use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
 use crate::economy::Economies;
+use crate::fog::FogOfWar;
+use crate::intel::Intel;
 use crate::levels::Difficulty;
 use crate::map::{
-    CELL_SIZE, GameMap, cell_center, cells_by_distance, footprint_cells, footprint_center,
-    in_far_half, opposite_cell, opposite_origin, world_to_cell,
+    CELL_SIZE, GameMap, cells_by_distance, footprint_cells, footprint_center, in_far_half,
+    opposite_cell, opposite_origin, world_to_cell,
 };
 use crate::production::{
     BuildItem, Lane, PlacementContext, Production, construct_building, owned_building_kinds,
@@ -19,6 +21,8 @@ use crate::production::{
 
 const MAX_WAVE_SIZE: usize = 16;
 const WAVE_GROWTH: usize = 2;
+/// With no enemy soldier in sight for this long, whatever waits at home goes hunting.
+const QUIET_FRONT_SECS: f32 = 90.0;
 const BASE_DEFENSE_RADIUS: f32 = 16.0 * CELL_SIZE;
 const SITE_SEARCH_RADIUS: i32 = 14;
 const CRYSTAL_SEARCH_RADIUS: i32 = 20;
@@ -49,6 +53,10 @@ pub struct AiCommander {
     pub difficulty: Difficulty,
     think_timer: f32,
     wave_size: usize,
+    #[serde(default)]
+    secs_since_enemy_army_seen: f32,
+    #[serde(skip)]
+    scout: Option<Entity>,
 }
 
 impl AiCommander {
@@ -59,6 +67,8 @@ impl AiCommander {
             difficulty,
             think_timer: difficulty.think_interval_secs(),
             wave_size: difficulty.first_wave_size(),
+            secs_since_enemy_army_seen: 0.0,
+            scout: None,
         }
     }
 }
@@ -67,6 +77,7 @@ impl AiCommander {
 pub struct AiCommanders(pub Vec<AiCommander>);
 
 type ArmyUnit<'a> = (
+    Entity,
     &'a Unit,
     &'a Team,
     &'a Transform,
@@ -80,6 +91,8 @@ pub fn command_enemies(
     time: Res<Time>,
     models: Res<ModelLibrary>,
     targets: Res<Targets>,
+    intel: Res<Intel>,
+    player_fog: Res<FogOfWar>,
     mut commanders: ResMut<AiCommanders>,
     mut map: ResMut<GameMap>,
     mut production: ResMut<Production>,
@@ -112,7 +125,7 @@ pub fn command_enemies(
         let saving_for = plan_next_structure(ai.team, &mut production, &mut economies, &owned);
         let harvesters = army
             .iter()
-            .filter(|(unit, team, ..)| **team == ai.team && unit.0 == UnitKind::Harvester)
+            .filter(|(_, unit, team, ..)| **team == ai.team && unit.0 == UnitKind::Harvester)
             .count();
         train_units(
             ai.team,
@@ -122,7 +135,12 @@ pub fn command_enemies(
             harvesters,
             saving_for,
         );
-        direct_army(ai, &targets, &buildings, &mut army);
+        let knowledge = Knowledge {
+            targets: &targets,
+            intel: &intel,
+            player_fog: &player_fog,
+        };
+        direct_army(ai, &knowledge, &buildings, &mut army);
     }
 }
 
@@ -289,7 +307,13 @@ fn train_units(
         .filter(|&&k| k == BuildingKind::Refinery)
         .count();
     let vehicles_idle = production.lane(team, Lane::Vehicles).queue.is_empty();
-    let reserve = saving_for.unwrap_or(COMBAT_UNIT_RESERVE);
+    let credits = economies.of(team).credits;
+    let stranded = harvesters == 0 && credits < UnitKind::Harvester.spec().cost;
+    let reserve = if stranded {
+        0
+    } else {
+        saving_for.unwrap_or(COMBAT_UNIT_RESERVE)
+    };
     let affordable = |economies: &Economies, kind: UnitKind| {
         economies.of(team).credits >= kind.spec().cost + reserve
     };
@@ -319,14 +343,21 @@ fn train_units(
     }
 }
 
+/// What one commander knows when it plans: only enemies its side can see, and structures it has spotted.
+struct Knowledge<'a> {
+    targets: &'a Targets,
+    intel: &'a Intel,
+    player_fog: &'a FogOfWar,
+}
+
 fn direct_army(
     ai: &mut AiCommander,
-    targets: &Targets,
+    knowledge: &Knowledge,
     buildings: &Query<(&Building, &Team)>,
     army: &mut Query<ArmyUnit>,
 ) {
     let team = ai.team;
-    let home = cell_center(ai.base);
+    let home = footprint_center(ai.base, BuildingKind::CommandCenter.spec().footprint);
     let base_positions: Vec<Vec3> = buildings
         .iter()
         .filter(|(_, owner)| **owner == team)
@@ -337,24 +368,33 @@ fn direct_army(
             .iter()
             .any(|base| base.distance(position) < BASE_DEFENSE_RADIUS)
     };
-    let intruder = targets
+    let visible_enemies: Vec<&TargetInfo> = knowledge
+        .targets
         .iter()
-        .find(|t| t.team.is_hostile_to(team) && near_base(t.position))
-        .map(|t| t.position);
-    let assault_objective = targets
+        .filter(|t| t.team.is_hostile_to(team) && t.seen_by(team))
+        .collect();
+    let intruder = visible_enemies
         .iter()
-        .filter(|t| t.team.is_hostile_to(team))
-        .min_by(|a, b| {
-            let rank = |t: &TargetInfo| {
-                let preference = if t.is_building { 0.0 } else { 30.0 };
-                t.position.distance(home) + preference
-            };
-            rank(a).total_cmp(&rank(b))
-        })
+        .find(|t| near_base(t.position))
         .map(|t| t.position);
+    let known_objective = known_assault_objective(team, home, &visible_enemies, knowledge.intel);
+    let search_site = || {
+        knowledge
+            .intel
+            .base_site_to_search(team, knowledge.player_fog, home)
+    };
+    let assault_objective = known_objective.or_else(search_site);
+
+    if visible_enemies.iter().any(|t| !t.is_building) {
+        ai.secs_since_enemy_army_seen = 0.0;
+    } else {
+        ai.secs_since_enemy_army_seen += ai.difficulty.think_interval_secs();
+    }
+    let scout_alive = ai.scout.is_some_and(|scout| army.contains(scout));
+    let needs_scout = known_objective.is_none() && !scout_alive;
 
     let mut waiting_at_home = Vec::new();
-    for (unit, &owner, transform, mobile, attack, orders) in army.iter_mut() {
+    for (entity, unit, &owner, transform, mobile, attack, orders) in army.iter_mut() {
         let idle = !mobile.is_moving()
             && attack.is_none_or(|a| a.target.is_none())
             && orders.as_ref().is_none_or(|o| o.current.is_none());
@@ -362,33 +402,67 @@ fn direct_army(
         let Some(orders) = orders.filter(|_| is_soldier && idle) else {
             continue;
         };
-        let objective = if near_base(transform.translation) {
+        let at_home = near_base(transform.translation);
+        let objective = if at_home {
             intruder
         } else {
             intruder.or(assault_objective)
         };
         match objective {
             Some(objective) => send(orders, objective),
-            None if near_base(transform.translation) => waiting_at_home.push(orders),
+            None if at_home => waiting_at_home.push((entity, unit.0, orders)),
             None => send(orders, home),
         }
     }
 
-    let enemy_has_army = targets
-        .iter()
-        .any(|t| t.team.is_hostile_to(team) && !t.is_building);
+    if needs_scout && let Some(site) = search_site() {
+        let pick = waiting_at_home
+            .iter()
+            .position(|(_, kind, _)| *kind == UnitKind::Scout)
+            .or((!waiting_at_home.is_empty()).then_some(0));
+        if let Some(index) = pick {
+            let (scout, _, mut orders) = waiting_at_home.swap_remove(index);
+            orders.replace_with(Order::Move(world_to_cell(site)));
+            ai.scout = Some(scout);
+        }
+    }
+
     let wave_ready = waiting_at_home.len() >= ai.wave_size;
-    let finish_them_off = !enemy_has_army && !waiting_at_home.is_empty();
+    let enemy_army_gone_quiet = ai.secs_since_enemy_army_seen > QUIET_FRONT_SECS;
+    let finish_them_off = enemy_army_gone_quiet && !waiting_at_home.is_empty();
     if !wave_ready && !finish_them_off {
         return;
     }
     let Some(objective) = assault_objective else {
         return;
     };
-    for orders in waiting_at_home {
+    for (_, _, orders) in waiting_at_home {
         send(orders, objective);
     }
     ai.wave_size = (ai.wave_size + WAVE_GROWTH).min(MAX_WAVE_SIZE);
+}
+
+/// The nearest enemy the commander knows of, preferring structures, which do not run away.
+fn known_assault_objective(
+    team: Team,
+    home: Vec3,
+    visible_enemies: &[&TargetInfo],
+    intel: &Intel,
+) -> Option<Vec3> {
+    const UNIT_DETOUR: f32 = 30.0;
+    let units = visible_enemies
+        .iter()
+        .filter(|t| !t.is_building)
+        .map(|t| (t.position, UNIT_DETOUR));
+    let structures = intel
+        .known_enemy_structures(team)
+        .map(|position| (position, 0.0));
+    units
+        .chain(structures)
+        .min_by(|(a, a_detour), (b, b_detour)| {
+            (a.distance(home) + a_detour).total_cmp(&(b.distance(home) + b_detour))
+        })
+        .map(|(position, _)| position)
 }
 
 fn send(mut orders: Mut<Orders>, objective: Vec3) {

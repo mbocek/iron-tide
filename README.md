@@ -61,30 +61,34 @@ make balance MATCHES=40   # tighter numbers
 
 - **Equal-cost duels:** $3000 of one unit type attack-moves into $3000 of another, on both sides of the river.
   The score is the row's remaining army value minus the column's (+100 = the row wins untouched).
-- **AI against AI:** the computer plays the Coalition side too. Normal plays a mirror, then Hard and Easy
-  challenge Normal. Sides alternate every match, so a favoured base site shows up in its own column.
+- **AI against AI:** the computer plays the Coalition side too. With fog of war, Normal plays a mirror, then
+  Hard and Easy challenge Normal; a last mirror without fog shows what scouting changes. Sides alternate every
+  match, so a favoured base site shows up in its own column.
 - **Unit ledger:** how many of each unit the AIs built and lost, and the damage they dealt per credit spent.
 
-Results after tuning (60 matches per pairing):
+Results after tuning (40 matches per pairing):
 
 | Duel ($3000 a side) | Rifleman | Rocketeer | Scout | Tank | Bulwark | Howitzer |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Rifleman** | 0 | +78 | −81 | −64 | −15 | −56 |
-| **Rocketeer** | −78 | 0 | −42 | +57 | +53 | −91 |
+| **Rifleman** | 0 | +79 | −81 | −64 | −16 | −69 |
+| **Rocketeer** | −79 | 0 | −40 | +57 | +53 | −62 |
 | **Scout Buggy** | +81 | +40 | 0 | −49 | −45 | +22 |
-| **Battle Tank** | +64 | −57 | +49 | 0 | −8 | +42 |
-| **Bulwark** | +16 | −53 | +45 | +8 | 0 | +59 |
-| **Howitzer** | +68 | +58 | −22 | −44 | −56 | +1 |
+| **Battle Tank** | +64 | −59 | +49 | 0 | −8 | +44 |
+| **Bulwark** | +15 | −53 | +45 | +8 | 0 | +58 |
+| **Howitzer** | +74 | +36 | −22 | −40 | −57 | −2 |
 
-| Challenger | vs | wins : losses (unfinished) | median length | SW : NE site wins |
-| --- | --- | --- | --- | --- |
-| Normal | Normal | 21 : 24 (15) | 9.9 min | 17 : 28 |
-| Hard | Normal | 56 : 2 (2) | 7.4 min | 28 : 30 |
-| Easy | Normal | 1 : 56 (3) | 7.2 min | 30 : 27 |
+| Challenger | vs | fog | wins : losses (unfinished) | median length | SW : NE site wins |
+| --- | --- | --- | --- | --- | --- |
+| Normal | Normal | on | 13 : 21 (6) | 11.0 min | 18 : 16 |
+| Hard | Normal | on | 21 : 6 (13) | 7.2 min | 15 : 12 |
+| Easy | Normal | on | 1 : 32 (7) | 7.9 min | 18 : 15 |
+| Normal | Normal | off | 19 : 14 (7) | 10.2 min | 11 : 22 |
 
 Every unit has a counter: riflemen beat rocketeers, scouts hunt infantry, rocketeers kill armour, tanks and the
 Bulwark beat light vehicles, and howitzers shell infantry but lose to anything fast that reaches them.
-Neither corner is favoured: the map is point-symmetric (see Rules), and the site split moves either way between runs.
+With fog of war neither corner is favoured (the map is point-symmetric, see Rules). Unfinished matches are
+mostly mutual exhaustion: both sides out of units, money and harvesters, with only turrets left standing.
+Without fog the north-east has had a slight edge over several runs; the cause is not yet known.
 
 ## Controls
 
@@ -189,7 +193,9 @@ attack wave and its income (75 % / 100 % / 135 %).
 - **Fog of war:** unexplored ground is black; explored ground stays visible but enemy units show only within
   the sight of your units and buildings. Enemy structures stay on the map once spotted. Your units only open
   fire on enemies someone on your side can see, so long-range artillery needs a spotter. The computer
-  opponents currently see the whole map. Levels can switch the fog off (`"fog_of_war": false`, or in the
+  opponents play by the same rules: allied Syndicate commanders share one view of the map, remember the
+  structures they have spotted, and send a scout (a Scout Buggy if they have one) and then their attack
+  waves to base sites they have not explored yet. Levels can switch the fog off (`"fog_of_war": false`, or in the
   battle editor).
 
 ## Code layout
@@ -218,6 +224,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
+| `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |
 | `outcome` | mission objectives, victory and defeat |
 | `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves) |
 

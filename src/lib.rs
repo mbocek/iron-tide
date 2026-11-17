@@ -17,6 +17,7 @@ pub mod fog;
 pub mod fog_view;
 pub mod graphics;
 pub mod headless;
+pub mod intel;
 pub mod levels;
 pub mod main_menu;
 pub mod map;
@@ -116,6 +117,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<control_groups::ControlGroups>()
             .init_resource::<match_flow::MatchClock>()
             .init_resource::<fog::FogOfWar>()
+            .init_resource::<intel::Intel>()
             .init_resource::<savegame::SaveRequests>()
             .init_resource::<savegame::SaveDirectory>()
             .add_message::<combat::DamageDealt>()
@@ -155,6 +157,7 @@ impl Plugin for SimulationPlugin {
                         .chain(),
                     (
                         fog::update_fog,
+                        intel::update_intel,
                         combat::snapshot_targets,
                         combat::acquire_targets,
                         combat::chase_targets,

@@ -6,6 +6,7 @@ use iron_tide::catalog::{BuildingKind, Team, UnitKind};
 use iron_tide::combat::Targets;
 use iron_tide::components::{Building, Health};
 use iron_tide::fog::{CellSight, FogOfWar};
+use iron_tide::intel::Intel;
 use iron_tide::levels::LevelDefinition;
 use iron_tide::map::BASE_SITES;
 use iron_tide::savegame::SaveRequests;
@@ -97,6 +98,62 @@ fn artillery_needs_a_spotter_to_fire_beyond_its_own_sight() {
         health < full_health,
         "the spotter's view did not let the artillery fire"
     );
+}
+
+fn health_of_only_building(battle: &mut Battle) -> f32 {
+    let world = battle.world();
+    world
+        .query_filtered::<&Health, With<Building>>()
+        .single(world)
+        .map_or(0.0, |health| health.current)
+}
+
+#[test]
+fn enemy_artillery_needs_a_spotter_too() {
+    let mut battle = Battle::sandbox();
+    battle.spawn_unit(UnitKind::Artillery, Team::Crimson, OPEN_FIELD);
+    battle.construct(
+        BuildingKind::PowerPlant,
+        Team::Player,
+        OPEN_FIELD + IVec2::new(8, -1),
+    );
+    let full_health = BuildingKind::PowerPlant.spec().max_health;
+
+    battle.run_for(10.0);
+    assert_eq!(
+        health_of_only_building(&mut battle),
+        full_health,
+        "the computer fired at a target it cannot see"
+    );
+
+    battle.spawn_unit(
+        UnitKind::Rifleman,
+        Team::Crimson,
+        OPEN_FIELD + IVec2::new(4, 0),
+    );
+    battle.run_for(10.0);
+    assert!(health_of_only_building(&mut battle) < full_health);
+}
+
+#[test]
+fn the_computer_has_to_scout_to_find_the_player() {
+    let mut battle = Battle::standard();
+    battle.run_for(1.0);
+    let known_structures = |battle: &mut Battle| {
+        battle
+            .world()
+            .resource::<Intel>()
+            .known_enemy_structures(Team::Crimson)
+            .count()
+    };
+    assert_eq!(
+        known_structures(&mut battle),
+        0,
+        "the computer starts out knowing the player's base"
+    );
+
+    let took = battle.run_until(6.0 * 60.0, |battle| known_structures(battle) > 0);
+    assert!(took.is_some(), "the computer never found the player's base");
 }
 
 #[test]

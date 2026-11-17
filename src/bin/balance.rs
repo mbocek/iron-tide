@@ -120,17 +120,54 @@ struct PairingResult {
     units: HashMap<UnitKind, UnitRecord>,
 }
 
-/// One full AI-against-AI match: the player's side is played by the computer at `challenger` difficulty.
-fn ai_match(
+#[derive(Clone, Copy)]
+struct Pairing {
     challenger: Difficulty,
     defender: Difficulty,
+    fog_of_war: bool,
+}
+
+const PAIRINGS: [Pairing; 4] = [
+    Pairing {
+        challenger: Difficulty::Normal,
+        defender: Difficulty::Normal,
+        fog_of_war: true,
+    },
+    Pairing {
+        challenger: Difficulty::Hard,
+        defender: Difficulty::Normal,
+        fog_of_war: true,
+    },
+    Pairing {
+        challenger: Difficulty::Easy,
+        defender: Difficulty::Normal,
+        fog_of_war: true,
+    },
+    Pairing {
+        challenger: Difficulty::Normal,
+        defender: Difficulty::Normal,
+        fog_of_war: false,
+    },
+];
+
+/// One full AI-against-AI match: the player's side is played by the computer too.
+fn ai_match(
+    pairing: Pairing,
     challenger_site: BaseSite,
 ) -> (GameOutcome, f32, HashMap<UnitKind, UnitRecord>) {
+    let Pairing {
+        challenger,
+        defender,
+        fog_of_war,
+    } = pairing;
     let defender_site = match challenger_site {
         BaseSite::SouthWest => BaseSite::NorthEast,
         _ => BaseSite::SouthWest,
     };
-    let mut level = fogless(LevelDefinition::default());
+    let mut level = LevelDefinition {
+        fog_of_war,
+        ..LevelDefinition::default()
+    };
     level.player.site = challenger_site;
     level.enemies[0].force.site = defender_site;
     level.enemies[0].difficulty = defender;
@@ -233,24 +270,19 @@ fn print_duel_matrix() {
 
 fn print_tournament(matches: usize) {
     println!(
-        "## AI against AI ({matches} matches per pairing, fog off, {:.0} min limit)\n",
+        "## AI against AI ({matches} matches per pairing, {:.0} min limit)\n",
         MATCH_TIME_LIMIT_SECS / 60.0
     );
-    let pairings = [
-        (Difficulty::Normal, Difficulty::Normal),
-        (Difficulty::Hard, Difficulty::Normal),
-        (Difficulty::Easy, Difficulty::Normal),
-    ];
     let sides = [BaseSite::SouthWest, BaseSite::NorthEast];
-    let jobs: Vec<(usize, Difficulty, Difficulty, BaseSite)> = pairings
+    let jobs: Vec<(usize, Pairing, BaseSite)> = PAIRINGS
         .iter()
         .enumerate()
-        .flat_map(|(index, &(a, b))| (0..matches).map(move |n| (index, a, b, sides[n % 2])))
+        .flat_map(|(index, &pairing)| (0..matches).map(move |n| (index, pairing, sides[n % 2])))
         .collect();
-    let outcomes = parallel(jobs.clone(), |(_, a, b, site)| ai_match(a, b, site));
+    let outcomes = parallel(jobs.clone(), |(_, pairing, site)| ai_match(pairing, site));
     let mut results: Vec<PairingResult> =
-        pairings.iter().map(|_| PairingResult::default()).collect();
-    for ((index, _, _, site), (outcome, secs, units)) in jobs.into_iter().zip(outcomes) {
+        PAIRINGS.iter().map(|_| PairingResult::default()).collect();
+    for ((index, _, site), (outcome, secs, units)) in jobs.into_iter().zip(outcomes) {
         let result = &mut results[index];
         let challenger_in_south_west = site == BaseSite::SouthWest;
         match (outcome, challenger_in_south_west) {
@@ -282,17 +314,19 @@ fn print_tournament(matches: usize) {
         "Sides alternate every match; the last column shows whether a base site is favoured.\n"
     );
     println!(
-        "| Challenger | vs defender | wins | losses | unfinished | median length | SW : NE site wins |"
+        "| Challenger | vs defender | fog | wins | losses | unfinished | median length | SW : NE site wins |"
     );
-    println!("|---|---|---|---|---|---|---|");
-    for (&(a, b), result) in pairings.iter().zip(&results) {
+    println!("|---|---|---|---|---|---|---|---|");
+    for (pairing, result) in PAIRINGS.iter().zip(&results) {
+        let (a, b) = (pairing.challenger, pairing.defender);
+        let fog = if pairing.fog_of_war { "on" } else { "off" };
         let mut lengths = result.decided_secs.clone();
         lengths.sort_by(f32::total_cmp);
         let median = lengths
             .get(lengths.len() / 2)
             .map_or("-".to_string(), |secs| format!("{:.1} min", secs / 60.0));
         println!(
-            "| {a:?} | {b:?} | {} | {} | {} | {median} | {} : {} |",
+            "| {a:?} | {b:?} | {fog} | {} | {} | {} | {median} | {} : {} |",
             result.wins,
             result.losses,
             result.draws,

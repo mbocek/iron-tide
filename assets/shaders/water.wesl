@@ -17,8 +17,8 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 
     let map_uv = in.world_position.xz / MAP_WORLD_SIZE;
-    let inside_map = all(map_uv >= vec2<f32>(0.0)) && all(map_uv <= vec2<f32>(1.0));
-    let fog = select(1.0, textureSampleLevel(fog_texture, fog_sampler, map_uv, 0.0).r, inside_map);
+    // The sampler clamps to the edge, so ground beyond the map takes the fog of the nearest edge.
+    let fog = textureSampleLevel(fog_texture, fog_sampler, map_uv, 0.0).r;
     out.color = vec4<f32>(out.color.rgb * pow(fog, FOG_GAMMA), out.color.a);
     return out;
 }

@@ -7,6 +7,7 @@ use crate::combat::Targets;
 use crate::control_groups::ControlGroups;
 use crate::economy::Economies;
 use crate::fog::FogOfWar;
+use crate::intel::Intel;
 use crate::levels::{ActiveLevel, ForceSetup};
 use crate::map::{GameMap, cell_center, in_far_half};
 use crate::notifications::Notifications;
@@ -45,6 +46,7 @@ pub struct MatchClock {
 
 pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
     commands.insert_resource(FogOfWar::new(level.0.fog_of_war));
+    commands.insert_resource(Intel::new(level.0.fog_of_war));
     commands.insert_resource(Targets::default());
     commands.insert_resource(Economies::default());
     commands.insert_resource(Production::default());

@@ -9,6 +9,7 @@ use crate::catalog::{ArmorClass, BuildingKind, ProjectileStyle, Team, UnitKind, 
 use crate::components::*;
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::fog::FogOfWar;
+use crate::intel::Intel;
 use crate::map::{GameMap, world_to_cell};
 use crate::movement::order_move;
 use crate::sound::{Sound, SoundCue};
@@ -32,8 +33,18 @@ pub struct TargetInfo {
     pub radius: f32,
     pub armor: ArmorClass,
     pub is_building: bool,
-    /// Whether the player can currently see it; computer opponents ignore the fog.
     pub seen_by_player: bool,
+    pub seen_by_syndicate: bool,
+}
+
+impl TargetInfo {
+    pub fn seen_by(&self, viewer: Team) -> bool {
+        if viewer == Team::Player {
+            self.seen_by_player
+        } else {
+            self.seen_by_syndicate
+        }
+    }
 }
 
 /// Per-frame copy of every damageable entity, so systems can look up targets without query conflicts.
@@ -55,7 +66,7 @@ impl Targets {
     pub fn nearest_enemy(&self, team: Team, from: Vec3, max_reach: f32) -> Option<&TargetInfo> {
         self.list
             .iter()
-            .filter(|t| t.team.is_hostile_to(team) && (team != Team::Player || t.seen_by_player))
+            .filter(|t| t.team.is_hostile_to(team) && t.seen_by(team))
             .map(|t| (t, surface_distance(from, t)))
             .filter(|&(_, distance)| distance <= max_reach)
             .min_by(|a, b| {
@@ -100,6 +111,7 @@ pub struct Projectile {
 pub fn snapshot_targets(
     mut targets: ResMut<Targets>,
     fog: Res<FogOfWar>,
+    intel: Res<Intel>,
     damageable: Query<
         (
             Entity,
@@ -125,6 +137,8 @@ pub fn snapshot_targets(
             armor: armor.0,
             is_building,
             seen_by_player: fog.reveals(team, transform.translation),
+            seen_by_syndicate: team != Team::Player
+                || intel.syndicate_vision.is_visible(transform.translation),
         });
     }
 }

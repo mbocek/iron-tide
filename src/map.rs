@@ -135,50 +135,38 @@ impl GameMap {
         cells_by_distance(from, MAP_CELLS).find(|&cell| self.is_passable(cell))
     }
 
+    /// Routes starting in the far half are planned in mirror image, so tie-breaks between equally short
+    /// routes favour neither corner.
     pub fn find_path(&self, start: IVec2, goal: IVec2) -> Option<Vec<IVec2>> {
-        let goal = if self.is_passable(goal) {
+        let starts_in_far_half = start.x + start.y > MIRROR_SUM;
+        if !starts_in_far_half {
+            return self.find_path_in_frame(start, goal, |cell| cell);
+        }
+        let path =
+            self.find_path_in_frame(opposite_cell(start), opposite_cell(goal), opposite_cell)?;
+        Some(path.into_iter().map(opposite_cell).collect())
+    }
+
+    /// A* over cells of a frame whose cell `c` is the real map cell `to_map(c)`.
+    fn find_path_in_frame(
+        &self,
+        start: IVec2,
+        goal: IVec2,
+        to_map: impl Fn(IVec2) -> IVec2,
+    ) -> Option<Vec<IVec2>> {
+        let passable = |cell: IVec2| self.is_passable(to_map(cell));
+        let goal = if passable(goal) {
             goal
         } else {
-            self.nearest_passable(goal)?
+            cells_by_distance(goal, MAP_CELLS).find(|&cell| passable(cell))?
         };
         let (path, _cost) = astar(
             &start,
-            |&cell| self.walkable_neighbours(cell),
+            |&cell| walkable_neighbours(cell, passable),
             |&cell| octile_distance(cell, goal),
             |&cell| cell == goal,
         )?;
         Some(path)
-    }
-
-    fn walkable_neighbours(&self, cell: IVec2) -> Vec<(IVec2, u32)> {
-        let mut neighbours = Vec::with_capacity(8);
-        for dy in -1..=1 {
-            for dx in -1..=1 {
-                if dx == 0 && dy == 0 {
-                    continue;
-                }
-                let next = cell + IVec2::new(dx, dy);
-                if !self.is_passable(next) {
-                    continue;
-                }
-                let diagonal = dx != 0 && dy != 0;
-                let cuts_corner = diagonal
-                    && (!self.is_passable(cell + IVec2::new(dx, 0))
-                        || !self.is_passable(cell + IVec2::new(0, dy)));
-                if cuts_corner {
-                    continue;
-                }
-                neighbours.push((
-                    next,
-                    if diagonal {
-                        DIAGONAL_COST
-                    } else {
-                        CARDINAL_COST
-                    },
-                ));
-            }
-        }
-        neighbours
     }
 }
 
@@ -189,6 +177,36 @@ fn octile_distance(a: IVec2, b: IVec2) -> u32 {
 }
 
 /// Ring by ring outward from `center`, nearest rings first, staying inside the map.
+fn walkable_neighbours(cell: IVec2, passable: impl Fn(IVec2) -> bool) -> Vec<(IVec2, u32)> {
+    let mut neighbours = Vec::with_capacity(8);
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            if dx == 0 && dy == 0 {
+                continue;
+            }
+            let next = cell + IVec2::new(dx, dy);
+            if !passable(next) {
+                continue;
+            }
+            let diagonal = dx != 0 && dy != 0;
+            let cuts_corner = diagonal
+                && (!passable(cell + IVec2::new(dx, 0)) || !passable(cell + IVec2::new(0, dy)));
+            if cuts_corner {
+                continue;
+            }
+            neighbours.push((
+                next,
+                if diagonal {
+                    DIAGONAL_COST
+                } else {
+                    CARDINAL_COST
+                },
+            ));
+        }
+    }
+    neighbours
+}
+
 pub fn cells_by_distance(center: IVec2, max_radius: i32) -> impl Iterator<Item = IVec2> {
     (0..=max_radius).flat_map(move |radius| {
         (-radius..=radius).flat_map(move |dy| {
@@ -450,6 +468,22 @@ mod tests {
         for pair in CRYSTAL_FIELDS.chunks(2) {
             assert_eq!(opposite_cell(pair[0].center), pair[1].center);
             assert_eq!(pair[0].radius, pair[1].radius);
+        }
+    }
+
+    #[test]
+    fn mirrored_trips_take_mirrored_routes() {
+        let map = map_with_river();
+        let start = IVec2::new(11, 53);
+        for goal in [IVec2::new(55, 9), IVec2::new(7, 9), IVec2::new(40, 20)] {
+            let route = map.find_path(start, goal).unwrap();
+            let mirrored = map
+                .find_path(opposite_cell(start), opposite_cell(goal))
+                .unwrap();
+            assert_eq!(
+                route.into_iter().map(opposite_cell).collect::<Vec<_>>(),
+                mirrored
+            );
         }
     }
 
