@@ -100,6 +100,9 @@ pub fn carry_out_structure_orders(
                 let standing = health.current > 0.0;
                 if standing && health.current < health.max {
                     structure.insert(Repairing::default());
+                    if team == Team::Player {
+                        cues.write(SoundCue::at(Sound::RepairStarted, transform.translation));
+                    }
                 }
             }
             StructureOrderKind::Sell => {
@@ -113,7 +116,7 @@ pub fn carry_out_structure_orders(
                         remaining_secs: SELL_ANIMATION_SECS,
                     });
                 if team == Team::Player {
-                    cues.write(SoundCue::at(Sound::Credits, transform.translation));
+                    cues.write(SoundCue::at(Sound::StructureSold, transform.translation));
                 }
             }
         }

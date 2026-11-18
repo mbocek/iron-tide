@@ -138,7 +138,11 @@ pub fn carry_out_engineer_tasks(
                 EngineerJob::Repair => format!("{} repaired", building.kind.spec().name),
             };
             notifications.push(message);
-            cues.write(SoundCue::at(Sound::ConstructionComplete, center));
+            let sound = match task.job {
+                EngineerJob::Capture => Sound::StructureCaptured,
+                EngineerJob::Repair => Sound::RepairStarted,
+            };
+            cues.write(SoundCue::at(sound, center));
         }
         commands.entity(engineer).despawn();
     }

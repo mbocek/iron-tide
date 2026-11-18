@@ -32,10 +32,14 @@ pub enum Sound {
     BaseAlert,
     Credits,
     UnitAcknowledge,
+    RepairStarted,
+    StructureSold,
+    StructureCaptured,
+    UnitPromoted,
 }
 
 impl Sound {
-    const ALL: [Sound; 18] = [
+    const ALL: [Sound; 22] = [
         Sound::RifleShot,
         Sound::MachineGunShot,
         Sound::CannonShot,
@@ -54,6 +58,10 @@ impl Sound {
         Sound::BaseAlert,
         Sound::Credits,
         Sound::UnitAcknowledge,
+        Sound::RepairStarted,
+        Sound::StructureSold,
+        Sound::StructureCaptured,
+        Sound::UnitPromoted,
     ];
 
     /// File variants; one is picked at random each time so repeats do not sound mechanical.
@@ -77,6 +85,10 @@ impl Sound {
             Sound::BaseAlert => &["base_alert"],
             Sound::Credits => &["credits"],
             Sound::UnitAcknowledge => &["unit_acknowledge"],
+            Sound::RepairStarted => &["repair_started"],
+            Sound::StructureSold => &["structure_sold"],
+            Sound::StructureCaptured => &["structure_captured"],
+            Sound::UnitPromoted => &["unit_promoted"],
         }
     }
 
@@ -331,4 +343,20 @@ pub fn direct_music(
 
 pub fn count_match_start(mut director: ResMut<MusicDirector>) {
     director.matches_started += 1;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_sound_has_its_files() {
+        let sfx = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/audio/sfx");
+        for sound in Sound::ALL {
+            for file in sound.files() {
+                let path = sfx.join(format!("{file}.ogg"));
+                assert!(path.is_file(), "{sound:?} is missing {}", path.display());
+            }
+        }
+    }
 }

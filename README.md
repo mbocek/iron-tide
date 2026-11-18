@@ -154,8 +154,9 @@ python3 tools/audio/generate_audio.py --out assets/audio
 
 Battle sounds fade with distance from the camera and stay silent under the fog of war; repeated sounds
 are throttled so a firing squad stays readable. The menu has its own theme, matches alternate two battle
-themes, and the end of a match plays a victory or defeat sting. Master, music and effects volume live in
-the menu's *Audio* tab.
+themes, and the end of a match plays a victory or defeat sting. Repairs start with a ratchet, sales ring up
+coins, a captured structure sounds a radio fanfare and a promoted unit a short bugle call. Master, music and
+effects volume live in the menu's *Audio* tab.
 
 ## Missions and custom levels
 

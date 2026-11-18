@@ -143,7 +143,7 @@ pub fn promote_veterans(
                 unit.0.spec().name,
                 earned.name()
             ));
-            cues.write(SoundCue::interface(Sound::UnitReady));
+            cues.write(SoundCue::interface(Sound::UnitPromoted));
         }
     }
 }

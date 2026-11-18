@@ -374,6 +374,70 @@ def unit_acknowledge():
     return finished_effect(soft_clip(radio_band, 2.5), duration, end_fade=0.01)
 
 
+def repair_started():
+    rng = random.Random(2500)
+    duration = 0.55
+    length = samples(duration)
+    ratchet = silence(length)
+    for index, start in enumerate((0.0, 0.07, 0.14, 0.21)):
+        click_length = samples(0.05)
+        ping = partials([2100.0 + 90.0 * index, 3350.0, 5200.0], [0.6, 0.35, 0.2], [0.012, 0.008, 0.005], click_length)
+        tick = biquad(decaying_noise(rng, click_length, 0.002), "highpass", 3000.0)
+        mix_into(ratchet, summed(ping, scaled(tick, 0.5)), samples(start), 0.8)
+    hiss_length = samples(0.22)
+    hiss = biquad(white_noise(hiss_length, rng), "bandpass", 5200.0, 0.9)
+    mix_into(ratchet, multiplied(hiss, adsr(hiss_length, 0.01, 0.05, 0.6, 0.12)), samples(0.3), 0.35)
+    return finished_effect(ratchet, duration, reverb_seconds=0.4, reverb_wet=0.08, end_fade=0.03)
+
+
+def structure_sold():
+    rng = random.Random(2600)
+    duration = 0.8
+    left, right = silence(samples(duration)), silence(samples(duration))
+    for start in (0.0, 0.05, 0.09, 0.16, 0.22):
+        coin_length = samples(0.25)
+        base = rng.uniform(2600.0, 3400.0)
+        coin = partials([base, base * 1.48, base * 2.11], [0.5, 0.3, 0.2], [0.09, 0.06, 0.04], coin_length)
+        pan = rng.uniform(-0.5, 0.5)
+        mix_into(left, coin, samples(start), 0.5 * (1.0 - max(0.0, pan)))
+        mix_into(right, coin, samples(start), 0.5 * (1.0 + min(0.0, pan)))
+    e6, b6 = (midi_to_frequency(n) for n in (88, 95))
+    bell_left, bell_right = chime_sequence([(0.3, e6, 0.18, -0.1), (0.38, b6, 0.32, 0.1)], duration, reverb_wet=0.12)
+    mix_into(left, bell_left)
+    mix_into(right, bell_right)
+    return finished_stereo_effect(left, right, duration, end_fade=0.06)
+
+
+def structure_captured():
+    rng = random.Random(2700)
+    duration = 0.9
+    length = samples(duration)
+    capture = silence(length)
+    squelch_length = samples(0.03)
+    squelch = biquad(white_noise(squelch_length, rng), "bandpass", 2000.0, 0.8)
+    mix_into(capture, multiplied(squelch, adsr(squelch_length, 0.001, 0.008, 0.7, 0.01)), 0, 0.6)
+    for start, midi, note_seconds in ((0.04, 67, 0.16), (0.2, 71, 0.16), (0.36, 74, 0.45)):
+        note_length = samples(note_seconds)
+        frequency = midi_to_frequency(midi)
+        note = summed(scaled(saw(frequency, note_length), 0.4), sine(frequency, note_length))
+        note = one_pole_lowpass(one_pole_lowpass(note, 2600.0), 2600.0)
+        mix_into(capture, multiplied(note, adsr(note_length, 0.01, 0.06, 0.75, 0.08)), samples(start), 0.7)
+    return finished_effect(soft_clip(capture, 1.4), duration, reverb_seconds=0.8, reverb_wet=0.18, end_fade=0.08)
+
+
+def unit_promoted():
+    duration = 1.0
+    length = samples(duration)
+    fanfare = silence(length)
+    for start, midi, note_seconds in ((0.0, 72, 0.12), (0.13, 76, 0.12), (0.26, 79, 0.12), (0.39, 84, 0.5)):
+        note_length = samples(note_seconds)
+        frequency = midi_to_frequency(midi)
+        brass = summed(scaled(saw(frequency, note_length), 0.6), scaled(square(frequency * 0.5, note_length), 0.2))
+        brass = one_pole_lowpass(one_pole_lowpass(brass, 3000.0), 3000.0)
+        mix_into(fanfare, multiplied(brass, adsr(note_length, 0.015, 0.05, 0.8, 0.06)), samples(start), 0.6)
+    return finished_effect(soft_clip(fanfare, 1.3), duration, reverb_seconds=0.9, reverb_wet=0.2, end_fade=0.1)
+
+
 SOUND_EFFECTS = {
     "sfx/rifle_shot_1": lambda: rifle_shot(0),
     "sfx/rifle_shot_2": lambda: rifle_shot(1),
@@ -394,6 +458,10 @@ SOUND_EFFECTS = {
     "sfx/construction_complete": construction_complete,
     "sfx/unit_ready": unit_ready,
     "sfx/building_placed": building_placed,
+    "sfx/repair_started": repair_started,
+    "sfx/structure_sold": structure_sold,
+    "sfx/structure_captured": structure_captured,
+    "sfx/unit_promoted": unit_promoted,
     "sfx/base_alert": base_alert,
     "sfx/credits": credits_chime,
     "sfx/unit_acknowledge": unit_acknowledge,

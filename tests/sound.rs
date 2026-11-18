@@ -1,4 +1,5 @@
 mod common;
+use iron_tide::structures::StructureOrderKind;
 
 use bevy::prelude::*;
 use common::Battle;
@@ -83,4 +84,21 @@ fn harvester_deliveries_jingle() {
     battle.construct(BuildingKind::Refinery, Team::Player, IVec2::new(11, 51));
     let took = battle.run_until(180.0, |battle| battle.heard(Sound::Credits) > 0);
     assert!(took.is_some(), "a full load was delivered without a sound");
+}
+
+#[test]
+fn selling_and_repairing_have_their_own_sounds() {
+    let mut battle = Battle::sandbox();
+    battle.construct(BuildingKind::PowerPlant, Team::Player, IVec2::new(20, 44));
+    let plant = battle
+        .building(Team::Player, BuildingKind::PowerPlant)
+        .unwrap();
+    battle.world().get_mut::<Health>(plant).unwrap().current = 100.0;
+    battle.set_credits(Team::Player, 5000);
+    battle.order_structure(Team::Player, plant, StructureOrderKind::ToggleRepair);
+    battle.run_for(0.2);
+    assert_eq!(battle.heard(Sound::RepairStarted), 1);
+    battle.order_structure(Team::Player, plant, StructureOrderKind::Sell);
+    battle.run_for(0.2);
+    assert_eq!(battle.heard(Sound::StructureSold), 1);
 }
