@@ -207,6 +207,18 @@ selection, notifications, the camera's home and the victory or defeat banner all
 while the simulation keeps every team's view and stays the same on both machines. If the connection drops
 or the battles drift apart, the player is told once and the battle stops.
 
+To play, both players open *Network battle* in the main menu. The host clicks *Host a battle*: the battle
+editor's settings with one opponent are used, the game listens on TCP port 47300 and shows this computer's
+local address. The other player types that address (the port may be left out; the last address is
+remembered) and clicks *Join*. Once connected, the host sends the battle; both need the same game version.
+The host plays the Coalition, the guest the Syndicate. Restarting, saving and loading are disabled during a
+network battle; pausing one machine makes the other wait. Over the internet the host's port 47300 must be
+forwarded. Capture runs can automate this (`IRON_TIDE_CAPTURE_HOST=1`, `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`).
+
+Known limit: both machines must compute floating point identically, which holds for the same build on the
+same kind of processor. An Apple Silicon Mac against an Intel PC may drift apart; the checksum then stops
+the battle rather than letting it diverge silently.
+
 ## Languages
 
 The interface speaks English, Slovak and Czech: choose it with the *Language* button in the main menu or in
@@ -390,6 +402,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
 | `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
 | `interpolation` | drawing moving things between simulation ticks |
+| `lobby` | hosting and joining a network battle from the main menu |
 | `local_view` | the battle as this machine's player sees it, for drawing, sound and the interface |
 | `network` | the lockstep session with a player on another machine: turns, checksums, disconnection |
 | `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |

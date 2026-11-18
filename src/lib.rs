@@ -28,6 +28,7 @@ pub mod intel;
 pub mod interpolation;
 pub mod key_bindings;
 pub mod levels;
+pub mod lobby;
 pub mod local_view;
 pub mod main_menu;
 pub mod map;
@@ -439,19 +440,27 @@ impl Plugin for GamePlugin {
             )
             .add_systems(Update, network::report_session_trouble)
             .init_resource::<updates::Updates>()
+            .init_resource::<lobby::NetLobby>()
             .add_systems(
                 PostStartup,
                 (match_flow::finish_booting, updates::check_for_updates),
             )
             .add_systems(
                 OnEnter(match_flow::GameState::MainMenu),
-                (match_flow::unpause, main_menu::build_main_menu),
+                (
+                    match_flow::unpause,
+                    lobby::end_network_battle,
+                    main_menu::build_main_menu,
+                ),
             )
             .add_systems(
                 Update,
                 (
                     updates::receive_update_news,
+                    main_menu::type_join_address,
+                    lobby::run_lobby,
                     main_menu::refresh_main_menu,
+                    main_menu::show_network_status,
                     main_menu::refresh_update_banner,
                 )
                     .chain()

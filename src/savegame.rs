@@ -17,6 +17,7 @@ use crate::key_bindings::Action;
 use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::{GameMap, cell_of_index, spawn_crystal_visual};
 use crate::match_flow::{GameState, MatchClock};
+use crate::network::NetSession;
 use crate::notifications::Notifications;
 use crate::production::{BuildItem, Lane, Production};
 use crate::settings::{GameSettings, game_data_directory};
@@ -163,8 +164,12 @@ pub fn slot_summary(directory: &SaveDirectory, slot: usize) -> Option<String> {
 pub fn quick_save_keys(
     keys: Res<ButtonInput<KeyCode>>,
     settings: Res<GameSettings>,
+    session: Option<Res<NetSession>>,
     mut requests: ResMut<SaveRequests>,
 ) {
+    if session.is_some() {
+        return;
+    }
     if settings.keys.just_pressed(&keys, Action::QuickSave) {
         requests.save = Some(QUICK_SAVE_SLOT);
     }

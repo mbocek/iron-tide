@@ -150,3 +150,24 @@ fn each_player_wins_or_loses_from_their_own_side() {
     guest.run_for(2.0);
     assert_eq!(guest.outcome(), GameOutcome::Victory);
 }
+
+#[test]
+fn the_guest_learns_the_hosts_battle_before_it_starts() {
+    use iron_tide::levels::LevelDefinition;
+    use iron_tide::network::NetSession;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let guest_end = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let (host_end, _) = listener.accept().unwrap();
+    let mut host = NetSession::over(host_end, Team::Crimson).unwrap();
+    let mut guest = NetSession::over(guest_end, Team::Player).unwrap();
+    let level = LevelDefinition {
+        name: "Duel".into(),
+        ..LevelDefinition::default()
+    };
+    host.start(&level);
+    let started = (0..500).find_map(|_| {
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        guest.started_level()
+    });
+    assert_eq!(started, Some(Ok(level)));
+}

@@ -1,3 +1,4 @@
+use crate::lobby::{NetLobby, network_level};
 use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
 use bevy::camera::RenderTarget;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -9,7 +10,9 @@ use bevy::window::{CursorOptions, PrimaryWindow};
 use crate::camera::RtsCamera;
 use crate::catalog::Team;
 use crate::components::{Selected, Unit};
-use crate::levels::{ActiveLevel, campaign, custom_levels, custom_levels_directory};
+use crate::levels::{
+    ActiveLevel, SkirmishOptions, campaign, custom_levels, custom_levels_directory,
+};
 use crate::map::cell_center;
 use crate::match_flow::GameState;
 use crate::menu::MenuState;
@@ -26,6 +29,9 @@ const CAPTURE_REPLAY_VAR: &str = "IRON_TIDE_CAPTURE_REPLAY";
 const CAPTURE_SELECT_ALL_VAR: &str = "IRON_TIDE_CAPTURE_SELECT_ALL";
 const CAPTURE_ZOOM_VAR: &str = "IRON_TIDE_CAPTURE_ZOOM";
 const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
+/// `IRON_TIDE_CAPTURE_HOST=1` hosts a network battle and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1` joins one.
+const CAPTURE_HOST_VAR: &str = "IRON_TIDE_CAPTURE_HOST";
+const CAPTURE_JOIN_VAR: &str = "IRON_TIDE_CAPTURE_JOIN";
 const LOAD_AFTER_SECS: f32 = 1.5;
 const DEFAULT_CAPTURE_DELAY_SECS: f32 = 5.0;
 const FRAMES_TO_FLUSH_SCREENSHOT: u32 = 10;
@@ -249,7 +255,19 @@ fn discard_keyboard(mut keys: ResMut<ButtonInput<KeyCode>>) {
 /// `IRON_TIDE_CAPTURE_MISSION=2` starts the second campaign mission instead of waiting in the main menu;
 /// numbers past the campaign continue with the custom levels.
 /// `IRON_TIDE_CAPTURE_REPLAY=1` watches the newest replay instead of playing.
-fn start_requested_mission(mut commands: Commands, mut next_state: ResMut<NextState<GameState>>) {
+fn start_requested_mission(
+    mut commands: Commands,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut lobby: ResMut<NetLobby>,
+) {
+    if std::env::var_os(CAPTURE_HOST_VAR).is_some() {
+        lobby.host(network_level(&SkirmishOptions::default()));
+        return;
+    }
+    if let Ok(address) = std::env::var(CAPTURE_JOIN_VAR) {
+        lobby.join(&address);
+        return;
+    }
     let newest_replay = std::env::var_os(CAPTURE_REPLAY_VAR)
         .and_then(|_| list_replays(&replay_directory()).into_iter().next())
         .and_then(|summary| load_replay(&summary.path).ok());

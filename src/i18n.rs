@@ -90,6 +90,62 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ("VEHICLES", "VOZIDLÁ", "VOZIDLA"),
     ("COALITION", "KOALÍCIA", "KOALICE"),
     ("SYNDICATE", "SYNDIKÁT", "SYNDIKÁT"),
+    ("NETWORK", "SIEŤ", "SÍŤ"),
+    ("Network battle", "Sieťová bitka", "Síťová bitva"),
+    (
+        "Two players on two computers, one against one. The host plays the Coalition with the battle editor's settings; the other player joins as the Syndicate. Both need the same version of the game, and the host's port 47300 must be reachable.",
+        "Dvaja hráči na dvoch počítačoch, jeden proti jednému. Hostiteľ hrá za Koalíciu s nastaveniami editora bitiek, druhý hráč sa pripojí za Syndikát. Obaja potrebujú rovnakú verziu hry a port 47300 hostiteľa musí byť dostupný.",
+        "Dva hráči na dvou počítačích, jeden proti jednomu. Hostitel hraje za Koalici s nastavením editoru bitev, druhý hráč se připojí za Syndikát. Oba potřebují stejnou verzi hry a port 47300 hostitele musí být dostupný.",
+    ),
+    ("HOST A BATTLE", "HOSTIŤ BITKU", "HOSTOVAT BITVU"),
+    (
+        "Host address (type it)",
+        "Adresa hostiteľa (napíšte ju)",
+        "Adresa hostitele (napište ji)",
+    ),
+    ("JOIN", "PRIPOJIŤ SA", "PŘIPOJIT SE"),
+    ("CANCEL", "ZRUŠIŤ", "ZRUŠIT"),
+    (
+        "Cannot host: {}",
+        "Nedá sa hostiť: {}",
+        "Nelze hostovat: {}",
+    ),
+    (
+        "Waiting for the other player at {} (port {})",
+        "Čakám na druhého hráča na {} (port {})",
+        "Čekám na druhého hráče na {} (port {})",
+    ),
+    ("Connecting...", "Pripájam sa...", "Připojuji se..."),
+    (
+        "Connected, waiting for the host",
+        "Pripojené, čakám na hostiteľa",
+        "Připojeno, čekám na hostitele",
+    ),
+    (
+        "this computer's address",
+        "adresa tohto počítača",
+        "adresa tohoto počítače",
+    ),
+    (
+        "Connection failed: {}",
+        "Pripojenie zlyhalo: {}",
+        "Připojení selhalo: {}",
+    ),
+    (
+        "The host runs version {}; both players need the same version",
+        "Hostiteľ má verziu {}; obaja hráči potrebujú rovnakú verziu",
+        "Hostitel má verzi {}; oba hráči potřebují stejnou verzi",
+    ),
+    (
+        "The host closed the connection",
+        "Hostiteľ ukončil spojenie",
+        "Hostitel ukončil spojení",
+    ),
+    (
+        "Not available in a network battle",
+        "V sieťovej bitke nie je dostupné",
+        "V síťové bitvě není dostupné",
+    ),
     (
         "The other player has left the battle",
         "Druhý hráč opustil bitku",

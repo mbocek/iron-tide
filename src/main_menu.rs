@@ -8,6 +8,7 @@ use crate::levels::{
     SkirmishOptions, TechLevel, Weather, campaign, custom_levels, custom_levels_directory,
     save_custom_level,
 };
+use crate::lobby::{NetLobby, network_level};
 use crate::map::MapSize;
 use crate::match_flow::GameState;
 use crate::replay::{ReplayPlayback, ReplaySummary, list_replays, load_replay, replay_directory};
@@ -33,6 +34,7 @@ const MAP_VARIANTS: u64 = 5;
 enum Selection {
     Level(usize),
     Editor,
+    Network,
     Replay(usize),
 }
 
@@ -61,6 +63,12 @@ pub struct ListButton(Selection);
 #[derive(Component)]
 pub struct EditorOption(EditorField);
 
+#[derive(Component)]
+pub struct JoinAddressText;
+
+#[derive(Component)]
+pub struct NetworkStatusText;
+
 #[derive(Component, Clone, Copy)]
 pub enum MenuCommand {
     StartSelected,
@@ -70,6 +78,9 @@ pub enum MenuCommand {
     CycleLanguage,
     ContinueQuickSave,
     DownloadUpdate,
+    HostNetworkBattle,
+    JoinNetworkBattle,
+    CancelNetworkBattle,
     Quit,
 }
 
@@ -470,6 +481,8 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
         }
         list.spawn(fonts.heading(tr("QUICK BATTLE"), 15.0, TEXT_DIM));
         spawn_list_button(list, fonts, tr("Battle editor"), Selection::Editor);
+        list.spawn(fonts.heading(tr("NETWORK"), 15.0, TEXT_DIM));
+        spawn_list_button(list, fonts, tr("Network battle"), Selection::Network);
         if !menu.replays.is_empty() {
             list.spawn(fonts.heading(tr("REPLAYS"), 15.0, TEXT_DIM));
         }
@@ -522,7 +535,97 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
     lines
 }
 
-fn rebuild_details(commands: &mut Commands, panel: Entity, fonts: &UiFonts, menu: &MainMenu) {
+const ADDRESS_CHARACTERS: &str = "0123456789.:-abcdefghijklmnopqrstuvwxyz";
+const LONGEST_ADDRESS: usize = 64;
+
+/// Typing into the host address field while the network battle page is shown.
+pub fn type_join_address(
+    menu: Option<Res<MainMenu>>,
+    mut typed: MessageReader<bevy::input::keyboard::KeyboardInput>,
+    mut settings: ResMut<GameSettings>,
+    mut fields: Query<&mut Text, With<JoinAddressText>>,
+) {
+    let on_network_page = menu.is_some_and(|menu| menu.selection == Selection::Network);
+    if !on_network_page {
+        typed.clear();
+        return;
+    }
+    let mut address = settings.join_address.clone();
+    for key in typed.read().filter(|key| key.state.is_pressed()) {
+        match &key.logical_key {
+            bevy::input::keyboard::Key::Backspace => {
+                address.pop();
+            }
+            bevy::input::keyboard::Key::Character(text) => {
+                for character in text.to_lowercase().chars() {
+                    if ADDRESS_CHARACTERS.contains(character) && address.len() < LONGEST_ADDRESS {
+                        address.push(character);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if address != settings.join_address {
+        settings.join_address = address.clone();
+        for mut field in &mut fields {
+            field.0 = address.clone();
+        }
+    }
+}
+
+pub fn show_network_status(
+    lobby: Res<NetLobby>,
+    mut lines: Query<&mut Text, With<NetworkStatusText>>,
+) {
+    let status = lobby.status().unwrap_or_default();
+    for mut line in &mut lines {
+        line.set_if_neq(Text(status.clone()));
+    }
+}
+
+fn spawn_network_details(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, join_address: &str) {
+    panel.spawn(fonts.heading(tr("Network battle"), 30.0, ACCENT));
+    panel.spawn(fonts.text(
+        tr("Two players on two computers, one against one. The host plays the Coalition with the battle editor's settings; the other player joins as the Syndicate. Both need the same version of the game, and the host's port 47300 must be reachable."),
+        15.0,
+        TEXT_DIM,
+    ));
+    spawn_command_button(
+        panel,
+        fonts,
+        tr("HOST A BATTLE"),
+        MenuCommand::HostNetworkBattle,
+    );
+    panel
+        .spawn(Node {
+            justify_content: JustifyContent::SpaceBetween,
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn(fonts.text(tr("Host address (type it)"), 18.0, TEXT_MAIN));
+            row.spawn((
+                button_node(Val::Px(260.0)),
+                BackgroundColor(BUTTON_IDLE),
+                BorderColor::all(ACCENT),
+            ))
+            .with_children(|field| {
+                field.spawn((JoinAddressText, fonts.heading(join_address, 16.0, ACCENT)));
+            });
+        });
+    spawn_command_button(panel, fonts, tr("JOIN"), MenuCommand::JoinNetworkBattle);
+    spawn_command_button(panel, fonts, tr("CANCEL"), MenuCommand::CancelNetworkBattle);
+    panel.spawn((NetworkStatusText, fonts.text("", 16.0, GOOD)));
+}
+
+fn rebuild_details(
+    commands: &mut Commands,
+    panel: Entity,
+    fonts: &UiFonts,
+    menu: &MainMenu,
+    join_address: &str,
+) {
     commands.entity(panel).despawn_related::<Children>();
     commands
         .entity(panel)
@@ -552,6 +655,7 @@ fn rebuild_details(commands: &mut Commands, panel: Entity, fonts: &UiFonts, menu
                 ));
                 spawn_command_button(panel, fonts, tr("WATCH REPLAY"), MenuCommand::WatchReplay);
             }
+            Selection::Network => spawn_network_details(panel, fonts, join_address),
             Selection::Editor => {
                 panel.spawn(fonts.heading(tr("Battle editor"), 30.0, ACCENT));
                 panel.spawn(fonts.text(
@@ -646,6 +750,7 @@ fn run_command(
     mut next_state: ResMut<NextState<GameState>>,
     mut settings: ResMut<GameSettings>,
     mut updates: ResMut<Updates>,
+    mut lobby: ResMut<NetLobby>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let Ok(&command) = buttons.get(click.entity) else {
@@ -708,6 +813,9 @@ fn run_command(
         }
         MenuCommand::ContinueQuickSave => requests.load = Some(QUICK_SAVE_SLOT),
         MenuCommand::DownloadUpdate => download_update(&mut updates),
+        MenuCommand::HostNetworkBattle => lobby.host(network_level(&menu.options)),
+        MenuCommand::JoinNetworkBattle => lobby.join(&settings.join_address),
+        MenuCommand::CancelNetworkBattle => lobby.cancel(),
         MenuCommand::Quit => {
             exit.write(AppExit::Success);
         }
@@ -717,6 +825,7 @@ fn run_command(
 pub fn refresh_main_menu(
     mut commands: Commands,
     fonts: Res<UiFonts>,
+    settings: Res<GameSettings>,
     menu: Option<ResMut<MainMenu>>,
     lists: Query<Entity, With<LevelList>>,
     panels: Query<Entity, With<DetailPanel>>,
@@ -731,7 +840,7 @@ pub fn refresh_main_menu(
     {
         menu.needs_rebuild = false;
         rebuild_level_list(&mut commands, list, &fonts, &menu);
-        rebuild_details(&mut commands, panel, &fonts, &menu);
+        rebuild_details(&mut commands, panel, &fonts, &menu, &settings.join_address);
     }
     for (hovered, mut background, list_button) in &mut buttons {
         let selected = list_button.is_some_and(|button| button.0 == menu.selection);

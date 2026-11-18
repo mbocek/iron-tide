@@ -102,6 +102,8 @@ pub struct GameSettings {
     pub keys: KeyBindings,
     /// Ask GitHub at start-up whether a newer version has been released.
     pub check_for_updates: bool,
+    /// The host the player last joined for a network battle.
+    pub join_address: String,
 }
 
 impl Default for GameSettings {
@@ -129,6 +131,7 @@ impl Default for GameSettings {
             language: Language::English,
             keys: KeyBindings::default(),
             check_for_updates: true,
+            join_address: "127.0.0.1".to_string(),
         };
         settings.apply_preset(QualityPreset::High);
         settings

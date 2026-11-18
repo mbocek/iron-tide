@@ -11,6 +11,7 @@ use crate::ai::AiCommanders;
 use crate::catalog::Team;
 use crate::determinism::simulation_checksum;
 use crate::i18n::{tr, tr_fmt};
+use crate::levels::LevelDefinition;
 use crate::notifications::Notifications;
 use crate::player_commands::{
     CommandQueue, LocalTeam, PlayerCommand, ScheduledCommand, SimulationTick,
@@ -31,6 +32,11 @@ enum Message {
     /// The fingerprint of the battle after a tick, sent as soon as it is known so a drift is noticed even
     /// when the machine that finds it first stops at once.
     Checksum { tick: u64, sum: u64 },
+    /// The host's choice of battle, sent once the guest has connected.
+    Start {
+        version: String,
+        level: Box<LevelDefinition>,
+    },
 }
 
 enum Arrival {
@@ -51,6 +57,8 @@ pub enum SessionState {
 pub struct NetSession {
     writer: Mutex<TcpStream>,
     inbox: Mutex<Receiver<Arrival>>,
+    /// Messages that arrived while the guest was still waiting for the battle to start.
+    early: Vec<Arrival>,
     remote_team: Team,
     remote_turns: BTreeSet<u64>,
     local_checksums: BTreeMap<u64, u64>,
@@ -84,6 +92,7 @@ impl NetSession {
         Ok(Self {
             writer: Mutex::new(stream),
             inbox: Mutex::new(receiver),
+            early: Vec::new(),
             remote_team,
             remote_turns: BTreeSet::new(),
             local_checksums: BTreeMap::new(),
@@ -95,6 +104,42 @@ impl NetSession {
 
     pub fn remote_team(&self) -> Team {
         self.remote_team
+    }
+
+    /// Sends the host's battle to the guest.
+    pub fn start(&mut self, level: &LevelDefinition) {
+        self.send(&Message::Start {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            level: Box::new(level.clone()),
+        });
+    }
+
+    /// The battle the host chose, once it has arrived; `Err` when the host runs another version of the game.
+    pub fn started_level(&mut self) -> Option<Result<LevelDefinition, String>> {
+        let arrivals = self.drain_inbox();
+        let mut started = None;
+        for arrival in arrivals {
+            match arrival {
+                Arrival::Message(Message::Start { version, level }) if started.is_none() => {
+                    started = Some(if version == env!("CARGO_PKG_VERSION") {
+                        Ok(*level)
+                    } else {
+                        Err(version)
+                    });
+                }
+                Arrival::ConnectionLost => self.state = SessionState::Disconnected,
+                other => self.early.push(other),
+            }
+        }
+        started
+    }
+
+    fn drain_inbox(&mut self) -> Vec<Arrival> {
+        let mut arrivals = std::mem::take(&mut self.early);
+        if let Ok(inbox) = self.inbox.lock() {
+            arrivals.extend(inbox.try_iter());
+        }
+        arrivals
     }
 
     /// Whether the other player's commands for `tick` have arrived; the first ticks need none.
@@ -153,10 +198,7 @@ pub fn simulation_may_advance(session: Option<Res<NetSession>>, tick: Res<Simula
 
 pub fn receive_turns(session: Option<ResMut<NetSession>>, mut queue: ResMut<CommandQueue>) {
     let Some(mut session) = session else { return };
-    let arrivals: Vec<Arrival> = session
-        .inbox
-        .lock()
-        .map_or_else(|_| Vec::new(), |inbox| inbox.try_iter().collect());
+    let arrivals = session.drain_inbox();
     let remote_team = session.remote_team;
     for arrival in arrivals {
         match arrival {
@@ -174,6 +216,7 @@ pub fn receive_turns(session: Option<ResMut<NetSession>>, mut queue: ResMut<Comm
                 session.remote_checksums.insert(tick, sum);
                 session.compare_checksums(tick);
             }
+            Arrival::Message(Message::Start { .. }) => {}
             Arrival::ConnectionLost => session.state = SessionState::Disconnected,
         }
     }

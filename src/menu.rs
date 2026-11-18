@@ -1,3 +1,5 @@
+use crate::network::NetSession;
+use crate::notifications::Notifications;
 use crate::structure_tools::StructureTool;
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
@@ -575,11 +577,20 @@ fn run_action(
     mut requests: ResMut<SaveRequests>,
     mut next_state: ResMut<NextState<GameState>>,
     mut exit: MessageWriter<AppExit>,
+    (session, mut notifications): (Option<Res<NetSession>>, ResMut<Notifications>),
 ) {
     let Ok(button) = buttons.get(click.entity) else {
         return;
     };
     if click.button != PointerButton::Primary {
+        return;
+    }
+    let rewinds_the_battle = matches!(
+        button.0,
+        MenuAction::Restart | MenuAction::Save(_) | MenuAction::Load(_)
+    );
+    if session.is_some() && rewinds_the_battle {
+        notifications.push(tr("Not available in a network battle").to_string());
         return;
     }
     match button.0 {
