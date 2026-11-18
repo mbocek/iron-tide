@@ -56,6 +56,7 @@ pub mod terrain_material;
 pub mod tutorial;
 pub mod ui;
 pub mod unit_orders;
+pub mod updates;
 pub mod veterancy;
 
 use bevy::prelude::*;
@@ -397,14 +398,24 @@ impl Plugin for GamePlugin {
                     .after(match_flow::deploy_level_forces)
                     .before(savegame::restore_pending_load),
             )
-            .add_systems(PostStartup, match_flow::finish_booting)
+            .init_resource::<updates::Updates>()
+            .add_systems(
+                PostStartup,
+                (match_flow::finish_booting, updates::check_for_updates),
+            )
             .add_systems(
                 OnEnter(match_flow::GameState::MainMenu),
                 (match_flow::unpause, main_menu::build_main_menu),
             )
             .add_systems(
                 Update,
-                main_menu::refresh_main_menu.run_if(in_state(match_flow::GameState::MainMenu)),
+                (
+                    updates::receive_update_news,
+                    main_menu::refresh_main_menu,
+                    main_menu::refresh_update_banner,
+                )
+                    .chain()
+                    .run_if(in_state(match_flow::GameState::MainMenu)),
             )
             .add_systems(
                 Update,

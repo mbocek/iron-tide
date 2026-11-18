@@ -80,6 +80,7 @@ enum Setting {
     EdgeScroll,
     ScrollSpeed,
     DamageNumbers,
+    CheckForUpdates,
     HealthBars,
     PerformanceOverlay,
     MasterVolume,
@@ -108,7 +109,7 @@ const AUDIO_SETTINGS: [Setting; 3] = [
 ];
 const VOLUME_STEP: f32 = 0.1;
 
-const GAMEPLAY_SETTINGS: [Setting; 7] = [
+const GAMEPLAY_SETTINGS: [Setting; 8] = [
     Setting::Language,
     Setting::GameSpeed,
     Setting::EdgeScroll,
@@ -116,6 +117,7 @@ const GAMEPLAY_SETTINGS: [Setting; 7] = [
     Setting::DamageNumbers,
     Setting::HealthBars,
     Setting::PerformanceOverlay,
+    Setting::CheckForUpdates,
 ];
 
 fn percent(volume: f32) -> String {
@@ -173,6 +175,7 @@ impl Setting {
             Setting::EdgeScroll => tr("Edge scrolling"),
             Setting::ScrollSpeed => tr("Scroll speed"),
             Setting::DamageNumbers => tr("Damage numbers"),
+            Setting::CheckForUpdates => tr("Check for updates"),
             Setting::HealthBars => tr("Health bars"),
             Setting::PerformanceOverlay => tr("Performance overlay (F3)"),
             Setting::MasterVolume => tr("Master volume"),
@@ -201,6 +204,7 @@ impl Setting {
             Setting::EdgeScroll => on_off(settings.edge_scroll),
             Setting::ScrollSpeed => tr_owned(&format!("{:?}", settings.scroll_speed)),
             Setting::DamageNumbers => on_off(settings.damage_numbers),
+            Setting::CheckForUpdates => on_off(settings.check_for_updates),
             Setting::HealthBars => match settings.health_bars {
                 HealthBars::Always => tr("Always").into(),
                 HealthBars::DamagedOrSelected => tr("Damaged / selected").into(),
@@ -284,6 +288,7 @@ impl Setting {
                 settings.scroll_speed = step(&speeds, settings.scroll_speed, forward);
             }
             Setting::DamageNumbers => settings.damage_numbers = !settings.damage_numbers,
+            Setting::CheckForUpdates => settings.check_for_updates = !settings.check_for_updates,
             Setting::HealthBars => {
                 let modes = [
                     HealthBars::Always,

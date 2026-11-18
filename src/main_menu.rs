@@ -14,7 +14,10 @@ use crate::savegame::{QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_summary
 use crate::season::Season;
 use crate::settings::GameSettings;
 use crate::terrain::Landscape;
-use crate::ui::{ACCENT, FRAME, FRAME_BRIGHT, GOOD, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
+use crate::ui::{
+    ACCENT, FRAME, FRAME_BRIGHT, GOOD, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts, set_field,
+};
+use crate::updates::{UpdateState, Updates, download_update};
 
 const LIST_WIDTH: f32 = 400.0;
 const DETAIL_WIDTH: f32 = 620.0;
@@ -65,6 +68,7 @@ pub enum MenuCommand {
     WatchReplay,
     CycleLanguage,
     ContinueQuickSave,
+    DownloadUpdate,
     Quit,
 }
 
@@ -277,6 +281,22 @@ pub fn build_main_menu(
             .with_children(|column| {
                 column.spawn(fonts.heading("IRON TIDE", 46.0, ACCENT));
                 column.spawn(fonts.text(tr("Coalition command"), 18.0, Team::Player.ui_color()));
+                column
+                    .spawn((
+                        MenuCommand::DownloadUpdate,
+                        UpdateBanner,
+                        Hovered::default(),
+                        Node {
+                            display: Display::None,
+                            ..button_node(Val::Percent(100.0))
+                        },
+                        BackgroundColor(BUTTON_IDLE),
+                        BorderColor::all(GOOD),
+                    ))
+                    .with_children(|button| {
+                        button.spawn(fonts.heading("", 16.0, GOOD));
+                    })
+                    .observe(run_command);
                 if let Some(summary) = has_quick_save {
                     spawn_command_button(
                         column,
@@ -323,6 +343,49 @@ fn button_node(width: Val) -> Node {
         align_items: AlignItems::Center,
         border: UiRect::all(Val::Px(1.0)),
         ..default()
+    }
+}
+
+#[derive(Component)]
+pub struct UpdateBanner;
+
+fn update_banner_label(state: &UpdateState) -> Option<String> {
+    match state {
+        UpdateState::NothingNew => None,
+        UpdateState::Available(release) => Some(tr_fmt(
+            "Version {} is out - download it",
+            &[&release.version],
+        )),
+        UpdateState::Downloading { release, fraction } => Some(tr_fmt(
+            "Downloading {}... {}%",
+            &[&release.version, &((fraction * 100.0) as u32)],
+        )),
+        UpdateState::Downloaded(path) => {
+            Some(tr_fmt("Saved to {} - click to show it", &[&path.display()]))
+        }
+        UpdateState::Failed(reason) => Some(tr_fmt("Update failed: {}", &[&reason])),
+    }
+}
+
+pub fn refresh_update_banner(
+    updates: Res<Updates>,
+    mut banners: Query<(&mut Node, &Children), With<UpdateBanner>>,
+    mut labels: Query<&mut Text>,
+) {
+    let label = update_banner_label(&updates.state);
+    let display = if label.is_some() {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for (mut node, children) in &mut banners {
+        set_field(&mut node, |node| &mut node.display, display);
+        if let Some(mut text) = children
+            .first()
+            .and_then(|&child| labels.get_mut(child).ok())
+        {
+            text.set_if_neq(Text(label.clone().unwrap_or_default()));
+        }
     }
 }
 
@@ -567,6 +630,7 @@ fn run_command(
     mut requests: ResMut<SaveRequests>,
     mut next_state: ResMut<NextState<GameState>>,
     mut settings: ResMut<GameSettings>,
+    mut updates: ResMut<Updates>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let Ok(&command) = buttons.get(click.entity) else {
@@ -628,6 +692,7 @@ fn run_command(
             next_state.set(GameState::MainMenu);
         }
         MenuCommand::ContinueQuickSave => requests.load = Some(QUICK_SAVE_SLOT),
+        MenuCommand::DownloadUpdate => download_update(&mut updates),
         MenuCommand::Quit => {
             exit.write(AppExit::Success);
         }

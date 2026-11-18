@@ -789,6 +789,31 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ),
     ("Helipad", "Heliport", "Heliport"),
     ("Season", "Ročné obdobie", "Roční období"),
+    (
+        "Check for updates",
+        "Hľadať aktualizácie",
+        "Hledat aktualizace",
+    ),
+    (
+        "Version {} is out - download it",
+        "Vyšla verzia {} - stiahnuť",
+        "Vyšla verze {} - stáhnout",
+    ),
+    (
+        "Downloading {}... {}%",
+        "Sťahujem {}... {}%",
+        "Stahuji {}... {}%",
+    ),
+    (
+        "Saved to {} - click to show it",
+        "Uložené do {} - kliknutím zobrazíte",
+        "Uloženo do {} - kliknutím zobrazíte",
+    ),
+    (
+        "Update failed: {}",
+        "Aktualizácia zlyhala: {}",
+        "Aktualizace selhala: {}",
+    ),
     ("Summer", "Leto", "Léto"),
     ("Autumn", "Jeseň", "Podzim"),
     ("Winter", "Zima", "Zima"),

@@ -157,6 +157,15 @@ shadows, and crystals off screen stop animating. Shadow queueing fell by about 7
 by about 10 %. Interface systems now write text, colours and sizes only when they change, because any write
 makes Bevy measure text and lay out the whole interface again; that took about 7 % off the main thread.
 
+## Updates
+
+At start-up the game asks GitHub for the latest release of this repository (one request to
+`api.github.com`, sent as `iron-tide/<version>` with nothing about the player). When a newer version has a
+package for this computer, the main menu shows a banner; clicking it downloads the package into the
+Downloads folder and then opens it: a disk image is mounted on macOS, the zip or archive is shown in its
+folder on Windows and Linux. Installing stays in the player's hands, as the builds are not signed. The check
+can be switched off with *Check for updates* in the menu's *Gameplay* tab, and capture runs never check.
+
 ## Languages
 
 The interface speaks English, Slovak and Czech: choose it with the *Language* button in the main menu or in
@@ -332,6 +341,8 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
 | `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
+| `updates` | checking GitHub for a newer release, downloading and opening its package |
+| `season` | summer, autumn and winter: terrain tint, snow, foliage colours, light |
 | `key_bindings` | rebindable hotkeys: actions, their default and bindable keys, swapping on conflict |
 | `engineers` | engineers capturing enemy structures and repairing own ones |
 | `tutorial` | the step-by-step tutorial of levels with `"tutorial": true` |

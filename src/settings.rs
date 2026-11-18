@@ -100,6 +100,8 @@ pub struct GameSettings {
     pub effects_volume: f32,
     pub language: Language,
     pub keys: KeyBindings,
+    /// Ask GitHub at start-up whether a newer version has been released.
+    pub check_for_updates: bool,
 }
 
 impl Default for GameSettings {
@@ -126,6 +128,7 @@ impl Default for GameSettings {
             effects_volume: 0.8,
             language: Language::English,
             keys: KeyBindings::default(),
+            check_for_updates: true,
         };
         settings.apply_preset(QualityPreset::High);
         settings
