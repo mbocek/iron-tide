@@ -35,6 +35,7 @@ pub mod main_menu;
 pub mod map;
 pub mod map_editor;
 pub mod map_edits;
+pub mod map_preview;
 pub mod match_flow;
 pub mod match_stats;
 pub mod medical;

@@ -1,4 +1,5 @@
 use crate::map_editor::open_map_editor;
+use crate::map_preview::map_preview;
 use crate::random_battle::{
     self, CREDIT_CHOICES, DifficultyChoice, FactionChoice, RandomBattleOptions,
 };
@@ -32,6 +33,8 @@ const NAV_WIDTH: f32 = 240.0;
 const LIST_WIDTH: f32 = 330.0;
 const DETAIL_WIDTH: f32 = 640.0;
 const REPLAYS_LISTED: usize = 10;
+const LARGE_PREVIEW: f32 = 220.0;
+const SMALL_PREVIEW: f32 = 170.0;
 const BODY_GAP: f32 = 14.0;
 const EDITOR_FIELD_WIDTH: f32 = 440.0;
 const EDITOR_VALUE_WIDTH: f32 = 230.0;
@@ -107,6 +110,8 @@ pub struct MainMenu {
     random: RandomBattleOptions,
     /// The dice of the random battle on show; a new roll draws another.
     random_seed: u64,
+    /// The map picture of the level last shown, kept until another level is shown.
+    preview: Option<(LevelDefinition, Handle<Image>)>,
     message: Option<String>,
     needs_rebuild: bool,
 }
@@ -443,6 +448,7 @@ pub fn build_main_menu(
         options: SkirmishOptions::default(),
         random: RandomBattleOptions::default(),
         random_seed: rand::rng().random(),
+        preview: None,
         message: None,
         needs_rebuild: true,
     };
@@ -937,6 +943,30 @@ impl MainMenu {
         }
     }
 
+    /// The level whose map the page shows, if it has one.
+    fn previewed_level(&self) -> Option<LevelDefinition> {
+        match self.selection {
+            Selection::Level(index) => Some(self.entries[index].level.clone()),
+            Selection::Random => Some(self.random_level()),
+            Selection::Editor => Some(self.options.to_level()),
+            Selection::Network | Selection::Replay(_) | Selection::Nothing(_) => None,
+        }
+    }
+
+    fn update_preview(&mut self, images: &mut Assets<Image>) -> Option<Handle<Image>> {
+        let level = self.previewed_level()?;
+        let current = self
+            .preview
+            .as_ref()
+            .filter(|(shown, _)| *shown == level)
+            .map(|(_, image)| image.clone());
+        Some(current.unwrap_or_else(|| {
+            let image = images.add(map_preview(&level));
+            self.preview = Some((level, image.clone()));
+            image
+        }))
+    }
+
     fn random_level(&self) -> LevelDefinition {
         random_battle::generate(&self.random, self.random_seed)
     }
@@ -1072,7 +1102,12 @@ fn alliance_name(alliance: Alliance) -> &'static str {
     }
 }
 
-fn spawn_random_battle_details(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, menu: &MainMenu) {
+fn spawn_random_battle_details(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    menu: &MainMenu,
+    preview: Option<Handle<Image>>,
+) {
     panel.spawn(fonts.heading(tr("Random battle"), 30.0, ACCENT));
     panel.spawn(fonts.text(
         tr("Choose the opponents, map size and credits; the landscape, season, weather, corners, alliances and the forests, rocks and crystals are rolled. New map rolls them again."),
@@ -1088,21 +1123,23 @@ fn spawn_random_battle_details(panel: &mut ChildSpawnerCommands, fonts: &UiFonts
     });
     spawn_option_grid(panel, fonts, rows);
     let level = menu.random_level();
-    panel.spawn(fonts.heading(&level.name, 20.0, TEXT_MAIN));
-    for (line, color) in describe_level(&level).into_iter().skip(3) {
-        panel.spawn(fonts.text(line, 15.0, color));
-    }
-    panel.spawn(fonts.text(
-        tr_fmt(
-            "Weather: {}  ·  Opponents: {}",
-            &[
-                &tr_owned(&format!("{:?}", level.weather)),
-                &alliance_name(level.effective_alliance()),
-            ],
-        ),
-        15.0,
-        TEXT_DIM,
-    ));
+    beside_preview(panel, preview, SMALL_PREVIEW, |column| {
+        column.spawn(fonts.heading(&level.name, 20.0, TEXT_MAIN));
+        for (line, color) in describe_level(&level).into_iter().skip(3) {
+            column.spawn(fonts.text(line, 15.0, color));
+        }
+        column.spawn(fonts.text(
+            tr_fmt(
+                "Weather: {}  ·  Opponents: {}",
+                &[
+                    &tr_owned(&format!("{:?}", level.weather)),
+                    &alliance_name(level.effective_alliance()),
+                ],
+            ),
+            15.0,
+            TEXT_DIM,
+        ));
+    });
     spawn_command_button(
         panel,
         fonts,
@@ -1240,6 +1277,7 @@ fn rebuild_details(
     panel: Entity,
     fonts: &UiFonts,
     menu: &MainMenu,
+    preview: Option<Handle<Image>>,
     join_address: &str,
     lobby: &NetLobby,
 ) {
@@ -1250,9 +1288,11 @@ fn rebuild_details(
             Selection::Level(index) => {
                 let level = &menu.entries[index].level;
                 panel.spawn(fonts.heading(tr_owned(&level.name), 30.0, ACCENT));
-                for (line, color) in describe_level(level) {
-                    panel.spawn(fonts.text(line, 17.0, color));
-                }
+                beside_preview(panel, preview, LARGE_PREVIEW, |column| {
+                    for (line, color) in describe_level(level) {
+                        column.spawn(fonts.text(line, 17.0, color));
+                    }
+                });
                 spawn_command_button(panel, fonts, tr("START MISSION"), MenuCommand::StartSelected);
                 if matches!(menu.entries[index].source, LevelSource::Custom(_)) {
                     spawn_command_button(panel, fonts, tr("EDIT MAP"), MenuCommand::EditMap);
@@ -1278,7 +1318,7 @@ fn rebuild_details(
             Selection::Network => {
                 spawn_network_details(panel, fonts, join_address, lobby, &menu.options)
             }
-            Selection::Random => spawn_random_battle_details(panel, fonts, menu),
+            Selection::Random => spawn_random_battle_details(panel, fonts, menu, preview),
             Selection::Nothing(section) => {
                 panel.spawn(fonts.heading(section.label(), 30.0, ACCENT));
                 let hint = match section {
@@ -1297,11 +1337,13 @@ fn rebuild_details(
                     TEXT_DIM,
                 ));
                 spawn_editor_fields(panel, fonts, &menu.options, &EDITOR_FIELDS);
-                panel.spawn(fonts.text(
-                    menu.options.to_level().objective.describe(),
-                    16.0,
-                    TEXT_DIM,
-                ));
+                beside_preview(panel, preview, SMALL_PREVIEW, |column| {
+                    column.spawn(fonts.text(
+                        menu.options.to_level().objective.describe(),
+                        16.0,
+                        TEXT_DIM,
+                    ));
+                });
                 spawn_command_button(panel, fonts, tr("START BATTLE"), MenuCommand::StartEditorBattle);
                 spawn_command_button(
                     panel,
@@ -1317,6 +1359,43 @@ fn rebuild_details(
             panel.spawn(fonts.text(message.clone(), 15.0, GOOD));
         });
     }
+}
+
+/// Lays `content` out in a column with the map picture to its right.
+fn beside_preview(
+    panel: &mut ChildSpawnerCommands,
+    preview: Option<Handle<Image>>,
+    size: f32,
+    content: impl FnOnce(&mut ChildSpawnerCommands),
+) {
+    panel
+        .spawn(Node {
+            column_gap: Val::Px(16.0),
+            align_items: AlignItems::FlexStart,
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                flex_grow: 1.0,
+                row_gap: Val::Px(8.0),
+                ..default()
+            })
+            .with_children(content);
+            if let Some(image) = preview {
+                row.spawn((
+                    ImageNode::new(image),
+                    Node {
+                        width: Val::Px(size),
+                        height: Val::Px(size),
+                        flex_shrink: 0.0,
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    BorderColor::all(FRAME),
+                ));
+            }
+        });
 }
 
 fn select_entry(click: On<PointerClick>, buttons: Query<&ListButton>, mut menu: ResMut<MainMenu>) {
@@ -1473,6 +1552,7 @@ pub fn refresh_main_menu(
     settings: Res<GameSettings>,
     mut lobby: ResMut<NetLobby>,
     menu: Option<ResMut<MainMenu>>,
+    mut images: ResMut<Assets<Image>>,
     lists: Query<Entity, With<LevelList>>,
     mut list_columns: Query<&mut Node, With<ListColumn>>,
     mut sections: Query<(
@@ -1512,11 +1592,13 @@ pub fn refresh_main_menu(
             set_field(&mut column, |node| &mut node.display, shown);
         }
         rebuild_level_list(&mut commands, list, &fonts, &menu);
+        let preview = menu.update_preview(&mut images);
         rebuild_details(
             &mut commands,
             panel,
             &fonts,
             &menu,
+            preview,
             &settings.join_address,
             &lobby,
         );

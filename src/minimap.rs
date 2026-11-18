@@ -10,13 +10,13 @@ use crate::catalog::Team;
 use crate::components::{Building, Unit};
 use crate::fog::{CellSight, FogOfWar};
 use crate::fog_view::Discovered;
-use crate::levels::ActiveLevel;
+use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::local_view::LocalView;
 use crate::map::{CELL_SIZE, GameMap, footprint_cells, map_cells, map_world_size};
 use crate::terrain::GroundLayers;
 use crate::ui::SIDEBAR_WIDTH;
 
-const PIXELS_PER_CELL: i32 = 3;
+pub const PIXELS_PER_CELL: i32 = 3;
 fn resolution() -> u32 {
     (map_cells() * PIXELS_PER_CELL) as u32
 }
@@ -40,9 +40,36 @@ pub fn create_minimap(
     map: Res<GameMap>,
     level: Res<ActiveLevel>,
 ) {
-    let landscape = level.0.landscape;
+    let terrain = terrain_pixels(&map, &level.0);
+    let image = pixel_image(terrain.clone());
+    commands.insert_resource(Minimap {
+        image: images.add(image),
+        terrain,
+        refresh_timer: 0.0,
+    });
+}
+
+/// The square picture of a map's ground, water, obstacles and crystal, `PIXELS_PER_CELL` per cell.
+pub fn pixel_image(pixels: Vec<u8>) -> Image {
+    let mut image = Image::new(
+        Extent3d {
+            width: resolution(),
+            height: resolution(),
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        pixels,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::all(),
+    );
+    image.sampler = ImageSampler::nearest();
+    image
+}
+
+pub fn terrain_pixels(map: &GameMap, level: &LevelDefinition) -> Vec<u8> {
+    let landscape = level.landscape;
     let ground = GroundLayers::new(landscape);
-    let grass = level.0.season.minimap_grass();
+    let grass = level.season.minimap_grass();
     let mut terrain = Vec::with_capacity((resolution() * resolution() * 4) as usize);
     for py in 0..resolution() {
         for px in 0..resolution() {
@@ -61,23 +88,7 @@ pub fn create_minimap(
             terrain.extend_from_slice(&[rgb[0], rgb[1], rgb[2], 255]);
         }
     }
-    let mut image = Image::new(
-        Extent3d {
-            width: resolution(),
-            height: resolution(),
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        terrain.clone(),
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::all(),
-    );
-    image.sampler = ImageSampler::nearest();
-    commands.insert_resource(Minimap {
-        image: images.add(image),
-        terrain,
-        refresh_timer: 0.0,
-    });
+    terrain
 }
 
 struct Canvas<'a> {
