@@ -2,8 +2,9 @@ use bevy::prelude::*;
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
+use crate::army_mix::{Sightings, counter_weight};
 use crate::assets::ModelLibrary;
-use crate::catalog::{BuildingKind, Team, UnitKind};
+use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
 use crate::economy::Economies;
@@ -66,6 +67,8 @@ pub struct AiCommander {
     secs_since_enemy_army_seen: f32,
     #[serde(skip)]
     scout: Option<Entity>,
+    #[serde(default)]
+    sightings: Sightings,
 }
 
 impl AiCommander {
@@ -78,6 +81,7 @@ impl AiCommander {
             wave_size: difficulty.first_wave_size(),
             secs_since_enemy_army_seen: 0.0,
             scout: None,
+            sightings: Sightings::default(),
         }
     }
 }
@@ -131,13 +135,27 @@ pub fn command_enemies(
             &unit_positions,
         );
         owned.extend(placed);
-        let saving_for = plan_next_structure(ai.team, &mut production, &mut economies, &owned);
+        let team = ai.team;
+        ai.sightings.observe(
+            targets
+                .iter()
+                .filter(|t| !t.is_building && targets.hostile(t.team, team) && t.seen_by(team))
+                .map(|t| t.armor),
+        );
+        let saving_for = plan_next_structure(
+            ai.team,
+            &ai.sightings,
+            &mut production,
+            &mut economies,
+            &owned,
+        );
         let harvesters = army
             .iter()
             .filter(|(_, unit, team, ..)| **team == ai.team && unit.0 == UnitKind::Harvester)
             .count();
         train_units(
             ai.team,
+            &ai.sightings,
             &mut production,
             &mut economies,
             &owned,
@@ -391,6 +409,7 @@ fn towards_nearest_crystal(map: &GameMap, home: IVec2, frame: BaseFrame) -> IVec
 /// Queues the next structure of the build plan; returns the price it is saving up for when it cannot pay yet.
 fn plan_next_structure(
     team: Team,
+    sightings: &Sightings,
     production: &mut Production,
     economies: &mut Economies,
     owned: &[BuildingKind],
@@ -398,6 +417,21 @@ fn plan_next_structure(
     if !production.lane(team, Lane::Structures).is_idle() {
         return None;
     }
+    let flak = BuildItem::Structure(BuildingKind::FlakCannon);
+    let flak_cannons = owned
+        .iter()
+        .filter(|&&k| k == BuildingKind::FlakCannon)
+        .count();
+    let under_air_threat = sightings.share(ArmorClass::Aircraft) >= AIR_THREAT_SHARE;
+    let flak_wanted = if owned.contains(&BuildingKind::Refinery) {
+        FLAK_CANNONS_UNDER_AIR_THREAT
+    } else {
+        1
+    };
+    let wants_flak = under_air_threat
+        && flak_cannons < flak_wanted
+        && production.allows(team, flak)
+        && flak.missing_requirement(owned).is_none();
     let mut planned_so_far = Vec::new();
     let next_in_plan = BUILD_PLAN
         .iter()
@@ -408,7 +442,11 @@ fn plan_next_structure(
             let wanted = planned_so_far.iter().filter(|&&k| k == kind).count();
             owned.iter().filter(|&&k| k == kind).count() < wanted
         });
-    let mut next = next_in_plan?;
+    let mut next = if wants_flak {
+        BuildingKind::FlakCannon
+    } else {
+        next_in_plan?
+    };
 
     let economy = economies.of(team);
     let spare_power = economy.power_supply - economy.power_demand;
@@ -422,45 +460,56 @@ fn plan_next_structure(
         .map(|_| item.cost())
 }
 
-/// Weighted wish lists; anything the mission forbids is skipped.
-const VEHICLE_MIX: [(UnitKind, u32); 6] = [
-    (UnitKind::Tank, 5),
-    (UnitKind::Bulwark, 2),
-    (UnitKind::Artillery, 2),
-    (UnitKind::Scout, 3),
-    (UnitKind::Gunship, 2),
-    (UnitKind::FlakTrack, 1),
+/// Weighted wish lists, reweighted by what counters the enemies seen lately; anything the mission
+/// forbids is skipped.
+const VEHICLE_MIX: [(UnitKind, f32); 6] = [
+    (UnitKind::Tank, 5.0),
+    (UnitKind::Bulwark, 2.0),
+    (UnitKind::Artillery, 2.0),
+    (UnitKind::Scout, 3.0),
+    (UnitKind::Gunship, 2.0),
+    (UnitKind::FlakTrack, 1.0),
 ];
-const INFANTRY_MIX: [(UnitKind, u32); 4] = [
-    (UnitKind::Rifleman, 6),
-    (UnitKind::Rocketeer, 3),
-    (UnitKind::Medic, 1),
-    (UnitKind::Sniper, 1),
+const INFANTRY_MIX: [(UnitKind, f32); 4] = [
+    (UnitKind::Rifleman, 6.0),
+    (UnitKind::Rocketeer, 3.0),
+    (UnitKind::Medic, 1.0),
+    (UnitKind::Sniper, 1.0),
 ];
+const AIR_THREAT_SHARE: f32 = 0.25;
+const FLAK_CANNONS_UNDER_AIR_THREAT: usize = 2;
 
-fn pick_weighted(mix: &[(UnitKind, u32)], allowed: impl Fn(UnitKind) -> bool) -> Option<UnitKind> {
-    let candidates: Vec<(UnitKind, u32)> = mix
+fn pick_weighted(
+    mix: &[(UnitKind, f32)],
+    sightings: &Sightings,
+    allowed: impl Fn(UnitKind) -> bool,
+) -> Option<UnitKind> {
+    let candidates: Vec<(UnitKind, f32)> = mix
         .iter()
-        .copied()
-        .filter(|&(kind, _)| allowed(kind))
+        .filter(|&&(kind, _)| allowed(kind))
+        .map(|&(kind, weight)| (kind, weight * counter_weight(kind, sightings)))
         .collect();
-    let total: u32 = candidates.iter().map(|(_, weight)| weight).sum();
-    if total == 0 {
+    let total: f32 = candidates.iter().map(|(_, weight)| weight).sum();
+    if total <= 0.0 {
         return None;
     }
-    let mut roll = rand::rng().random_range(0..total);
-    candidates.into_iter().find_map(|(kind, weight)| {
-        if roll < weight {
-            Some(kind)
-        } else {
-            roll -= weight;
-            None
-        }
-    })
+    let mut roll = rand::rng().random_range(0.0..total);
+    candidates
+        .iter()
+        .find_map(|&(kind, weight)| {
+            if roll < weight {
+                Some(kind)
+            } else {
+                roll -= weight;
+                None
+            }
+        })
+        .or(candidates.last().map(|&(kind, _)| kind))
 }
 
 fn train_units(
     team: Team,
+    sightings: &Sightings,
     production: &mut Production,
     economies: &mut Economies,
     owned: &[BuildingKind],
@@ -494,7 +543,8 @@ fn train_units(
         let choice = if wants_harvester {
             Some(UnitKind::Harvester)
         } else {
-            pick_weighted(&VEHICLE_MIX, allowed).filter(|&kind| affordable(economies, kind))
+            pick_weighted(&VEHICLE_MIX, sightings, allowed)
+                .filter(|&kind| affordable(economies, kind))
         };
         if let Some(kind) = choice {
             let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);
@@ -502,8 +552,8 @@ fn train_units(
     }
     let infantry_queue = production.lane(team, Lane::Infantry).queue.len();
     if infantry_queue < 2
-        && let Some(kind) =
-            pick_weighted(&INFANTRY_MIX, allowed).filter(|&kind| affordable(economies, kind))
+        && let Some(kind) = pick_weighted(&INFANTRY_MIX, sightings, allowed)
+            .filter(|&kind| affordable(economies, kind))
     {
         let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);
     }

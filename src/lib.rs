@@ -3,6 +3,7 @@
 pub mod ai;
 pub mod ambience;
 pub mod animation;
+pub mod army_mix;
 pub mod assets;
 pub mod battlefield;
 pub mod camera;

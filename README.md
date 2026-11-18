@@ -281,7 +281,10 @@ attack wave and its income (75 % / 100 % / 135 %).
   structures they have spotted, and send a scout (a Scout Buggy if they have one) and then their attack
   waves to base sites they have not explored yet. Once their economy stands they shield each gun turret
   with a short L of wall facing the middle of the map, and once they know an enemy structure they keep an
-  engineer that follows their attack wave to capture it. Levels can switch the fog off (`"fog_of_war": false`, or in the
+  engineer that follows their attack wave to capture it. They also count the enemy infantry, vehicles and
+  aircraft they have seen lately (older sightings fade) and train more of whatever answers them best,
+  judged by each unit's weapon against those armour classes; against aircraft they dig in up to two Flak
+  Cannons first. Levels can switch the fog off (`"fog_of_war": false`, or in the
   battle editor).
 
 ## Code layout
@@ -298,6 +301,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `structures`, `structure_tools` | repairing and selling structures; the repair / sell mouse modes, buttons and hint |
 | `orders` | selection and player orders |
 | `ai` | computer opponents: build plan, saving up for structures, gathered attack waves, base defense |
+| `army_mix` | what the computer has seen of the enemy army and which units counter it |
 | `headless` | windowless battle harness shared by the tests and the balance tool |
 | `terrain`, `terrain_material` | landscapes (river, lake, plains): terrain height, water, roads, texture layers, WESL shader |
 | `scenery`, `flat_scenery` | forests, meadows, reeds, mountains with boulders; scenery models merged into one mesh each |

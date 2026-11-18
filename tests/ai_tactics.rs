@@ -68,3 +68,35 @@ fn the_computer_sends_an_engineer_after_a_known_structure() {
     });
     assert!(took.is_some(), "the computer never sent an engineer");
 }
+
+fn crimson_buildings(battle: &mut Battle, kind: BuildingKind) -> usize {
+    battle
+        .buildings(Team::Crimson)
+        .into_iter()
+        .filter(|&built| built == kind)
+        .count()
+}
+
+#[test]
+fn the_computer_answers_enemy_gunships_with_flak() {
+    let mut battle = fogless_match();
+    let command_center = battle
+        .building(Team::Player, BuildingKind::CommandCenter)
+        .unwrap();
+    let home = iron_tide::map::world_to_cell(battle.position(command_center));
+    for offset in 0..4 {
+        battle.spawn_unit(
+            UnitKind::Gunship,
+            Team::Player,
+            home + IVec2::new(-3, offset),
+        );
+    }
+    let took = battle.run_until(6.0 * 60.0, |battle| {
+        crimson_buildings(battle, BuildingKind::FlakCannon) >= 2
+    });
+    assert!(
+        took.is_some(),
+        "the computer built {} flak cannons against four gunships",
+        crimson_buildings(&mut battle, BuildingKind::FlakCannon)
+    );
+}
