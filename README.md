@@ -230,7 +230,9 @@ attack wave and its income (75 % / 100 % / 135 %).
   fire on enemies someone on your side can see, so long-range artillery needs a spotter. The computer
   opponents play by the same rules: allied Syndicate commanders share one view of the map, remember the
   structures they have spotted, and send a scout (a Scout Buggy if they have one) and then their attack
-  waves to base sites they have not explored yet. Levels can switch the fog off (`"fog_of_war": false`, or in the
+  waves to base sites they have not explored yet. Once their economy stands they shield each gun turret
+  with a short L of wall facing the middle of the map, and once they know an enemy structure they keep an
+  engineer that follows their attack wave to capture it. Levels can switch the fog off (`"fog_of_war": false`, or in the
   battle editor).
 
 ## Code layout

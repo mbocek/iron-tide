@@ -38,6 +38,15 @@ impl Intel {
         self.known_structures[side(viewer)].values().copied()
     }
 
+    pub fn known_enemy_structure_entities(
+        &self,
+        viewer: Team,
+    ) -> impl Iterator<Item = (Entity, Vec3)> + '_ {
+        self.known_structures[side(viewer)]
+            .iter()
+            .map(|(&entity, &position)| (entity, position))
+    }
+
     /// Where to look for an enemy nobody has found: the nearest base site never explored, or failing that
     /// the nearest one out of sight right now.
     pub fn base_site_to_search(

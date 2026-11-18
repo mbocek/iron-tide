@@ -161,6 +161,8 @@ impl Plugin for SimulationPlugin {
                         production::advance_production,
                         ai::command_enemies,
                         ai::repair_damaged_structures,
+                        ai::fortify_turrets,
+                        ai::employ_engineers,
                         economy::run_harvesters,
                         structures::carry_out_structure_orders,
                         structures::repair_structures,

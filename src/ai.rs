@@ -7,6 +7,7 @@ use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
 use crate::economy::Economies;
+use crate::engineers::{EngineerJob, EngineerTask};
 use crate::fog::FogOfWar;
 use crate::intel::Intel;
 use crate::levels::Difficulty;
@@ -30,6 +31,8 @@ const CRYSTAL_SEARCH_RADIUS: i32 = 20;
 const HARVESTERS_PER_REFINERY: usize = 2;
 const COMBAT_UNIT_RESERVE: i32 = 400;
 const REPAIR_BELOW_HEALTH: f32 = 0.6;
+const FORTIFY_INTERVAL_SECS: f32 = 3.0;
+const ENGINEER_INTERVAL_SECS: f32 = 2.0;
 
 const BUILD_PLAN: [BuildingKind; 13] = [
     BuildingKind::PowerPlant,
@@ -143,6 +146,135 @@ pub fn command_enemies(
             player_fog: &player_fog,
         };
         direct_army(ai, &knowledge, &buildings, &mut army);
+    }
+}
+
+/// Harvesters and engineers stay out of attack waves.
+fn fights(kind: UnitKind) -> bool {
+    !matches!(kind, UnitKind::Harvester | UnitKind::Engineer)
+}
+
+/// The three cells beside a turret on the side facing the middle of the map, where a short wall shields it.
+fn turret_shield(turret: IVec2) -> [IVec2; 3] {
+    let toward_middle = (opposite_cell(turret) - turret).signum();
+    let step_x = IVec2::new(toward_middle.x, 0);
+    let step_y = IVec2::new(0, toward_middle.y);
+    [turret + step_x, turret + step_x + step_y, turret + step_y]
+}
+
+/// Once its economy stands, a commander shields each gun turret with a short L of wall facing the enemy.
+pub fn fortify_turrets(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut countdown: Local<f32>,
+    models: Res<ModelLibrary>,
+    commanders: Res<AiCommanders>,
+    mut map: ResMut<GameMap>,
+    mut economies: ResMut<Economies>,
+    production: Res<Production>,
+    buildings: Query<(&Building, &Team)>,
+    units: Query<&Transform, With<Unit>>,
+) {
+    *countdown -= time.delta_secs();
+    if *countdown > 0.0 {
+        return;
+    }
+    *countdown = FORTIFY_INTERVAL_SECS;
+    let wall = BuildingKind::Wall;
+    let occupied: Vec<IVec2> = units.iter().map(|t| world_to_cell(t.translation)).collect();
+    for ai in &commanders.0 {
+        let owned = owned_building_kinds(&buildings, ai.team);
+        let economy_stands = owned.contains(&BuildingKind::Factory);
+        if !economy_stands || !production.allows(ai.team, BuildItem::Structure(wall)) {
+            continue;
+        }
+        let turrets: Vec<IVec2> = buildings
+            .iter()
+            .filter(|(building, team)| {
+                **team == ai.team && building.kind == BuildingKind::GunTurret
+            })
+            .map(|(building, _)| building.origin)
+            .collect();
+        let shield_cells = turrets.into_iter().flat_map(turret_shield);
+        for cell in shield_cells {
+            let affordable =
+                economies.of(ai.team).credits >= COMBAT_UNIT_RESERVE + wall.spec().cost;
+            if !affordable {
+                break;
+            }
+            if map.is_buildable(cell) && !occupied.contains(&cell) {
+                construct_building(&mut commands, &models, &mut map, wall, ai.team, cell);
+                economies.of_mut(ai.team).credits -= wall.spec().cost;
+            }
+        }
+    }
+}
+
+/// A commander that knows an enemy structure keeps one engineer, and sends it along once its attack wave is
+/// out in the field, to capture the nearest structure it knows.
+pub fn employ_engineers(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut countdown: Local<f32>,
+    commanders: Res<AiCommanders>,
+    intel: Res<Intel>,
+    mut production: ResMut<Production>,
+    mut economies: ResMut<Economies>,
+    buildings: Query<(&Building, &Team)>,
+    units: Query<(Entity, &Unit, &Team, &Transform, &Mobile, Has<EngineerTask>)>,
+) {
+    *countdown -= time.delta_secs();
+    if *countdown > 0.0 {
+        return;
+    }
+    *countdown = ENGINEER_INTERVAL_SECS;
+    for ai in &commanders.0 {
+        let home = footprint_center(ai.base, BuildingKind::CommandCenter.spec().footprint);
+        let Some((target, _)) = intel
+            .known_enemy_structure_entities(ai.team)
+            .min_by(|(_, a), (_, b)| a.distance(home).total_cmp(&b.distance(home)))
+        else {
+            continue;
+        };
+        let own = |team: &Team| *team == ai.team;
+        let engineers: Vec<(Entity, bool)> = units
+            .iter()
+            .filter(|(_, unit, team, ..)| own(team) && unit.0 == UnitKind::Engineer)
+            .map(|(entity, _, _, _, mobile, tasked)| (entity, tasked || mobile.is_moving()))
+            .collect();
+        let queued = production
+            .lane(ai.team, Lane::Infantry)
+            .queue
+            .contains(&BuildItem::Unit(UnitKind::Engineer));
+        if engineers.is_empty() && !queued {
+            let owned = owned_building_kinds(&buildings, ai.team);
+            let price = UnitKind::Engineer.spec().cost;
+            if economies.of(ai.team).credits >= price + COMBAT_UNIT_RESERVE {
+                let _ = production.enqueue(
+                    &mut economies,
+                    ai.team,
+                    BuildItem::Unit(UnitKind::Engineer),
+                    &owned,
+                );
+            }
+            continue;
+        }
+        let soldiers_in_the_field = units
+            .iter()
+            .filter(|(_, unit, team, transform, ..)| {
+                own(team)
+                    && fights(unit.0)
+                    && transform.translation.distance(home) > BASE_DEFENSE_RADIUS
+            })
+            .count();
+        if soldiers_in_the_field < ai.wave_size / 2 {
+            continue;
+        }
+        for (engineer, _) in engineers.into_iter().filter(|(_, busy)| !busy) {
+            commands
+                .entity(engineer)
+                .insert(EngineerTask::new(target, EngineerJob::Capture));
+        }
     }
 }
 
@@ -424,7 +556,7 @@ fn direct_army(
         let idle = !mobile.is_moving()
             && attack.is_none_or(|a| a.target.is_none())
             && orders.as_ref().is_none_or(|o| o.current.is_none());
-        let is_soldier = owner == team && unit.0 != UnitKind::Harvester;
+        let is_soldier = owner == team && fights(unit.0);
         let Some(orders) = orders.filter(|_| is_soldier && idle) else {
             continue;
         };
