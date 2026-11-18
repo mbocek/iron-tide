@@ -25,6 +25,7 @@ pub mod graphics;
 pub mod headless;
 pub mod i18n;
 pub mod intel;
+pub mod interpolation;
 pub mod key_bindings;
 pub mod levels;
 pub mod main_menu;
@@ -70,7 +71,11 @@ pub enum StartupPhase {
     Interface,
 }
 
-/// Per-frame phases: player input, then the battle simulation, then everything that only draws it.
+/// How long one step of the battle simulation is; every machine and every test advances by exactly this.
+pub const SIMULATION_TICK: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// Per-frame phases: player input, then the battle simulation (on its own fixed tick), then everything that
+/// only draws it.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FramePhase {
     Input,
@@ -119,6 +124,11 @@ impl Plugin for SimulationPlugin {
                     .chain()
                     .run_if(in_state(match_flow::GameState::Playing)),
             )
+            .configure_sets(
+                FixedUpdate,
+                FramePhase::Simulation.run_if(in_state(match_flow::GameState::Playing)),
+            )
+            .insert_resource(Time::<Fixed>::from_duration(SIMULATION_TICK))
             .insert_resource(match_flow::MatchRules {
                 enemy_ai: self.enemy_ai,
                 starting_forces: self.starting_forces,
@@ -173,7 +183,7 @@ impl Plugin for SimulationPlugin {
                 ),
             )
             .add_systems(
-                Update,
+                FixedUpdate,
                 (
                     (
                         match_flow::advance_match_clock,
@@ -237,6 +247,13 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(SimulationPlugin::default())
+            .add_systems(FixedFirst, interpolation::restore_simulated_transforms)
+            .add_systems(FixedLast, interpolation::record_simulated_transforms)
+            .add_systems(
+                RunFixedMainLoop,
+                interpolation::draw_between_ticks
+                    .in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
+            )
             .init_resource::<camera::Cursor>()
             .init_resource::<orders::DragSelection>()
             .init_resource::<orders::OrderMarker>()

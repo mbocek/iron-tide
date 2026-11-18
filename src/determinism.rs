@@ -19,6 +19,12 @@ pub fn run_schedules_on_one_thread(app: &mut App) {
     let schedules = [
         First.intern(),
         PreUpdate.intern(),
+        RunFixedMainLoop.intern(),
+        FixedFirst.intern(),
+        FixedPreUpdate.intern(),
+        FixedUpdate.intern(),
+        FixedPostUpdate.intern(),
+        FixedLast.intern(),
         Update.intern(),
         PostUpdate.intern(),
         Last.intern(),

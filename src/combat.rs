@@ -13,6 +13,7 @@ use crate::determinism::SimulationRng;
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::fog::FogOfWar;
 use crate::intel::Intel;
+use crate::interpolation::TickTransforms;
 use crate::map::{CELL_SIZE, GameMap, world_to_cell};
 use crate::movement::order_move;
 use crate::sound::{Sound, SoundCue};
@@ -415,6 +416,7 @@ fn fire_projectile(
         },
         effects.projectile_visual(weapon.style),
         Transform::from_translation(muzzle),
+        TickTransforms::default(),
     ));
 }
 

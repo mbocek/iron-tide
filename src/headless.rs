@@ -28,7 +28,7 @@ use bevy::time::TimeUpdateStrategy;
 use std::collections::HashMap;
 
 /// Simulation step; small enough that the fastest projectiles and units behave as in the real game.
-pub const STEP: Duration = Duration::from_millis(50);
+pub const STEP: Duration = crate::SIMULATION_TICK;
 
 /// Who hurt whom since the battle started, collected from `DamageDealt` and `Destroyed` messages.
 #[derive(Resource, Default)]
@@ -105,7 +105,7 @@ impl Battle {
                 starting_forces: setup.starting_forces,
             })
             .add_systems(
-                Update,
+                FixedUpdate,
                 (record_damage, record_sounds, record_losses, record_recruits)
                     .after(crate::FramePhase::Simulation),
             );

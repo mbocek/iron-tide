@@ -5,6 +5,7 @@ use crate::assets::ModelLibrary;
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
 use crate::components::*;
 use crate::fog::Sight;
+use crate::interpolation::TickTransforms;
 use crate::map::{
     CELL_SIZE, GameMap, footprint_center, in_far_half, opposite_cell, opposite_origin,
 };
@@ -33,6 +34,7 @@ pub fn spawn_unit(
         WorldAssetRoot(models.unit(kind, team)),
         animated_unit_model(kind, team),
         Transform::from_translation(position).with_rotation(Quat::from_rotation_y(facing)),
+        TickTransforms::default(),
     ));
     if let Some(weapon) = spec.weapon {
         unit.insert((
