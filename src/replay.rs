@@ -4,9 +4,12 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::animation::{ReplayMotion, animated_unit_model};
 use crate::assets::ModelLibrary;
-use crate::catalog::{BuildingKind, Team, UnitKind};
-use crate::components::{Building, Health, Mobile, Unit};
+use crate::catalog::{ArmorClass, BuildingKind, ProjectileStyle, Team, UnitKind};
+use crate::combat::{Impact, Projectile};
+use crate::components::{Aircraft, Building, Health, Mobile, Unit};
+use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::footprint_center;
 use crate::match_flow::{GameState, MatchClock};
@@ -23,6 +26,8 @@ const KEPT_REPLAYS: usize = 10;
 const MIN_ABANDONED_FRAMES: usize = 20;
 const SPEEDS: [f32; 4] = [1.0, 2.0, 4.0, 8.0];
 const DECIMETRES_PER_METER: f32 = 10.0;
+/// Moving less than this between two snapshots counts as standing still.
+const ACTOR_MOVING_DISTANCE: f32 = 0.15;
 
 /// Snapshots of every unit and structure twice a second, enough to watch a match again.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -38,7 +43,48 @@ pub struct Replay {
 pub struct Frame {
     pub time: f32,
     pub actors: Vec<Actor>,
+    /// Shells, missiles and explosions since the previous frame; older replays have none.
+    #[serde(default)]
+    pub events: Vec<Event>,
 }
+
+/// Positions in decimetres, like actors. Rifle bullets are left out: they are many and barely visible.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub enum Event {
+    /// Style, from, to, arc height and flight time in milliseconds.
+    Shot(u8, [i16; 3], [i16; 3], i16, u16),
+    /// Blast size and position.
+    Blast(u8, [i16; 3]),
+}
+
+fn pack(position: Vec3) -> [i16; 3] {
+    (position * DECIMETRES_PER_METER)
+        .round()
+        .to_array()
+        .map(|value| value as i16)
+}
+
+fn unpack(packed: [i16; 3]) -> Vec3 {
+    Vec3::from_array(packed.map(f32::from)) / DECIMETRES_PER_METER
+}
+
+const SHOT_STYLES: [ProjectileStyle; 4] = [
+    ProjectileStyle::Bullet,
+    ProjectileStyle::Shell,
+    ProjectileStyle::ArtilleryShell,
+    ProjectileStyle::Missile,
+];
+const BLAST_SIZES: [BlastSize; 3] = [
+    BlastSize::ShellImpact,
+    BlastSize::VehicleWreck,
+    BlastSize::BuildingCollapse,
+];
+/// Scorch radii above these were left by a destroyed vehicle and a destroyed structure.
+const VEHICLE_BLAST_RADIUS: f32 = 1.2;
+const STRUCTURE_BLAST_RADIUS: f32 = 2.5;
+/// A jump of the playback clock longer than this is a seek: events in between are not replayed.
+const SEEK_THRESHOLD_SECS: f32 = 1.5;
+const SEEK_STEP_SECS: f32 = 10.0;
 
 /// Packed so a half-hour match stays a few megabytes: replay id, look, team, x and z in decimetres,
 /// facing in 1/256 turns and health in percent.
@@ -226,6 +272,7 @@ pub fn load_replay(path: &Path) -> Result<Replay, String> {
 #[derive(Resource, Default)]
 pub struct ReplayRecorder {
     frames: Vec<Frame>,
+    pending_events: Vec<Event>,
     timer: f32,
     ids: HashMap<Entity, u32>,
     saved: bool,
@@ -290,10 +337,47 @@ pub fn record_replay_frame(
             health.fraction(),
         ));
     }
+    let events = std::mem::take(&mut recorder.pending_events);
     recorder.frames.push(Frame {
         time: clock.elapsed_secs,
         actors,
+        events,
     });
+}
+
+pub fn record_replay_events(
+    mut recorder: ResMut<ReplayRecorder>,
+    mut impacts: MessageReader<Impact>,
+    shots: Query<&Projectile, Added<Projectile>>,
+) {
+    for projectile in &shots {
+        let (start, end, arc, style, duration) = projectile.flight();
+        if style == ProjectileStyle::Bullet {
+            continue;
+        }
+        let style_code = SHOT_STYLES.iter().position(|&s| s == style).unwrap_or(1) as u8;
+        let millis = (duration * 1000.0).min(u16::MAX as f32) as u16;
+        let arc_decimetres = (arc * DECIMETRES_PER_METER) as i16;
+        recorder.pending_events.push(Event::Shot(
+            style_code,
+            pack(start),
+            pack(end),
+            arc_decimetres,
+            millis,
+        ));
+    }
+    for impact in impacts.read() {
+        let size = if impact.scorch_radius > STRUCTURE_BLAST_RADIUS {
+            2
+        } else if impact.scorch_radius > VEHICLE_BLAST_RADIUS {
+            1
+        } else {
+            0
+        };
+        recorder
+            .pending_events
+            .push(Event::Blast(size, pack(impact.position)));
+    }
 }
 
 fn save_recording(recorder: &mut ReplayRecorder, level: &LevelDefinition, outcome: &str) {
@@ -354,6 +438,8 @@ pub fn save_abandoned_replay(level: Res<ActiveLevel>, recorder: Option<ResMut<Re
 pub struct ReplayPlayback {
     replay: Replay,
     clock: f32,
+    /// Where the clock stood when events were last shown.
+    shown_until: f32,
     speed: usize,
     paused: bool,
     actors: HashMap<u32, Entity>,
@@ -364,6 +450,7 @@ impl ReplayPlayback {
         Self {
             replay,
             clock: 0.0,
+            shown_until: 0.0,
             speed: 0,
             paused: false,
             actors: HashMap::new(),
@@ -401,7 +488,7 @@ pub fn spawn_replay_hud(mut commands: Commands, fonts: Res<UiFonts>) {
             ));
             hud.spawn((
                 fonts.text(
-                    "Space pause  ·  + / - speed  ·  Esc back to the menu",
+                    "Space pause  ·  + / - speed  ·  Left / Right 10 s  ·  Home restart  ·  Esc menu",
                     15.0,
                     TEXT_MAIN,
                 ),
@@ -424,26 +511,117 @@ pub fn control_replay(
     if keys.any_just_pressed([KeyCode::Minus, KeyCode::NumpadSubtract]) {
         playback.speed = playback.speed.saturating_sub(1);
     }
+    let end = playback.replay.recorded_secs;
+    if keys.just_pressed(KeyCode::ArrowLeft) {
+        playback.clock = (playback.clock - SEEK_STEP_SECS).max(0.0);
+    }
+    if keys.just_pressed(KeyCode::ArrowRight) {
+        playback.clock = (playback.clock + SEEK_STEP_SECS).min(end);
+    }
+    if keys.just_pressed(KeyCode::Home) {
+        playback.clock = 0.0;
+    }
     if keys.just_pressed(KeyCode::Escape) {
         next_state.set(GameState::MainMenu);
     }
 }
 
+/// A replayed shell or missile in flight; it only shows, it hits nothing.
+#[derive(Component)]
+pub struct ReplayShot {
+    start: Vec3,
+    end: Vec3,
+    arc: f32,
+    elapsed: f32,
+    duration: f32,
+}
+
+fn show_events(commands: &mut Commands, effects: &EffectAssets, events: &[Event]) {
+    for event in events {
+        match *event {
+            Event::Shot(style, from, to, arc, millis) => {
+                let style = SHOT_STYLES
+                    .get(style as usize)
+                    .copied()
+                    .unwrap_or(ProjectileStyle::Shell);
+                let start = unpack(from);
+                commands.spawn((
+                    ReplayShot {
+                        start,
+                        end: unpack(to),
+                        arc: f32::from(arc) / DECIMETRES_PER_METER,
+                        elapsed: 0.0,
+                        duration: (f32::from(millis) / 1000.0).max(0.05),
+                    },
+                    DespawnOnExit(GameState::Replay),
+                    effects.projectile_visual(style),
+                    Transform::from_translation(start),
+                ));
+            }
+            Event::Blast(size, at) => {
+                let size = BLAST_SIZES
+                    .get(size as usize)
+                    .copied()
+                    .unwrap_or(BlastSize::ShellImpact);
+                spawn_blast(commands, effects, unpack(at) + Vec3::Y * 0.5, size);
+            }
+        }
+    }
+}
+
+pub fn fly_replay_shots(
+    mut commands: Commands,
+    time: Res<Time<Real>>,
+    playback: Res<ReplayPlayback>,
+    mut shots: Query<(Entity, &mut ReplayShot, &mut Transform)>,
+) {
+    let dt = time.delta_secs()
+        * if playback.paused {
+            0.0
+        } else {
+            SPEEDS[playback.speed]
+        };
+    for (entity, mut shot, mut transform) in &mut shots {
+        shot.elapsed += dt;
+        let t = (shot.elapsed / shot.duration).min(1.0);
+        let previous = transform.translation;
+        let arc = 4.0 * shot.arc * t * (1.0 - t);
+        transform.translation = shot.start.lerp(shot.end, t) + Vec3::Y * arc;
+        let heading = transform.translation - previous;
+        if heading.length_squared() > 1e-6 {
+            transform.rotation = Quat::from_rotation_arc(Vec3::Y, heading.normalize());
+        }
+        if t >= 1.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 fn spawn_actor(commands: &mut Commands, models: &ModelLibrary, actor: Actor) -> Option<Entity> {
-    let model = match actor.look()? {
+    let look = actor.look()?;
+    let model = match look {
         Look::Unit(kind) => models.unit(kind, actor.team()),
         Look::Building(kind) => models.building(kind, actor.team()),
     };
-    Some(
-        commands
-            .spawn((
-                ReplayActor,
-                DespawnOnExit(GameState::Replay),
-                WorldAssetRoot(model),
-                Transform::default(),
-            ))
-            .id(),
-    )
+    let mut spawned = commands.spawn((
+        ReplayActor,
+        DespawnOnExit(GameState::Replay),
+        WorldAssetRoot(model),
+        Transform::default(),
+    ));
+    if let Look::Unit(kind) = look {
+        spawned.insert((
+            animated_unit_model(kind, actor.team()),
+            ReplayMotion {
+                moving: false,
+                infantry: kind.spec().armor == ArmorClass::Infantry,
+            },
+        ));
+        if kind.flies() {
+            spawned.insert(Aircraft);
+        }
+    }
+    Some(spawned.id())
 }
 
 pub fn play_replay(
@@ -451,8 +629,9 @@ pub fn play_replay(
     time: Res<Time<Real>>,
     level: Res<ActiveLevel>,
     models: Res<ModelLibrary>,
+    effects: Res<EffectAssets>,
     mut playback: ResMut<ReplayPlayback>,
-    mut transforms: Query<&mut Transform, With<ReplayActor>>,
+    mut actors: Query<(&mut Transform, Option<&mut ReplayMotion>), With<ReplayActor>>,
 ) {
     let playback = &mut *playback;
     let end = playback.replay.recorded_secs;
@@ -463,6 +642,17 @@ pub fn play_replay(
     if frames.is_empty() {
         return;
     }
+    let advanced = playback.clock - playback.shown_until;
+    if advanced > 0.0 && advanced < SEEK_THRESHOLD_SECS {
+        let (from, until) = (playback.shown_until, playback.clock);
+        for frame in frames
+            .iter()
+            .filter(|frame| frame.time > from && frame.time <= until)
+        {
+            show_events(&mut commands, &effects, &frame.events);
+        }
+    }
+    playback.shown_until = playback.clock;
     let (index, blend) = frame_at(frames, playback.clock);
     let current = &frames[index];
     let following: HashMap<u32, Actor> = frames
@@ -499,10 +689,14 @@ pub fn play_replay(
             + Vec3::Y * altitude;
         let placed =
             Transform::from_translation(translation).with_rotation(Quat::from_rotation_y(facing));
+        let moving = actor.position().distance(next.position()) > ACTOR_MOVING_DISTANCE;
         match playback.actors.get(&actor.id()) {
             Some(&entity) => {
-                if let Ok(mut transform) = transforms.get_mut(entity) {
+                if let Ok((mut transform, motion)) = actors.get_mut(entity) {
                     *transform = placed;
+                    if let Some(mut motion) = motion {
+                        motion.moving = moving;
+                    }
                 }
             }
             None => {
@@ -557,6 +751,7 @@ mod tests {
         Frame {
             time,
             actors: vec![actor],
+            events: Vec::new(),
         }
     }
 
@@ -586,6 +781,21 @@ mod tests {
         assert_eq!(index, 1);
         assert!((blend - 0.5).abs() < 1e-5);
         assert_eq!(frame_at(&frames, 9.0), (2, 0.0));
+    }
+
+    #[test]
+    fn replays_recorded_before_events_still_load() {
+        let old_frame = r#"{"time":1.5,"actors":[[3,4,1,100,200,0,100]]}"#;
+        let frame: Frame = serde_json::from_str(old_frame).unwrap();
+        assert!(frame.events.is_empty());
+        let shot = Event::Shot(1, pack(Vec3::new(1.0, 2.0, 3.0)), pack(Vec3::ZERO), 5, 400);
+        let round_trip: Event =
+            serde_json::from_str(&serde_json::to_string(&shot).unwrap()).unwrap();
+        assert_eq!(round_trip, shot);
+        assert_eq!(
+            unpack(pack(Vec3::new(1.25, -2.0, 30.0))),
+            Vec3::new(1.3, -2.0, 30.0)
+        );
     }
 
     #[test]

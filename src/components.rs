@@ -24,6 +24,10 @@ impl Health {
 #[derive(Component)]
 pub struct Unit(pub UnitKind);
 
+/// Flies; its model's rotors spin.
+#[derive(Component)]
+pub struct Aircraft;
+
 #[derive(Component)]
 pub struct Building {
     pub kind: BuildingKind,

@@ -273,6 +273,7 @@ impl Plugin for GamePlugin {
             .add_systems(
                 Update,
                 (
+                    replay::record_replay_events,
                     replay::record_replay_frame,
                     replay::save_replay_when_decided,
                 )
@@ -308,6 +309,12 @@ impl Plugin for GamePlugin {
                     battlefield::draw_rain,
                     replay::control_replay,
                     replay::play_replay,
+                    replay::fly_replay_shots,
+                    effects::animate_blasts,
+                    animation::attach_animation_players,
+                    animation::animate_replay_actors,
+                    animation::link_rotor_nodes,
+                    animation::spin_rotors,
                     replay::refresh_replay_hud,
                 )
                     .chain()

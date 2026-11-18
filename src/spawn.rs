@@ -46,6 +46,9 @@ pub fn spawn_unit(
     if spec.has_turret {
         unit.insert(Turret::new(facing, TURRET_TURN_RATE));
     }
+    if kind.flies() {
+        unit.insert(Aircraft);
+    }
     if spec.heal_per_sec > 0.0 {
         unit.insert(Healer {
             per_sec: spec.heal_per_sec,

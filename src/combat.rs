@@ -131,6 +131,19 @@ pub struct Projectile {
     weapon: WeaponSpec,
 }
 
+impl Projectile {
+    /// Start, end, arc height, style and flight time: enough to show the shot again in a replay.
+    pub fn flight(&self) -> (Vec3, Vec3, f32, ProjectileStyle, f32) {
+        (
+            self.start,
+            self.end,
+            self.arc_height,
+            self.weapon.style,
+            self.duration,
+        )
+    }
+}
+
 pub fn snapshot_targets(
     mut targets: ResMut<Targets>,
     fog: Res<FogOfWar>,

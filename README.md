@@ -175,9 +175,11 @@ The game opens in a main menu:
 - **Continue:** resumes the quick save. Saves remember their level.
 - **Replays:** every match is recorded and saved when it ends (or as *Unfinished* when you leave it or close
   the game). The newest 10 are listed under *Replays* and kept in `~/.config/iron_tide/replays/`. Watching one
-  rebuilds the map and shows every unit and structure where it was, without the fog of war: Space pauses,
-  `+` / `-` changes the speed (1x-8x), Esc returns to the menu. A replay stores snapshots twice a second
-  (about 3 MB for half an hour), not the inputs: the simulation is not deterministic enough to re-run them.
+  rebuilds the map and shows every unit and structure where it was, walking and driving, with shells,
+  missiles and explosions, without the fog of war: Space pauses, `+` / `-` changes the speed (1x-8x), the Left
+  and Right arrows jump 10 s, Home starts over, Esc returns to the menu. A replay stores snapshots twice a
+  second plus the shots and blasts in between (a few MB for half an hour), not the inputs: the simulation is
+  not deterministic enough to re-run them.
 
 A level file is plain JSON; omitted fields take defaults:
 

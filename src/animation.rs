@@ -397,14 +397,11 @@ pub struct Rotors {
 
 pub fn link_rotor_nodes(
     mut commands: Commands,
-    aircraft: Query<(Entity, &Unit), Without<Rotors>>,
+    aircraft: Query<Entity, (With<Aircraft>, Without<Rotors>)>,
     children: Query<&Children>,
     nodes: Query<(&Name, &Transform)>,
 ) {
-    for (entity, unit) in &aircraft {
-        if !unit.0.flies() {
-            continue;
-        }
+    for entity in &aircraft {
         let find = |wanted: &str| {
             children.iter_descendants(entity).find_map(|node| {
                 nodes
@@ -442,6 +439,45 @@ pub fn spin_rotors(
         {
             transform.rotation =
                 tail_rest * Quat::from_rotation_z(rotors.angle * TAIL_ROTOR_SPEEDUP);
+        }
+    }
+}
+
+/// How a replayed unit moves between two snapshots, which picks its animation.
+#[derive(Component)]
+pub struct ReplayMotion {
+    pub moving: bool,
+    pub infantry: bool,
+}
+
+pub fn animate_replay_actors(
+    library: Res<AnimationLibrary>,
+    mut actors: Query<(&AnimatedModel, &mut AnimationLink, &ReplayMotion)>,
+    mut players: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
+) {
+    for (model, mut link, motion) in &mut actors {
+        let Ok((mut player, mut transitions)) = players.get_mut(link.player) else {
+            continue;
+        };
+        let clip = match (motion.infantry, motion.moving) {
+            (true, true) => WALK,
+            (true, false) => IDLE,
+            (false, _) => DRIVE,
+        };
+        switch_to(
+            &mut link,
+            &library,
+            &model.0,
+            &mut player,
+            &mut transitions,
+            clip,
+            true,
+        );
+        if !motion.infantry
+            && let Some(index) = library.clip(&model.0, DRIVE)
+            && let Some(active) = player.animation_mut(index)
+        {
+            active.set_speed(if motion.moving { 1.0 } else { 0.0 });
         }
     }
 }
