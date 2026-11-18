@@ -3,7 +3,7 @@ mod common;
 use bevy::prelude::*;
 use common::{Battle, BattleSetup};
 use iron_tide::catalog::{BuildingKind, Team, UnitKind};
-use iron_tide::components::{Building, Health, Unit};
+use iron_tide::components::{Building, Health, Order, Orders, Unit};
 use iron_tide::engineers::EngineerTask;
 use iron_tide::levels::{Difficulty, LevelDefinition};
 use iron_tide::map::{footprint_center, world_to_cell};
@@ -122,4 +122,77 @@ fn the_computer_sends_badly_damaged_vehicles_to_its_repair_bay() {
     });
     assert!(took.is_some(), "the tank was never repaired");
     assert!(battle.position(tank).xz().distance(bay_centre.xz()) < 5.0);
+}
+
+fn fogless_sandbox() -> Battle {
+    Battle::new(BattleSetup {
+        enemy_ai: false,
+        starting_forces: false,
+        level: Some(LevelDefinition {
+            fog_of_war: false,
+            ..LevelDefinition::default()
+        }),
+    })
+}
+
+const CRIMSON_BASE: IVec2 = IVec2::new(40, 12);
+
+#[test]
+fn computer_scouts_raid_a_harvester_they_can_see() {
+    let mut battle = fogless_sandbox();
+    battle.construct(BuildingKind::CommandCenter, Team::Crimson, CRIMSON_BASE);
+    battle.add_ai(Team::Crimson, CRIMSON_BASE, Difficulty::Normal);
+    for offset in 0..3 {
+        battle.spawn_unit(
+            UnitKind::Scout,
+            Team::Crimson,
+            CRIMSON_BASE + IVec2::new(-3, offset),
+        );
+    }
+    let harvester = battle.spawn_unit(UnitKind::Harvester, Team::Player, IVec2::new(30, 34));
+    let took = battle.run_until(40.0, |battle| {
+        battle
+            .world()
+            .get::<Health>(harvester)
+            .is_none_or(|h| h.current < h.max)
+    });
+    assert!(took.is_some(), "no raider came for the harvester");
+}
+
+#[test]
+fn a_big_wave_splits_to_come_from_two_sides() {
+    let mut battle = fogless_sandbox();
+    battle.construct(BuildingKind::CommandCenter, Team::Crimson, CRIMSON_BASE);
+    battle.construct(BuildingKind::PowerPlant, Team::Player, IVec2::new(12, 50));
+    battle.add_ai(Team::Crimson, CRIMSON_BASE, Difficulty::Normal);
+    let wave: Vec<Entity> = (0..8)
+        .map(|index| {
+            let cell = CRIMSON_BASE + IVec2::new(-4 - index % 4, 4 + index / 4);
+            battle.spawn_unit(UnitKind::Tank, Team::Crimson, cell)
+        })
+        .collect();
+    battle.run_until(10.0, |battle| {
+        wave.iter().any(|&tank| {
+            battle
+                .world()
+                .get::<Orders>(tank)
+                .is_some_and(|o| o.current.is_some())
+        })
+    });
+    let first_orders: Vec<Option<Order>> = wave
+        .iter()
+        .map(|&tank| battle.world().get::<Orders>(tank).and_then(|o| o.current))
+        .collect();
+    let straight = first_orders
+        .iter()
+        .filter(|o| matches!(o, Some(Order::AttackMove(_))))
+        .count();
+    let flanking = first_orders
+        .iter()
+        .filter(|o| matches!(o, Some(Order::Move(_))))
+        .count();
+    assert!(
+        straight >= 3 && flanking >= 3,
+        "{straight} went straight and {flanking} round the flank"
+    );
 }

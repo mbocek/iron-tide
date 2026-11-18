@@ -24,6 +24,10 @@ use crate::servicing::{service_radius, waiting_spot};
 use crate::structures::{BeingSold, Repairing, StructureOrder, StructureOrderKind};
 
 const MAX_WAVE_SIZE: usize = 16;
+const SPLIT_WAVES_FROM: usize = 6;
+const FLANK_OFFSET: f32 = 24.0;
+const RAID_SIZE: usize = 3;
+const RAIDERS: [UnitKind; 2] = [UnitKind::Scout, UnitKind::Gunship];
 const WAVE_GROWTH: usize = 2;
 /// With no enemy soldier in sight for this long, whatever waits at home goes hunting.
 const QUIET_FRONT_SECS: f32 = 90.0;
@@ -171,7 +175,7 @@ pub fn command_enemies(
             intel: &intel,
             player_fog: &player_fog,
         };
-        direct_army(ai, &knowledge, &buildings, &mut army);
+        direct_army(ai, &knowledge, &map, &buildings, &mut army);
     }
 }
 
@@ -573,6 +577,7 @@ struct Knowledge<'a> {
 fn direct_army(
     ai: &mut AiCommander,
     knowledge: &Knowledge,
+    map: &GameMap,
     buildings: &Query<(&Building, &Team)>,
     army: &mut Query<ArmyUnit>,
 ) {
@@ -596,6 +601,20 @@ fn direct_army(
     let intruder = visible_enemies
         .iter()
         .find(|t| near_base(t.position))
+        .map(|t| t.position);
+    let harvesters: Vec<Entity> = army
+        .iter()
+        .filter(|(_, unit, ..)| unit.0 == UnitKind::Harvester)
+        .map(|(entity, ..)| entity)
+        .collect();
+    let prey = visible_enemies
+        .iter()
+        .filter(|t| harvesters.contains(&t.entity))
+        .min_by(|a, b| {
+            a.position
+                .distance(home)
+                .total_cmp(&b.position.distance(home))
+        })
         .map(|t| t.position);
     let known_objective = known_assault_objective(team, home, &visible_enemies, knowledge.intel);
     let search_site = || {
@@ -668,6 +687,10 @@ fn direct_army(
         }
     }
 
+    if let Some(prey) = prey {
+        raid(&mut waiting_at_home, prey);
+    }
+
     let wave_ready = waiting_at_home.len() >= ai.wave_size;
     let enemy_army_gone_quiet = ai.secs_since_enemy_army_seen > QUIET_FRONT_SECS;
     let finish_them_off = enemy_army_gone_quiet && !waiting_at_home.is_empty();
@@ -677,10 +700,45 @@ fn direct_army(
     let Some(objective) = assault_objective else {
         return;
     };
-    for (_, _, orders) in waiting_at_home {
-        send(orders, objective);
+    let flank = (waiting_at_home.len() >= SPLIT_WAVES_FROM)
+        .then(|| flank_waypoint(map, home, objective))
+        .flatten();
+    for (index, (_, _, mut orders)) in waiting_at_home.into_iter().enumerate() {
+        match flank.filter(|_| index % 2 == 1) {
+            Some(waypoint) => {
+                orders.replace_with(Order::Move(waypoint));
+                orders.queue(Order::AttackMove(world_to_cell(objective)));
+            }
+            None => send(orders, objective),
+        }
     }
     ai.wave_size = (ai.wave_size + WAVE_GROWTH).min(MAX_WAVE_SIZE);
+}
+
+/// Fast units waiting at home dash off to hunt an enemy harvester instead of waiting for the wave.
+fn raid(waiting_at_home: &mut Vec<(Entity, UnitKind, Mut<Orders>)>, prey: Vec3) {
+    for _ in 0..RAID_SIZE {
+        let Some(index) = waiting_at_home
+            .iter()
+            .position(|(_, kind, _)| RAIDERS.contains(kind))
+        else {
+            return;
+        };
+        let (_, _, orders) = waiting_at_home.swap_remove(index);
+        send(orders, prey);
+    }
+}
+
+/// A point beside the straight road to the objective, so half of a big wave arrives from the side.
+fn flank_waypoint(map: &GameMap, home: Vec3, objective: Vec3) -> Option<IVec2> {
+    let road = (objective - home).xz();
+    if road.length() < FLANK_OFFSET {
+        return None;
+    }
+    let side = road.perp().normalize() * FLANK_OFFSET;
+    let midpoint = home.xz() + road * 0.6;
+    let flank = midpoint + side;
+    map.nearest_passable(world_to_cell(Vec3::new(flank.x, 0.0, flank.y)))
 }
 
 /// The closest own structure that services this kind of unit: where to wait there, and whether the unit is
