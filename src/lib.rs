@@ -39,6 +39,7 @@ pub mod menu;
 pub mod minimap;
 pub mod movement;
 pub mod network;
+pub mod network_hud;
 pub mod notifications;
 pub mod orders;
 pub mod outcome;
@@ -136,6 +137,10 @@ impl Plugin for SimulationPlugin {
                     .run_if(network::simulation_may_advance),
             )
             .add_systems(FixedFirst, network::receive_turns)
+            .add_systems(
+                PreUpdate,
+                (network::receive_turns, network::measure_latency),
+            )
             .insert_resource(Time::<Fixed>::from_duration(SIMULATION_TICK))
             .insert_resource(match_flow::MatchRules {
                 enemy_ai: self.enemy_ai,
@@ -439,7 +444,14 @@ impl Plugin for GamePlugin {
                     .after(match_flow::deploy_level_forces)
                     .before(savegame::restore_pending_load),
             )
-            .add_systems(Update, network::report_session_trouble)
+            .add_systems(
+                Update,
+                (
+                    network::report_session_trouble,
+                    network_hud::refresh_network_hud
+                        .run_if(in_state(match_flow::GameState::Playing)),
+                ),
+            )
             .init_resource::<updates::Updates>()
             .init_resource::<lobby::NetLobby>()
             .add_systems(

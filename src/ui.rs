@@ -17,6 +17,7 @@ use crate::levels::ActiveLevel;
 use crate::match_flow::{GameState, MatchClock};
 use crate::menu::{MenuState, open_menu_from_button, spawn_menu};
 use crate::minimap::{Minimap, jump_camera_on_drag, jump_camera_on_press};
+use crate::network_hud::spawn_network_hud;
 use crate::notifications::Notifications;
 use crate::outcome::{GameOutcome, objective_status};
 use crate::perf_overlay::spawn_performance_overlay;
@@ -226,6 +227,7 @@ pub fn build_interface(
     spawn_queue_bar(&mut commands, fonts);
     spawn_group_bar(&mut commands, fonts);
     spawn_performance_overlay(&mut commands, fonts);
+    spawn_network_hud(&mut commands, fonts);
     spawn_menu(&mut commands, fonts);
     spawn_controls_help(&mut commands, fonts);
     spawn_outcome_overlay(&mut commands, fonts);

@@ -9,7 +9,7 @@ use iron_tide::determinism::simulation_checksum;
 use iron_tide::economy::Economies;
 use iron_tide::levels::LevelDefinition;
 use iron_tide::lobby::NetLobby;
-use iron_tide::network::SessionState;
+use iron_tide::network::{NetSession, SessionState};
 use iron_tide::player_commands::{GroundOrder, PlayerCommand};
 
 const TICKS_TO_PLAY: u64 = 1200;
@@ -80,6 +80,15 @@ fn two_machines_play_the_same_battle_from_each_others_orders() {
     assert!(
         host.damage_taken(Team::Player) > 0.0 && host.damage_taken(Team::Crimson) > 0.0,
         "the tanks never met, so the orders did not travel"
+    );
+    let round_trip = host
+        .world()
+        .resource::<NetSession>()
+        .round_trip()
+        .expect("the host measured the latency");
+    assert!(
+        round_trip.as_millis() < 500,
+        "a local round trip took {round_trip:?}"
     );
 }
 

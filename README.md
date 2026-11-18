@@ -215,7 +215,9 @@ bases, map, landscape, season, available units) before clicking *I'm ready*; bot
 version. Then both machines count down three seconds and the battle begins, the host playing the Coalition
 and the guest the Syndicate. Either side can leave the lobby: a host whose guest leaves goes back to waiting
 for another player. Leaving or quitting a battle closes the connection at once, so the other player is told
-straight away. Restarting, saving and loading are disabled during a
+straight away. During a network battle the round trip to the other machine (measured every second
+with a ping, smoothed) shows in the corner of the battlefield, and when the battle has waited more than half
+a second for the other player's orders a banner says so and counts the seconds. Restarting, saving and loading are disabled during a
 network battle; pausing one machine makes the other wait. Over the internet the host's port 47300 must be
 forwarded. Capture runs can automate this (`IRON_TIDE_CAPTURE_HOST=1`, `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`).
 
@@ -414,6 +416,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `interpolation` | drawing moving things between simulation ticks |
 | `lobby` | hosting and joining a network battle from the main menu |
 | `local_view` | the battle as this machine's player sees it, for drawing, sound and the interface |
+| `network_hud` | the ping and the banner shown while waiting for the other player |
 | `network` | the lockstep session with a player on another machine: turns, checksums, disconnection |
 | `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |
 | `sim_math` | the portable trigonometry the simulation uses so every processor computes the same battle |

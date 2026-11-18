@@ -3,6 +3,7 @@ use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, channel};
+use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,9 @@ use crate::player_commands::{
 pub const NETWORK_COMMAND_DELAY_TICKS: u64 = 4;
 const CHECKSUM_EVERY_TICKS: u64 = 20;
 const LARGEST_MESSAGE_BYTES: usize = 1 << 20;
+const PING_INTERVAL: Duration = Duration::from_secs(1);
+const PINGS_REMEMBERED: u64 = 10;
+const ROUND_TRIP_SMOOTHING: f32 = 0.3;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 enum Message {
@@ -31,7 +35,10 @@ enum Message {
     },
     /// The fingerprint of the battle after a tick, sent as soon as it is known so a drift is noticed even
     /// when the machine that finds it first stops at once.
-    Checksum { tick: u64, sum: u64 },
+    Checksum {
+        tick: u64,
+        sum: u64,
+    },
     /// The host's choice of battle, sent once the guest has connected.
     Offer {
         version: String,
@@ -39,6 +46,13 @@ enum Message {
     },
     /// The guest accepts the offered battle.
     Ready,
+    /// Asks the other machine to answer at once, to measure the round trip.
+    Ping {
+        nonce: u64,
+    },
+    Pong {
+        nonce: u64,
+    },
     /// The host starts the countdown to the battle.
     Go,
 }
@@ -79,6 +93,10 @@ pub struct NetSession {
     remote_checksums: BTreeMap<u64, u64>,
     pub state: SessionState,
     reported: Option<SessionState>,
+    pings_in_flight: BTreeMap<u64, Instant>,
+    next_ping: u64,
+    last_ping_sent: Option<Instant>,
+    round_trip: Option<Duration>,
 }
 
 impl NetSession {
@@ -113,11 +131,51 @@ impl NetSession {
             remote_checksums: BTreeMap::new(),
             state: SessionState::InStep,
             reported: None,
+            pings_in_flight: BTreeMap::new(),
+            next_ping: 0,
+            last_ping_sent: None,
+            round_trip: None,
         })
     }
 
     pub fn remote_team(&self) -> Team {
         self.remote_team
+    }
+
+    /// The smoothed time a message takes to the other machine and back; `None` until first measured.
+    pub fn round_trip(&self) -> Option<Duration> {
+        self.round_trip
+    }
+
+    fn ping_if_due(&mut self) {
+        let due = self
+            .last_ping_sent
+            .is_none_or(|sent| sent.elapsed() >= PING_INTERVAL);
+        if !due {
+            return;
+        }
+        let nonce = self.next_ping;
+        self.next_ping += 1;
+        let now = Instant::now();
+        self.last_ping_sent = Some(now);
+        self.pings_in_flight.insert(nonce, now);
+        self.pings_in_flight
+            .retain(|&sent, _| sent + PINGS_REMEMBERED > nonce);
+        self.send(&Message::Ping { nonce });
+    }
+
+    fn answered(&mut self, nonce: u64) {
+        let Some(sent) = self.pings_in_flight.remove(&nonce) else {
+            return;
+        };
+        let measured = sent.elapsed();
+        self.round_trip = Some(match self.round_trip {
+            Some(previous) => {
+                previous.mul_f32(1.0 - ROUND_TRIP_SMOOTHING)
+                    + measured.mul_f32(ROUND_TRIP_SMOOTHING)
+            }
+            None => measured,
+        });
     }
 
     /// Shows the guest the host's battle.
@@ -152,6 +210,7 @@ impl NetSession {
                 }
                 Arrival::Message(Message::Ready) => news.push(LobbyNews::GuestReady),
                 Arrival::Message(Message::Go) => news.push(LobbyNews::Go),
+                Arrival::Message(Message::Ping { nonce }) => self.send(&Message::Pong { nonce }),
                 Arrival::ConnectionLost => {
                     self.state = SessionState::Disconnected;
                     news.push(LobbyNews::Left);
@@ -254,9 +313,19 @@ pub fn receive_turns(session: Option<ResMut<NetSession>>, mut queue: ResMut<Comm
                 session.remote_checksums.insert(tick, sum);
                 session.compare_checksums(tick);
             }
+            Arrival::Message(Message::Ping { nonce }) => session.send(&Message::Pong { nonce }),
+            Arrival::Message(Message::Pong { nonce }) => session.answered(nonce),
             Arrival::Message(Message::Offer { .. } | Message::Ready | Message::Go) => {}
             Arrival::ConnectionLost => session.state = SessionState::Disconnected,
         }
+    }
+}
+
+pub fn measure_latency(session: Option<ResMut<NetSession>>) {
+    if let Some(mut session) = session
+        && session.state == SessionState::InStep
+    {
+        session.ping_if_due();
     }
 }
 

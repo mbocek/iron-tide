@@ -106,6 +106,12 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ("JOIN", "PRIPOJIŤ SA", "PŘIPOJIT SE"),
     ("I'M READY", "SOM PRIPRAVENÝ", "JSEM PŘIPRAVEN"),
     ("LEAVE", "ODÍSŤ", "ODEJÍT"),
+    ("Ping {} ms", "Ping {} ms", "Ping {} ms"),
+    (
+        "Waiting for the other player... {} s",
+        "Čakám na druhého hráča... {} s",
+        "Čekám na druhého hráče... {} s",
+    ),
     (
         "Map: {}, {}, {} x {} cells",
         "Mapa: {}, {}, {} x {} polí",
