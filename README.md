@@ -247,8 +247,8 @@ attack wave and its income (75 % / 100 % / 135 %).
   while the credits run out and stop at full health; a green cross turns above it meanwhile. Selling refunds
   half the price and the structure sinks into the ground. The Command Center cannot be sold. The computer
   repairs its own structures below 60 % health when it has credits to spare.
-- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Helipad; Barracks → Gun Turret,
-  Flak Cannon, Wall.
+- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Tech Center, Helipad; Barracks →
+  Gun Turret, Flak Cannon, Wall. The Bulwark, the Howitzer and the Gunship also need a Tech Center.
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Engineer, Scout Buggy,
   Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship,
   Harvester.

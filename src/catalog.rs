@@ -147,6 +147,8 @@ pub struct UnitSpec {
     pub weapon: Option<WeaponSpec>,
     pub has_turret: bool,
     pub producer: BuildingKind,
+    /// A structure needed besides the producer before the unit can be ordered.
+    pub requires: Option<BuildingKind>,
     /// Health restored per second to wounded friendly infantry nearby; zero for everyone but medics.
     pub heal_per_sec: f32,
     /// Radius in meters this unit reveals through the fog of war.
@@ -215,6 +217,7 @@ pub enum BuildingKind {
     Wall,
     Helipad,
     FlakCannon,
+    TechCenter,
 }
 
 pub struct BuildingSpec {
@@ -233,11 +236,12 @@ pub struct BuildingSpec {
 }
 
 impl BuildingKind {
-    pub const CONSTRUCTIBLE: [BuildingKind; 8] = [
+    pub const CONSTRUCTIBLE: [BuildingKind; 9] = [
         BuildingKind::PowerPlant,
         BuildingKind::Refinery,
         BuildingKind::Barracks,
         BuildingKind::Factory,
+        BuildingKind::TechCenter,
         BuildingKind::Helipad,
         BuildingKind::GunTurret,
         BuildingKind::FlakCannon,
@@ -260,6 +264,7 @@ impl BuildingKind {
             BuildingKind::Wall => &WALL,
             BuildingKind::Helipad => &HELIPAD,
             BuildingKind::FlakCannon => &FLAK_CANNON,
+            BuildingKind::TechCenter => &TECH_CENTER,
         }
     }
 }
@@ -377,6 +382,7 @@ const RIFLEMAN: UnitSpec = UnitSpec {
     weapon: Some(RIFLE),
     has_turret: false,
     producer: BuildingKind::Barracks,
+    requires: None,
     heal_per_sec: 0.0,
     sight: 14.0,
 };
@@ -395,6 +401,7 @@ const SCOUT: UnitSpec = UnitSpec {
     weapon: Some(SCOUT_MACHINE_GUN),
     has_turret: true,
     producer: BuildingKind::Factory,
+    requires: None,
     heal_per_sec: 0.0,
     sight: 22.0,
 };
@@ -413,6 +420,7 @@ const TANK: UnitSpec = UnitSpec {
     weapon: Some(TANK_CANNON),
     has_turret: true,
     producer: BuildingKind::Factory,
+    requires: None,
     heal_per_sec: 0.0,
     sight: 16.0,
 };
@@ -431,6 +439,7 @@ const ARTILLERY: UnitSpec = UnitSpec {
     weapon: Some(HOWITZER),
     has_turret: true,
     producer: BuildingKind::Factory,
+    requires: Some(BuildingKind::TechCenter),
     heal_per_sec: 0.0,
     sight: 14.0,
 };
@@ -449,6 +458,7 @@ const HARVESTER: UnitSpec = UnitSpec {
     weapon: None,
     has_turret: false,
     producer: BuildingKind::Factory,
+    requires: None,
     heal_per_sec: 0.0,
     sight: 10.0,
 };
@@ -495,6 +505,7 @@ const ROCKETEER: UnitSpec = UnitSpec {
     weapon: Some(MISSILE_LAUNCHER),
     has_turret: false,
     producer: BuildingKind::Barracks,
+    requires: None,
     heal_per_sec: 0.0,
     sight: 14.0,
 };
@@ -513,6 +524,7 @@ const MEDIC: UnitSpec = UnitSpec {
     weapon: None,
     has_turret: false,
     producer: BuildingKind::Barracks,
+    requires: None,
     heal_per_sec: 8.0,
     sight: 12.0,
 };
@@ -531,6 +543,7 @@ const ENGINEER: UnitSpec = UnitSpec {
     weapon: None,
     has_turret: false,
     producer: BuildingKind::Barracks,
+    requires: None,
     heal_per_sec: 0.0,
     sight: 12.0,
 };
@@ -563,6 +576,7 @@ const GUNSHIP: UnitSpec = UnitSpec {
     weapon: Some(ROCKET_PODS),
     has_turret: false,
     producer: BuildingKind::Helipad,
+    requires: Some(BuildingKind::TechCenter),
     heal_per_sec: 0.0,
     sight: 20.0,
 };
@@ -581,6 +595,7 @@ const BULWARK: UnitSpec = UnitSpec {
     weapon: Some(TWIN_CANNON),
     has_turret: true,
     producer: BuildingKind::Factory,
+    requires: Some(BuildingKind::TechCenter),
     heal_per_sec: 0.0,
     sight: 16.0,
 };
@@ -599,6 +614,7 @@ const FLAK_TRACK: UnitSpec = UnitSpec {
     weapon: Some(FLAK_AUTOCANNON),
     has_turret: true,
     producer: BuildingKind::Factory,
+    requires: None,
     heal_per_sec: 0.0,
     sight: 16.0,
 };
@@ -729,6 +745,20 @@ const FLAK_CANNON: BuildingSpec = BuildingSpec {
     sight: 18.0,
 };
 
+const TECH_CENTER: BuildingSpec = BuildingSpec {
+    name: "Tech Center",
+    role: "Research labs. Unlocks the Bulwark, the Howitzer and the Gunship.",
+    model_id: "tech_center",
+    footprint: IVec2::new(2, 2),
+    cost: 1500,
+    build_secs: 20.0,
+    max_health: 800.0,
+    power: -60,
+    prerequisites: &[BuildingKind::Factory],
+    weapon: None,
+    sight: 12.0,
+};
+
 pub const STARTING_CREDITS: i32 = 5000;
 pub const HARVESTER_CAPACITY: u32 = 500;
 pub const CRYSTAL_PER_CELL: u32 = 600;
@@ -761,6 +791,12 @@ mod tests {
                 owned.contains(&kind.spec().producer),
                 "{kind:?} has no buildable producer"
             );
+            if let Some(required) = kind.spec().requires {
+                assert!(
+                    owned.contains(&required),
+                    "{kind:?} needs an unbuildable {required:?}"
+                );
+            }
         }
     }
 

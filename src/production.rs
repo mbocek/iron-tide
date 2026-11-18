@@ -81,11 +81,20 @@ impl BuildItem {
     }
 
     pub fn missing_requirement(self, owned: &[BuildingKind]) -> Option<BuildingKind> {
-        let required: &[BuildingKind] = match self {
-            BuildItem::Structure(kind) => kind.spec().prerequisites,
-            BuildItem::Unit(kind) => std::slice::from_ref(&kind.spec().producer),
-        };
-        required.iter().copied().find(|kind| !owned.contains(kind))
+        match self {
+            BuildItem::Structure(kind) => kind
+                .spec()
+                .prerequisites
+                .iter()
+                .copied()
+                .find(|kind| !owned.contains(kind)),
+            BuildItem::Unit(kind) => {
+                let spec = kind.spec();
+                std::iter::once(spec.producer)
+                    .chain(spec.requires)
+                    .find(|kind| !owned.contains(kind))
+            }
+        }
     }
 }
 
@@ -661,6 +670,22 @@ mod tests {
                 .lane(Team::Player, Lane::Infantry)
                 .queue
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn heavy_units_need_the_tech_center_besides_their_producer() {
+        let with_factory = [BuildingKind::CommandCenter, BuildingKind::Factory];
+        let howitzer = BuildItem::Unit(UnitKind::Artillery);
+        assert_eq!(
+            howitzer.missing_requirement(&with_factory),
+            Some(BuildingKind::TechCenter)
+        );
+        let with_labs = [with_factory.as_slice(), &[BuildingKind::TechCenter]].concat();
+        assert_eq!(howitzer.missing_requirement(&with_labs), None);
+        assert_eq!(
+            BuildItem::Unit(UnitKind::Tank).missing_requirement(&with_factory),
+            None
         );
     }
 

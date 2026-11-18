@@ -872,3 +872,62 @@ def _build_flak_mount(pivot):
     box("ArmorLight", (0.3, 0.2, 0.2), pivot + Vector((-0.35, 0.0, 0.3)), bevel=0.02, name="AmmoDrum")
     add_radar_dish(pivot + Vector((-0.4, 0.0, 0.62)), 0.2, math.radians(40), math.pi)
     add_antenna(pivot + Vector((-0.3, 0.25, 0.4)), 0.6)
+
+
+def build_tech_center():
+    """Two-storey research block with a glazed observation dome, an antenna array and a cooling plant."""
+    add_foundation(4.0, 4.0)
+    base_z = FOUNDATION_HEIGHT
+    lab = chamfered_rect(3.2, 2.6, 0.35, centre=(-0.2, -0.3))
+    slab("Cladding", lab, base_z, base_z + 1.4, bevel=0.03, name="LabLower")
+    add_windows_along_outline(lab, base_z + 0.6, base_z + 1.0, window_width=0.45, spacing=0.75)
+    upper = chamfered_rect(2.6, 2.0, 0.3, centre=(-0.35, -0.3))
+    slab("ConcreteDark", upper, base_z + 1.4, base_z + 2.4, top_scale=0.96, bevel=0.03, name="LabUpper")
+    add_windows_along_outline(upper, base_z + 1.75, base_z + 2.1, window_width=0.4, spacing=0.65,
+                              pane_material="WindowGlowCool")
+    add_outline_band(scaled_rect(upper, 1.0), scaled_rect(upper, 0.9), base_z + 2.4, base_z + 2.412, "TeamColor",
+                     name="RoofTeamBand")
+    dome_centre = Vector((-0.35, -0.3, base_z + 2.4))
+    lathe("ArmorDark", [(0.72, 0.0), (0.72, 0.12), (0.0, 0.12)], dome_centre, segments=24, name="DomeRing")
+    dome = [(0.66, 0.0)] + [(0.66 * math.cos(a), 0.66 * math.sin(a)) for a in
+                            [k * math.pi / 2 / 8 for k in range(1, 9)]]
+    lathe(GLASS, dome, dome_centre + Vector((0, 0, 0.12)), segments=24, cap_start=False, name="ObservationDome")
+    for k in range(6):
+        angle = k * math.pi / 3
+        rib = [(0.67 * math.cos(a), 0.67 * math.sin(a)) for a in [j * math.pi / 2 / 8 for j in range(9)]]
+        points = [Vector((math.cos(angle) * r, math.sin(angle) * r, z)) + dome_centre + Vector((0, 0, 0.12))
+                  for r, z in rib]
+        for start, end in zip(points, points[1:]):
+            cylinder_between("Gunmetal", start, end, 0.015, 4, name="DomeRib")
+    lathe("ReactorGlow", [(0.25, 0.0), (0.25, 0.35), (0.0, 0.35)], dome_centre + Vector((0, 0, 0.12)),
+          segments=16, name="ResearchCore")
+    _add_tech_antenna_array(Vector((1.4, 1.45, base_z)))
+    _add_tech_cooling(Vector((1.7, -1.3, base_z)))
+    add_door((1.4, -0.3, base_z), 0.0, width=0.8, height=1.1, material_name="TeamColor")
+    add_door_hazard((1.48, -0.3, base_z), 0.9, 0.0)
+    add_roof_hvac((-1.2, -0.9, base_z + 2.4), 0.0)
+
+
+def scaled_rect(outline, factor):
+    cx = sum(x for x, _ in outline) / len(outline)
+    cy = sum(y for _, y in outline) / len(outline)
+    return [(cx + (x - cx) * factor, cy + (y - cy) * factor) for x, y in outline]
+
+
+def _add_tech_antenna_array(base):
+    slab("ConcreteDark", chamfered_rect(1.0, 1.0, 0.15, centre=(base.x, base.y)), base.z, base.z + 0.15,
+         bevel=0.01, name="ArrayPlinth")
+    add_lattice_mast(base + Vector((0, 0, 0.15)), 0.2, 0.06, 2.6, levels=4)
+    add_radar_dish(base + Vector((0.0, 0.0, 2.0)), 0.3, math.radians(35), math.radians(-135))
+    add_beacon(base + Vector((0, 0, 2.78)), radius=0.05)
+    for offset in ((-0.35, 0.3), (0.3, -0.35)):
+        add_antenna(base + Vector((offset[0], offset[1], 0.15)), 1.2)
+
+
+def _add_tech_cooling(base):
+    for k, dy in enumerate((-0.3, 0.3)):
+        centre = base + Vector((0, dy, 0))
+        cylinder("ArmorLight", 0.24, 0.9, centre + Vector((0, 0, 0.45)), segments=14, name="CoolantTank")
+        cylinder("TeamColor", 0.245, 0.1, centre + Vector((0, 0, 0.7)), segments=14, name="CoolantTeamBand")
+    add_pipe_run([(base.x - 0.25, base.y - 0.3, base.z + 0.7), (base.x - 0.6, base.y - 0.3, base.z + 0.7),
+                  (base.x - 0.6, base.y - 0.3, base.z + 1.2)], 0.04, material_name="Copper")

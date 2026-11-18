@@ -78,6 +78,11 @@ fn gunships_come_from_the_helipad_and_are_repaired_over_it() {
     let mut battle = Battle::sandbox();
     let pad_origin = IVec2::new(14, 50);
     battle.construct(BuildingKind::Helipad, Team::Player, pad_origin);
+    battle.construct(
+        BuildingKind::TechCenter,
+        Team::Player,
+        pad_origin + IVec2::new(0, 4),
+    );
     battle.set_credits(Team::Player, 5000);
     assert!(battle.enqueue(Team::Player, BuildItem::Unit(UnitKind::Gunship)));
     battle.run_until(40.0, |battle| {

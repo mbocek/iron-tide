@@ -789,6 +789,16 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ),
     ("Helipad", "Heliport", "Heliport"),
     (
+        "Tech Center",
+        "Technologické centrum",
+        "Technologické centrum",
+    ),
+    (
+        "Research labs. Unlocks the Bulwark, the Howitzer and the Gunship.",
+        "Výskumné laboratóriá. Sprístupní Bulwark, húfnicu a bitevný vrtuľník.",
+        "Výzkumné laboratoře. Zpřístupní Bulwark, houfnici a bitevní vrtulník.",
+    ),
+    (
         "Flak Cannon",
         "Protilietadlový kanón",
         "Protiletadlový kanón",
