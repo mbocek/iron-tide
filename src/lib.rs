@@ -464,11 +464,13 @@ impl Plugin for GamePlugin {
                         settings::apply_game_speed,
                         settings::persist_settings,
                         graphics::strip_fine_decor_shadows,
+                        graphics::strip_crystal_glow_shadows,
                         graphics::cull_distant_decor,
                         animation::build_animation_graphs,
                         animation::attach_animation_players,
                         animation::animate_soldiers,
                         animation::animate_vehicles,
+                        animation::rest_offscreen_crystals,
                         animation::animate_crystals,
                         animation::animate_corpses,
                     )

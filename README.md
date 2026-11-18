@@ -149,6 +149,14 @@ CPU, as Bevy skips static entities cheaply. The Low quality preset saves about 1
 schedules on one thread saves about 13 % per frame, because most systems are chained and the multi-threaded
 executor mostly paid for waking worker threads. The rest is Bevy's fixed cost per frame.
 
+Profiling a match with `cargo build --release --features bevy/trace_chrome` (per-system spans in a Chrome
+trace; capture runs render only the screenshot camera so the numbers match real play) showed the game's own
+systems under 1 ms per second each, and the time in rendering. Every crystal is some fifteen meshes, so the
+crystal fields were thousands of shadow casters: their floating shards and glowing cores no longer cast
+shadows, and crystals off screen stop animating. Shadow queueing fell by about 70 % and the render thread
+by about 10 %. Interface systems now write text, colours and sizes only when they change, because any write
+makes Bevy measure text and lay out the whole interface again; that took about 7 % off the main thread.
+
 ## Languages
 
 The interface speaks English, Slovak and Czech: choose it with the *Language* button in the main menu or in

@@ -104,9 +104,9 @@ struct CaptureCamera;
 fn spawn_capture_camera(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
-    game_cameras: Query<Entity, With<RtsCamera>>,
+    mut game_cameras: Query<(Entity, &mut Camera), With<RtsCamera>>,
 ) {
-    let Ok(game_camera) = game_cameras.single() else {
+    let Ok((game_camera, mut window_view)) = game_cameras.single_mut() else {
         return;
     };
     let target = images.add(Image::new_target_texture(
@@ -121,10 +121,16 @@ fn spawn_capture_camera(
         .remove::<RtsCamera>()
         .insert((
             CaptureCamera,
+            Camera {
+                is_active: true,
+                ..window_view.clone()
+            },
             RenderTarget::from(target.clone()),
             IsDefaultUiCamera,
         ));
     commands.insert_resource(CaptureTarget(target));
+    // Rendering the window too would double the frame cost and skew the fps a capture run reports.
+    window_view.is_active = false;
 }
 
 fn follow_main_camera(

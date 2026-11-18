@@ -6,9 +6,11 @@ use bevy::gltf::Gltf;
 use bevy::prelude::*;
 use rand::RngExt;
 
+use crate::camera::RtsCamera;
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
 use crate::combat::{Targets, surface_distance};
 use crate::components::*;
+use crate::map::CrystalVisual;
 use crate::medical::Healer;
 
 /// Clip names authored in Blender; tools/blender/irontide_models exports them with exactly these names.
@@ -310,9 +312,54 @@ pub fn animate_vehicles(
     }
 }
 
+/// A crystal far enough from the camera focus to be off screen; its shards hold still meanwhile.
+#[derive(Component)]
+pub struct RestingCrystal;
+
+const CRYSTAL_VIEW_CHECK_SECS: f32 = 0.5;
+/// How far from the focus crystals may still be on screen, per meter of camera distance, plus a margin.
+const CRYSTAL_VIEW_REACH_PER_METER: f32 = 1.0;
+const CRYSTAL_VIEW_MARGIN: f32 = 15.0;
+
+/// Every crystal's shards are animated transforms, so animating only those in view saves most of the work.
+pub fn rest_offscreen_crystals(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut countdown: Local<f32>,
+    cameras: Query<&RtsCamera>,
+    mut crystals: Query<
+        (Entity, &Transform, &mut AnimationLink, Has<RestingCrystal>),
+        With<CrystalVisual>,
+    >,
+    mut players: Query<&mut AnimationPlayer>,
+) {
+    *countdown -= time.delta_secs();
+    if *countdown > 0.0 {
+        return;
+    }
+    *countdown = CRYSTAL_VIEW_CHECK_SECS;
+    let Ok(camera) = cameras.single() else { return };
+    let reach = camera.distance * CRYSTAL_VIEW_REACH_PER_METER + CRYSTAL_VIEW_MARGIN;
+    for (crystal, transform, mut link, resting) in &mut crystals {
+        let in_view = transform.translation.xz().distance(camera.focus.xz()) < reach;
+        if in_view && resting {
+            commands.entity(crystal).remove::<RestingCrystal>();
+        } else if !in_view && !resting {
+            if let Ok(mut player) = players.get_mut(link.player) {
+                player.stop_all();
+            }
+            link.current = None;
+            commands.entity(crystal).insert(RestingCrystal);
+        }
+    }
+}
+
 pub fn animate_crystals(
     library: Res<AnimationLibrary>,
-    mut crystals: Query<(&AnimatedModel, &mut AnimationLink), Without<Mobile>>,
+    mut crystals: Query<
+        (&AnimatedModel, &mut AnimationLink),
+        (Without<Mobile>, Without<RestingCrystal>),
+    >,
     mut players: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
 ) {
     let mut rng = rand::rng();
