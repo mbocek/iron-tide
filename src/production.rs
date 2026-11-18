@@ -374,7 +374,8 @@ pub fn advance_production(
             lane.progress_secs = 0.0;
             if team == local.0 {
                 let fanfare = match item {
-                    BuildItem::Structure(_) | BuildItem::Research(_) => Sound::ConstructionComplete,
+                    BuildItem::Structure(_) => Sound::ConstructionComplete,
+                    BuildItem::Research(_) => Sound::ResearchComplete,
                     BuildItem::Unit(_) => Sound::UnitReady,
                 };
                 cues.write(SoundCue::interface(fanfare));

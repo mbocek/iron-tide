@@ -296,6 +296,12 @@ welding at a structure under repair or just placed. Each is one seamless loop fo
 louder the more of them are in view (but ten tanks are not ten times one) and coming from where most of them
 are; it follows the same rules of screen, zoom and fog and falls silent while the game is paused.
 
+A radio operator reports in the interface language: unit ready, construction and research complete, the base
+or a harvester under attack and a structure lost. The recordings are made by espeak-ng
+(`tools/audio/voice.py`, `brew install espeak-ng`) and sent through a field radio: a narrow band, light
+overdrive, hiss and squelch. One report plays at a time, after its chime, and routine news is not repeated
+for a few seconds.
+
 The menu has its own theme and matches alternate two battle themes. Each battle theme has a calm layer of
 the same length (pads, bass and arpeggio); it plays while nothing fights on screen, and the full mix with its
 drums and melody rises as the fighting in view grows and falls back slowly once it stops. The end of a match
@@ -535,6 +541,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `engineers` | engineers capturing enemy structures and repairing own ones |
 | `tutorial` | the step-by-step tutorial of levels with `"tutorial": true` |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
+| `announcer` | the radio operator's spoken reports in the interface language |
 | `battle_noise` | looping engines, rotors, footsteps, harvesting and construction, mixed from the units in view |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |

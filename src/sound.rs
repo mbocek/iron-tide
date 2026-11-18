@@ -40,10 +40,13 @@ pub enum Sound {
     FlakShot,
     SniperShot,
     FlameBurst,
+    ResearchComplete,
+    HarvesterAlert,
+    StructureLost,
 }
 
 impl Sound {
-    const ALL: [Sound; 25] = [
+    const ALL: [Sound; 28] = [
         Sound::RifleShot,
         Sound::MachineGunShot,
         Sound::CannonShot,
@@ -69,6 +72,9 @@ impl Sound {
         Sound::FlakShot,
         Sound::SniperShot,
         Sound::FlameBurst,
+        Sound::ResearchComplete,
+        Sound::HarvesterAlert,
+        Sound::StructureLost,
     ];
 
     /// File variants; one is picked at random each time so repeats do not sound mechanical.
@@ -91,10 +97,10 @@ impl Sound {
             Sound::BuildingCollapse => &["building_collapse"],
             Sound::UiClick => &["ui_click"],
             Sound::UiError => &["ui_error"],
-            Sound::ConstructionComplete => &["construction_complete"],
+            Sound::ConstructionComplete | Sound::ResearchComplete => &["construction_complete"],
             Sound::UnitReady => &["unit_ready"],
             Sound::BuildingPlaced => &["building_placed"],
-            Sound::BaseAlert => &["base_alert"],
+            Sound::BaseAlert | Sound::HarvesterAlert | Sound::StructureLost => &["base_alert"],
             Sound::Credits => &["credits"],
             Sound::UnitAcknowledge => &["unit_acknowledge"],
             Sound::RepairStarted => &["repair_started"],

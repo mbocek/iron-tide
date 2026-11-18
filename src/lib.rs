@@ -4,6 +4,7 @@ pub mod abilities;
 pub mod ai;
 pub mod ambience;
 pub mod animation;
+pub mod announcer;
 pub mod army_mix;
 pub mod assets;
 pub mod battle_noise;
@@ -314,6 +315,7 @@ impl Plugin for GamePlugin {
                     sound::direct_music,
                     sound::apply_master_volume,
                     battle_noise::mix_battle_noise,
+                    announcer::announce,
                 )
                     .after(FramePhase::Presentation),
             )
@@ -478,6 +480,7 @@ impl Plugin for GamePlugin {
                     abilities::create_mine_look,
                     sound::place_ears,
                     battle_noise::start_battle_noise,
+                    announcer::load_recordings,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),

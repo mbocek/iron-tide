@@ -135,7 +135,7 @@ pub fn carry_out_engineer_tasks(
                 if owner == local.0 {
                     notifications
                         .push(tr_fmt("{} captured by the enemy", &[&tr(kind.spec().name)]));
-                    cues.write(SoundCue::interface(Sound::BaseAlert));
+                    cues.write(SoundCue::interface(Sound::StructureLost));
                 }
             }
         }

@@ -72,17 +72,17 @@ pub fn watch_base(
         let Ok((transform, is_building, is_harvester)) = victims.get(hit.victim) else {
             continue;
         };
-        let warning = if is_building && watch.warning_cooldown <= 0.0 {
+        let (warning, alarm) = if is_building && watch.warning_cooldown <= 0.0 {
             watch.warning_cooldown = ATTACK_WARNING_COOLDOWN_SECS;
-            tr("Our base is under attack!")
+            (tr("Our base is under attack!"), Sound::BaseAlert)
         } else if is_harvester && watch.harvester_warning_cooldown <= 0.0 {
             watch.harvester_warning_cooldown = ATTACK_WARNING_COOLDOWN_SECS;
-            tr("Our harvester is under attack!")
+            (tr("Our harvester is under attack!"), Sound::HarvesterAlert)
         } else {
             continue;
         };
         notifications.push(warning);
-        cues.write(SoundCue::interface(Sound::BaseAlert));
+        cues.write(SoundCue::interface(alarm));
         alert.0 = Some(transform.translation);
     }
 

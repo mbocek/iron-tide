@@ -18,11 +18,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dsp import db_to_gain, peak, scaled, write_wav  # noqa: E402
 from music import MUSIC  # noqa: E402
 from sound_effects import SOUND_EFFECTS  # noqa: E402
+from voice import VOICES  # noqa: E402
 
 FALLBACK_FFMPEG = "/opt/homebrew/bin/ffmpeg"
 SFX_VORBIS_QUALITY = "5"
 MUSIC_VORBIS_QUALITY = "4"
-RENDERERS = {**MUSIC, **SOUND_EFFECTS}
+RENDERERS = {**MUSIC, **SOUND_EFFECTS, **VOICES}
 ENCODED_PEAK_CEILING = db_to_gain(-1.0)
 PEAK_CORRECTION_ATTEMPTS = 4
 
