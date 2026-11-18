@@ -21,6 +21,7 @@ use crate::production::{
     BuildItem, Lane, PlacementContext, Production, construct_building, owned_building_kinds,
     placement_context,
 };
+use crate::research::Upgrade;
 use crate::servicing::{service_radius, waiting_spot};
 use crate::structures::{BeingSold, Repairing, StructureOrder, StructureOrderKind};
 
@@ -37,6 +38,7 @@ const SITE_SEARCH_RADIUS: i32 = 14;
 const CRYSTAL_SEARCH_RADIUS: i32 = 20;
 const HARVESTERS_PER_REFINERY: usize = 2;
 const COMBAT_UNIT_RESERVE: i32 = 400;
+const RESEARCH_RESERVE: i32 = 1500;
 const REPAIR_BELOW_HEALTH: f32 = 0.6;
 const RETREAT_BELOW_HEALTH: f32 = 0.35;
 const BACK_TO_THE_FRONT_HEALTH: f32 = 0.9;
@@ -175,6 +177,9 @@ pub fn command_enemies(
             harvesters,
             saving_for,
         );
+        if saving_for.is_none() {
+            pursue_research(ai.team, &mut production, &mut economies, &owned);
+        }
         let knowledge = Knowledge {
             targets: &targets,
             intel: &intel,
@@ -582,6 +587,30 @@ fn train_units(
             .filter(|&kind| affordable(economies, kind))
     {
         let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);
+    }
+}
+
+/// Researches the next upgrade only with credits to spare beyond what the army needs.
+fn pursue_research(
+    team: Team,
+    production: &mut Production,
+    economies: &mut Economies,
+    owned: &[BuildingKind],
+) {
+    if !production.lane(team, Lane::Research).queue.is_empty() {
+        return;
+    }
+    let Some(upgrade) = Upgrade::ALL
+        .into_iter()
+        .filter(|&upgrade| !production.has_researched(team, upgrade))
+        .map(BuildItem::Research)
+        .find(|&item| production.allows(team, item) && item.missing_requirement(owned).is_none())
+    else {
+        return;
+    };
+    let spare = economies.of(team).credits - RESEARCH_RESERVE;
+    if spare >= upgrade.cost() {
+        let _ = production.enqueue(economies, team, upgrade, owned);
     }
 }
 

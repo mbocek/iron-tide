@@ -368,6 +368,10 @@ attack wave and its income (75 % / 100 % / 135 %).
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Sniper (long-range anti-infantry), Field Medic (heals
   nearby infantry), Engineer, Scout Buggy, Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range
   artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship, Harvester.
+- **Research:** the RESEARCH tab of the build menu offers three one-time upgrades from the Tech Center, which
+  must stand while the research runs: Composite Armour ($1500, vehicles and aircraft take 20 % less damage),
+  High-Explosive Warheads ($2000, every weapon deals 15 % more damage) and Combat Drills ($1000, infantry
+  reload 25 % faster). The computer researches them too once it has credits to spare.
 - **Field repairs:** a vehicle standing still on a cell touching its own Repair Bay ($800, after the War Factory)
   regains 4 % of its health per second for free.
 - **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over

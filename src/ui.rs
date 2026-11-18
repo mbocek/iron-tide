@@ -4,6 +4,7 @@ use crate::match_stats::{MatchStats, TeamTally};
 use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
+use crate::research::Upgrade;
 use crate::structure_tools::spawn_tool_buttons;
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
@@ -150,6 +151,7 @@ pub(crate) fn icon_path(item: BuildItem) -> String {
     let model_id = match item {
         BuildItem::Structure(kind) => kind.spec().model_id,
         BuildItem::Unit(kind) => kind.spec().model_id,
+        BuildItem::Research(upgrade) => upgrade.spec().icon_id,
     };
     format!("icons/{model_id}.png")
 }
@@ -161,6 +163,7 @@ fn lane_items(lane: Lane, team: Team) -> Vec<BuildItem> {
             .to_vec(),
         Lane::Infantry => UnitKind::INFANTRY.map(BuildItem::Unit).to_vec(),
         Lane::Vehicles => UnitKind::VEHICLES.map(BuildItem::Unit).to_vec(),
+        Lane::Research => Upgrade::ALL.map(BuildItem::Research).to_vec(),
     };
     items
         .into_iter()
@@ -173,6 +176,7 @@ fn lane_title(lane: Lane) -> &'static str {
         Lane::Structures => tr("BASE"),
         Lane::Infantry => tr("INFANTRY"),
         Lane::Vehicles => tr("VEHICLES"),
+        Lane::Research => tr("RESEARCH"),
     }
 }
 
@@ -1079,6 +1083,7 @@ enum TileState {
     Queued(usize),
     Unaffordable,
     Available,
+    Researched,
 }
 
 fn tile_state(
@@ -1090,6 +1095,11 @@ fn tile_state(
 ) -> TileState {
     if !production.allows(team, item) {
         return TileState::NotInMission;
+    }
+    if let BuildItem::Research(upgrade) = item
+        && production.has_researched(team, upgrade)
+    {
+        return TileState::Researched;
     }
     if item.missing_requirement(owned).is_some() {
         return TileState::Locked;
@@ -1191,6 +1201,7 @@ pub fn refresh_build_tiles(
             TileState::Queued(count) => (format!("x{count}"), TEXT_MAIN),
             TileState::Locked => (tr("LOCKED").to_string(), TEXT_DIM),
             TileState::NotInMission => (tr("N/A").to_string(), TEXT_DIM),
+            TileState::Researched => (tr("RESEARCHED").to_string(), GOOD),
             TileState::Unaffordable | TileState::Available => (String::new(), TEXT_MAIN),
         };
         text.set_if_neq(Text(label));
@@ -1312,6 +1323,15 @@ fn describe_item(
                 spec.build_secs,
                 format!("{:.0} HP", spec.max_health),
             )
+        }
+        BuildItem::Research(upgrade) => {
+            let spec = upgrade.spec();
+            let status = if production.has_researched(team, upgrade) {
+                tr("researched").to_string()
+            } else {
+                String::new()
+            };
+            (spec.role, spec.research_secs, status)
         }
     };
     let requirement = if !production.allows(team, item) {

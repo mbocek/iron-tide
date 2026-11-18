@@ -14,6 +14,7 @@ const PROGRESS_BAR_HEIGHT: f32 = 5.0;
 const STRUCTURE_LANE_COLOR: Color = Color::srgb(0.96, 0.74, 0.26);
 const INFANTRY_LANE_COLOR: Color = Color::srgb(0.55, 0.80, 0.45);
 const VEHICLE_LANE_COLOR: Color = Color::srgb(0.40, 0.65, 1.0);
+const RESEARCH_LANE_COLOR: Color = Color::srgb(0.75, 0.55, 1.0);
 const WAITING_ICON_TINT: Color = Color::srgba(0.75, 0.75, 0.75, 0.7);
 
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
@@ -33,6 +34,7 @@ fn lane_color(lane: Lane) -> Color {
         Lane::Structures => STRUCTURE_LANE_COLOR,
         Lane::Infantry => INFANTRY_LANE_COLOR,
         Lane::Vehicles => VEHICLE_LANE_COLOR,
+        Lane::Research => RESEARCH_LANE_COLOR,
     }
 }
 

@@ -1005,6 +1005,41 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Protiletadlové postavení. Na pozemní cíle střílet neumí.",
     ),
     ("Flak Track", "Protilietadlový tank", "Protiletadlový tank"),
+    ("RESEARCH", "VÝSKUM", "VÝZKUM"),
+    ("RESEARCHED", "VYSKÚMANÉ", "VYZKOUMÁNO"),
+    ("researched", "vyskúmané", "vyzkoumáno"),
+    ("Already researched", "Už je vyskúmané", "Už je vyzkoumáno"),
+    (
+        "Research complete: {}",
+        "Výskum dokončený: {}",
+        "Výzkum dokončen: {}",
+    ),
+    (
+        "Composite Armour",
+        "Kompozitný pancier",
+        "Kompozitní pancíř",
+    ),
+    (
+        "Vehicles and aircraft take 20 % less damage.",
+        "Vozidlá a lietadlá dostávajú o 20 % menšie poškodenie.",
+        "Vozidla a letadla dostávají o 20 % menší poškození.",
+    ),
+    (
+        "High-Explosive Warheads",
+        "Trhavé hlavice",
+        "Trhavé hlavice",
+    ),
+    (
+        "Every weapon of yours deals 15 % more damage.",
+        "Všetky tvoje zbrane spôsobia o 15 % väčšie poškodenie.",
+        "Všechny tvoje zbraně způsobí o 15 % větší poškození.",
+    ),
+    ("Combat Drills", "Bojový výcvik", "Bojový výcvik"),
+    (
+        "Infantry reload 25 % faster.",
+        "Pechota nabíja o 25 % rýchlejšie.",
+        "Pěchota nabíjí o 25 % rychleji.",
+    ),
     ("Flame Trooper", "Plameňometčík", "Plamenometčík"),
     (
         "Burns out infantry and buildings at close range. Weak against armour.",

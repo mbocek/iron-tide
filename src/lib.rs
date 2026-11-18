@@ -49,6 +49,7 @@ pub mod player_commands;
 pub mod production;
 pub mod queue_bar;
 pub mod replay;
+pub mod research;
 pub mod savegame;
 pub mod scenery;
 pub mod season;

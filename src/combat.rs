@@ -17,6 +17,8 @@ use crate::interpolation::TickTransforms;
 use crate::map::{CELL_SIZE, GameMap, world_to_cell};
 use crate::movement::order_move;
 use crate::player_commands::LocalTeam;
+use crate::production::Production;
+use crate::research::{incoming_damage_factor, outgoing_damage_factor, reload_factor};
 use crate::sim_math;
 use crate::sound::{Sound, SoundCue};
 use crate::veterancy::{Rank, Veterancy};
@@ -278,6 +280,7 @@ pub fn chase_targets(
 pub fn aim_and_fire(
     mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
+    production: Res<Production>,
     mut rng: ResMut<SimulationRng>,
     time: Res<Time>,
     targets: Res<Targets>,
@@ -348,12 +351,13 @@ pub fn aim_and_fire(
         if !(in_range && aimed && weapon.cooldown <= 0.0) {
             continue;
         }
-        weapon.cooldown = weapon.spec.reload_secs;
+        let shooter_armor = unit.map(|unit| unit.0.spec().armor);
+        weapon.cooldown = weapon.spec.reload_secs * reload_factor(&production, team, shooter_armor);
         let barrel_direction = sim_math::facing_direction(aimed_yaw);
         let muzzle = position + Vec3::Y * MUZZLE_HEIGHT + barrel_direction * BARREL_LENGTH;
         let rank = veterancy.map_or(Rank::Recruit, |veterancy| veterancy.rank);
         let mut ranked_weapon = weapon.spec;
-        ranked_weapon.damage *= rank.damage_factor();
+        ranked_weapon.damage *= rank.damage_factor() * outgoing_damage_factor(&production, team);
         let shot = Shot {
             team,
             source,
@@ -438,6 +442,7 @@ fn fire_projectile(
 pub fn fly_projectiles(
     mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
+    production: Res<Production>,
     time: Res<Time>,
     targets: Res<Targets>,
     effects: Res<EffectAssets>,
@@ -480,6 +485,7 @@ pub fn fly_projectiles(
                 apply_damage(
                     &mut healths,
                     &mut damage_log,
+                    &production,
                     victim,
                     weapon.damage * falloff * weapon.multiplier_against(victim.armor),
                     &projectile,
@@ -489,6 +495,7 @@ pub fn fly_projectiles(
             apply_damage(
                 &mut healths,
                 &mut damage_log,
+                &production,
                 victim,
                 weapon.damage * weapon.multiplier_against(victim.armor),
                 &projectile,
@@ -538,10 +545,12 @@ pub struct DamageDealt {
 fn apply_damage(
     healths: &mut Query<&mut Health>,
     damage_log: &mut MessageWriter<DamageDealt>,
+    production: &Production,
     victim: &TargetInfo,
     amount: f32,
     projectile: &Projectile,
 ) {
+    let amount = amount * incoming_damage_factor(production, victim.team, victim.armor);
     if let Ok(mut health) = healths.get_mut(victim.entity) {
         health.current -= amount;
         damage_log.write(DamageDealt {

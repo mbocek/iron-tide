@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from irontide_models import buildings, decorations, nature, ore, soldier, units, vegetation  # noqa: E402
+from irontide_models import buildings, decorations, nature, ore, soldier, units, upgrades, vegetation  # noqa: E402
 from irontide_models.materials import TEAM_COLOR_MATERIAL, set_team_color  # noqa: E402
 from irontide_models.parts import TURRET, begin_model  # noqa: E402
 from irontide_models.pipeline import export_glb, inspect_glb, render_icon, render_preview, reset_scene  # noqa: E402
@@ -49,6 +49,11 @@ TEAM_MODELS = {
     "repair_bay": (buildings.build_repair_bay, BUILDING_TRIANGLE_BUDGET),
     "rocket_bunker": (buildings.build_rocket_bunker, BUILDING_TRIANGLE_BUDGET),
     "wall": (buildings.build_wall, 4_000),
+}
+ICON_ONLY_MODELS = {
+    "upgrade_armour": upgrades.build_armour_upgrade,
+    "upgrade_warheads": upgrades.build_warheads_upgrade,
+    "upgrade_drills": upgrades.build_drills_upgrade,
 }
 NEUTRAL_MODELS = {
     "crystal": (ore.build_crystal_a, 3_000),
@@ -184,6 +189,13 @@ def build_all(arguments):
             if arguments.icons and team == PREVIEW_TEAM:
                 render_icon(root, arguments.icons / f"{model_id}.png")
         print(f"[iron-tide] built {model_id} in {time.time() - started:.1f}s", flush=True)
+
+    if arguments.icons:
+        for model_id, builder in ICON_ONLY_MODELS.items():
+            if selected and model_id not in selected:
+                continue
+            set_team_color(PREVIEW_TEAM)
+            render_icon(build_model(model_id, builder), arguments.icons / f"{model_id}.png")
 
     print("\n[iron-tide] export summary")
     for line in report:

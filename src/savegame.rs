@@ -20,6 +20,7 @@ use crate::match_flow::{GameState, MatchClock};
 use crate::network::NetSession;
 use crate::notifications::Notifications;
 use crate::production::{BuildItem, Lane, Production};
+use crate::research::Upgrade;
 use crate::settings::{GameSettings, game_data_directory};
 use crate::spawn::{spawn_building, spawn_unit};
 use crate::structures::{BeingSold, Repairing};
@@ -77,6 +78,9 @@ pub struct SaveGame {
     buildings: Vec<SavedBuilding>,
     units: Vec<SavedUnit>,
     production: Vec<SavedLane>,
+    /// What each team has researched, in `Team::ALL` order.
+    #[serde(default)]
+    researched: Vec<Vec<Upgrade>>,
     ai: AiCommanders,
     camera_focus: [f32; 3],
     #[serde(default)]
@@ -276,6 +280,9 @@ pub fn write_requested_save(
                 }
             })
             .collect(),
+        researched: Team::ALL
+            .map(|team| production.researched(team).to_vec())
+            .to_vec(),
         ai: commanders.clone(),
         camera_focus: cameras
             .single()
@@ -435,6 +442,11 @@ pub fn restore_pending_load(
         lane.queue = saved.queue.into();
         lane.progress_secs = saved.progress_secs;
         lane.ready = saved.ready;
+    }
+    for (team, upgrades) in Team::ALL.into_iter().zip(save.researched) {
+        for upgrade in upgrades {
+            production.complete_research(team, upgrade);
+        }
     }
     *commanders = save.ai;
     clock.elapsed_secs = save.match_secs;

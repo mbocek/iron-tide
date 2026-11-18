@@ -18,6 +18,7 @@ use crate::movement::{FLIGHT_ALTITUDE, order_move};
 use crate::notifications::Notifications;
 use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
+use crate::research::Upgrade;
 use crate::sound::{Sound, SoundCue};
 use crate::spawn::{exit_cell, spawn_building, spawn_unit};
 
@@ -30,6 +31,7 @@ const RALLY_DISTANCE_CELLS: i32 = 3;
 pub enum BuildItem {
     Structure(BuildingKind),
     Unit(UnitKind),
+    Research(Upgrade),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
@@ -37,16 +39,23 @@ pub enum Lane {
     Structures,
     Infantry,
     Vehicles,
+    Research,
 }
 
 impl Lane {
-    pub const ALL: [Lane; 3] = [Lane::Structures, Lane::Infantry, Lane::Vehicles];
+    pub const ALL: [Lane; 4] = [
+        Lane::Structures,
+        Lane::Infantry,
+        Lane::Vehicles,
+        Lane::Research,
+    ];
 
     fn index(self) -> usize {
         match self {
             Lane::Structures => 0,
             Lane::Infantry => 1,
             Lane::Vehicles => 2,
+            Lane::Research => 3,
         }
     }
 }
@@ -56,6 +65,7 @@ impl BuildItem {
         match self {
             BuildItem::Structure(kind) => tr(kind.spec().name),
             BuildItem::Unit(kind) => tr(kind.spec().name),
+            BuildItem::Research(upgrade) => tr(upgrade.spec().name),
         }
     }
 
@@ -63,6 +73,7 @@ impl BuildItem {
         match self {
             BuildItem::Structure(kind) => kind.spec().cost,
             BuildItem::Unit(kind) => kind.spec().cost,
+            BuildItem::Research(upgrade) => upgrade.spec().cost,
         }
     }
 
@@ -70,6 +81,7 @@ impl BuildItem {
         match self {
             BuildItem::Structure(kind) => kind.spec().build_secs,
             BuildItem::Unit(kind) => kind.spec().build_secs,
+            BuildItem::Research(upgrade) => upgrade.spec().research_secs,
         }
     }
 
@@ -80,6 +92,7 @@ impl BuildItem {
                 Lane::Infantry
             }
             BuildItem::Unit(_) => Lane::Vehicles,
+            BuildItem::Research(_) => Lane::Research,
         }
     }
 
@@ -87,6 +100,7 @@ impl BuildItem {
         match self {
             BuildItem::Structure(kind) => kind.spec().faction,
             BuildItem::Unit(kind) => kind.spec().faction,
+            BuildItem::Research(_) => None,
         }
     }
 
@@ -109,6 +123,9 @@ impl BuildItem {
                     .chain(spec.requires)
                     .find(|kind| !owned.contains(kind))
             }
+            BuildItem::Research(_) => {
+                Some(BuildingKind::TechCenter).filter(|tech_center| !owned.contains(tech_center))
+            }
         }
     }
 }
@@ -120,6 +137,7 @@ pub enum EnqueueRefusal {
     Requires(BuildingKind),
     QueueFull,
     InsufficientFunds,
+    AlreadyResearched,
 }
 
 impl EnqueueRefusal {
@@ -129,6 +147,7 @@ impl EnqueueRefusal {
             EnqueueRefusal::Requires(missing) => tr_fmt("Requires {}", &[&tr(missing.spec().name)]),
             EnqueueRefusal::QueueFull => tr("Production queue is full").into(),
             EnqueueRefusal::InsufficientFunds => tr("Insufficient funds").into(),
+            EnqueueRefusal::AlreadyResearched => tr("Already researched").into(),
         }
     }
 }
@@ -155,9 +174,10 @@ impl ProductionLane {
 
 #[derive(Resource, Default)]
 pub struct Production {
-    lanes: [[ProductionLane; 3]; 4],
+    lanes: [[ProductionLane; 4]; 4],
     /// Per team, the items the current mission does not allow.
     forbidden: [Vec<BuildItem>; 4],
+    researched: [Vec<Upgrade>; 4],
 }
 
 impl Production {
@@ -167,6 +187,27 @@ impl Production {
 
     pub fn allows(&self, team: Team, item: BuildItem) -> bool {
         item.belongs_to(team) && !self.forbidden[team.index()].contains(&item)
+    }
+
+    pub fn has_researched(&self, team: Team, upgrade: Upgrade) -> bool {
+        self.researched[team.index()].contains(&upgrade)
+    }
+
+    pub fn researched(&self, team: Team) -> &[Upgrade] {
+        &self.researched[team.index()]
+    }
+
+    pub fn complete_research(&mut self, team: Team, upgrade: Upgrade) {
+        if !self.has_researched(team, upgrade) {
+            self.researched[team.index()].push(upgrade);
+        }
+    }
+
+    fn is_researched_or_underway(&self, team: Team, item: BuildItem) -> bool {
+        let BuildItem::Research(upgrade) = item else {
+            return false;
+        };
+        self.has_researched(team, upgrade) || self.lane(team, Lane::Research).queue.contains(&item)
     }
 
     pub fn lane(&self, team: Team, lane: Lane) -> &ProductionLane {
@@ -189,6 +230,9 @@ impl Production {
         }
         if let Some(missing) = item.missing_requirement(owned) {
             return Err(EnqueueRefusal::Requires(missing));
+        }
+        if self.is_researched_or_underway(team, item) {
+            return Err(EnqueueRefusal::AlreadyResearched);
         }
         let lane = self.lane_mut(team, item.lane());
         if lane.queue.len() >= MAX_QUEUE_LENGTH {
@@ -281,6 +325,15 @@ pub fn advance_production(
             }
             let producer = match item {
                 BuildItem::Structure(_) => None,
+                BuildItem::Research(_) => {
+                    let has_tech_center = buildings.iter().any(|(building, owner, _)| {
+                        *owner == team && building.kind == BuildingKind::TechCenter
+                    });
+                    if !has_tech_center {
+                        continue;
+                    }
+                    None
+                }
                 BuildItem::Unit(kind) => {
                     let producer = buildings
                         .iter()
@@ -302,13 +355,16 @@ pub fn advance_production(
             lane.progress_secs = 0.0;
             if team == local.0 {
                 let fanfare = match item {
-                    BuildItem::Structure(_) => Sound::ConstructionComplete,
+                    BuildItem::Structure(_) | BuildItem::Research(_) => Sound::ConstructionComplete,
                     BuildItem::Unit(_) => Sound::UnitReady,
                 };
                 cues.write(SoundCue::interface(fanfare));
                 notifications.push(match item {
                     BuildItem::Structure(_) => tr("Construction complete").to_string(),
                     BuildItem::Unit(kind) => tr_fmt("{} ready", &[&tr(kind.spec().name)]),
+                    BuildItem::Research(upgrade) => {
+                        tr_fmt("Research complete: {}", &[&tr(upgrade.spec().name)])
+                    }
                 });
             }
             match (item, producer) {
@@ -326,6 +382,9 @@ pub fn advance_production(
                     );
                 }
                 (BuildItem::Unit(_), None) => {}
+                (BuildItem::Research(upgrade), _) => {
+                    production.complete_research(team, upgrade);
+                }
             }
         }
     }
