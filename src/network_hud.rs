@@ -1,7 +1,9 @@
+use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 
 use crate::i18n::tr_fmt;
 use crate::network::{NetSession, SessionState};
+use crate::notifications::Notifications;
 use crate::player_commands::SimulationTick;
 use crate::ui::{ACCENT, SIDEBAR_WIDTH, TEXT_DIM, UiFonts, set_field};
 
@@ -85,6 +87,101 @@ pub fn refresh_network_hud(
                 "Waiting for the other player... {} s",
                 &[&(stalled_for as u32)],
             )));
+        }
+    }
+}
+
+/// The chat line being typed during a network battle; `None` while the player is not typing.
+#[derive(Resource, Default)]
+pub struct BattleChat {
+    draft: Option<String>,
+}
+
+#[derive(Component)]
+pub struct ChatDraftLine;
+
+pub fn spawn_chat_line(commands: &mut Commands, fonts: &UiFonts) {
+    commands.spawn((
+        ChatDraftLine,
+        fonts.heading("", 17.0, ACCENT),
+        TextShadow::default(),
+        Pickable::IGNORE,
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(34.0),
+            left: Val::Px(12.0),
+            display: Display::None,
+            ..default()
+        },
+    ));
+}
+
+/// Enter opens the chat line, Enter again sends it and Esc drops it. While it is open the keyboard types
+/// instead of commanding, so every other system sees no keys pressed.
+pub fn type_battle_chat(
+    session: Option<ResMut<NetSession>>,
+    mut chat: ResMut<BattleChat>,
+    mut keys: ResMut<ButtonInput<KeyCode>>,
+    mut typed: MessageReader<KeyboardInput>,
+    mut notifications: ResMut<Notifications>,
+) {
+    let Some(mut session) = session else {
+        chat.draft = None;
+        typed.clear();
+        return;
+    };
+    let Some(draft) = chat.draft.as_mut() else {
+        typed.clear();
+        if keys.any_just_pressed([KeyCode::Enter, KeyCode::NumpadEnter]) {
+            chat.draft = Some(String::new());
+            keys.reset_all();
+        }
+        return;
+    };
+    let mut finished = false;
+    for key in typed.read().filter(|key| key.state.is_pressed()) {
+        match &key.logical_key {
+            Key::Enter => {
+                if let Some(sent) = session.say(draft) {
+                    notifications.push(tr_fmt("You: {}", &[&sent]));
+                }
+                finished = true;
+            }
+            Key::Escape => finished = true,
+            Key::Backspace => {
+                draft.pop();
+            }
+            Key::Space => draft.push(' '),
+            Key::Character(text) => draft.push_str(text),
+            _ => {}
+        }
+    }
+    if finished {
+        chat.draft = None;
+    }
+    keys.reset_all();
+}
+
+pub fn show_chat(
+    session: Option<ResMut<NetSession>>,
+    chat: Res<BattleChat>,
+    mut notifications: ResMut<Notifications>,
+    mut lines: Query<(&mut Text, &mut Node), With<ChatDraftLine>>,
+) {
+    if let Some(mut session) = session {
+        for text in session.take_chat() {
+            notifications.push(tr_fmt("Other player: {}", &[&text]));
+        }
+    }
+    for (mut text, mut node) in &mut lines {
+        let display = if chat.draft.is_some() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        set_field(&mut node, |node| &mut node.display, display);
+        if let Some(draft) = &chat.draft {
+            text.set_if_neq(Text(tr_fmt("Say: {}_", &[draft])));
         }
     }
 }

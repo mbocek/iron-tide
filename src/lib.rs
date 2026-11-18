@@ -448,12 +448,20 @@ impl Plugin for GamePlugin {
                 Update,
                 (
                     network::report_session_trouble,
+                    network_hud::show_chat.run_if(in_state(match_flow::GameState::Playing)),
                     network_hud::refresh_network_hud
                         .run_if(in_state(match_flow::GameState::Playing)),
                 ),
             )
             .init_resource::<updates::Updates>()
             .init_resource::<lobby::NetLobby>()
+            .init_resource::<network_hud::BattleChat>()
+            .add_systems(
+                PreUpdate,
+                network_hud::type_battle_chat
+                    .after(bevy::input::InputSystems)
+                    .run_if(in_state(match_flow::GameState::Playing)),
+            )
             .add_systems(
                 PostStartup,
                 (match_flow::finish_booting, updates::check_for_updates),
@@ -470,7 +478,7 @@ impl Plugin for GamePlugin {
                 Update,
                 (
                     updates::receive_update_news,
-                    main_menu::type_join_address,
+                    main_menu::type_on_network_page,
                     lobby::run_lobby,
                     main_menu::refresh_main_menu,
                     main_menu::show_network_status,

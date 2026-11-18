@@ -217,7 +217,10 @@ and the guest the Syndicate. Either side can leave the lobby: a host whose guest
 for another player. Leaving or quitting a battle closes the connection at once, so the other player is told
 straight away. During a network battle the round trip to the other machine (measured every second
 with a ping, smoothed) shows in the corner of the battlefield, and when the battle has waited more than half
-a second for the other player's orders a banner says so and counts the seconds. Restarting, saving and loading are disabled during a
+a second for the other player's orders a banner says so and counts the seconds. The players can chat: in the lobby,
+once connected, typing goes into a message line and Enter sends it; in the battle Enter opens a *Say:* line
+(the keyboard then types instead of commanding), Enter sends and Esc drops it, and lines appear among the
+notifications. Lines are trimmed to 120 printable characters. Restarting, saving and loading are disabled during a
 network battle; pausing one machine makes the other wait. Over the internet the host's port 47300 must be
 forwarded. Capture runs can automate this (`IRON_TIDE_CAPTURE_HOST=1`, `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`).
 

@@ -240,3 +240,22 @@ fn when_the_guest_leaves_the_host_waits_for_another() {
     });
     assert!(host.is_busy());
 }
+
+#[test]
+fn players_can_talk_in_the_lobby() {
+    let (mut host, mut guest, _) = lobby_pair();
+    let mut clock = 0.0;
+    settle(&mut host, &mut guest, &mut clock, |_, guest| {
+        guest.can_accept_offer()
+    });
+    guest.draft = "hello\u{7}  there ".to_string();
+    guest.say();
+    settle(&mut host, &mut guest, &mut clock, |host, _| {
+        !host.chat().is_empty()
+    });
+    let heard = &host.chat()[0];
+    assert!(!heard.mine);
+    assert_eq!(heard.text, "hello  there");
+    assert!(guest.chat()[0].mine);
+    assert!(guest.draft.is_empty());
+}

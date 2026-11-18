@@ -1,3 +1,4 @@
+use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 
@@ -68,6 +69,9 @@ pub struct JoinAddressText;
 
 #[derive(Component)]
 pub struct NetworkStatusText;
+
+#[derive(Component)]
+pub struct ChatDraftText;
 
 #[derive(Component, Clone, Copy)]
 pub enum MenuCommand {
@@ -560,39 +564,48 @@ impl MainMenu {
     }
 }
 
-/// Typing into the host address field while the network battle page is shown.
-pub fn type_join_address(
+/// Typing on the network battle page: the host's address before connecting, a chat line afterwards.
+pub fn type_on_network_page(
     menu: Option<Res<MainMenu>>,
-    mut typed: MessageReader<bevy::input::keyboard::KeyboardInput>,
+    mut typed: MessageReader<KeyboardInput>,
     mut settings: ResMut<GameSettings>,
-    mut fields: Query<&mut Text, With<JoinAddressText>>,
+    mut lobby: ResMut<NetLobby>,
+    mut address_fields: Query<&mut Text, (With<JoinAddressText>, Without<ChatDraftText>)>,
+    mut draft_fields: Query<&mut Text, With<ChatDraftText>>,
 ) {
     let on_network_page = menu.is_some_and(|menu| menu.selection == Selection::Network);
     if !on_network_page {
         typed.clear();
         return;
     }
-    let mut address = settings.join_address.clone();
+    let chatting = lobby.has_partner();
     for key in typed.read().filter(|key| key.state.is_pressed()) {
-        match &key.logical_key {
-            bevy::input::keyboard::Key::Backspace => {
-                address.pop();
+        match (&key.logical_key, chatting) {
+            (Key::Enter, true) => lobby.say(),
+            (Key::Backspace, true) => {
+                lobby.draft.pop();
             }
-            bevy::input::keyboard::Key::Character(text) => {
+            (Key::Backspace, false) => {
+                settings.join_address.pop();
+            }
+            (Key::Space, true) => lobby.draft.push(' '),
+            (Key::Character(text), true) => lobby.draft.push_str(text),
+            (Key::Character(text), false) => {
                 for character in text.to_lowercase().chars() {
-                    if ADDRESS_CHARACTERS.contains(character) && address.len() < LONGEST_ADDRESS {
-                        address.push(character);
+                    let fits = settings.join_address.len() < LONGEST_ADDRESS;
+                    if ADDRESS_CHARACTERS.contains(character) && fits {
+                        settings.join_address.push(character);
                     }
                 }
             }
             _ => {}
         }
     }
-    if address != settings.join_address {
-        settings.join_address = address.clone();
-        for mut field in &mut fields {
-            field.0 = address.clone();
-        }
+    for mut field in &mut address_fields {
+        field.set_if_neq(Text(settings.join_address.clone()));
+    }
+    for mut field in &mut draft_fields {
+        field.set_if_neq(Text(format!("{}_", lobby.draft)));
     }
 }
 
@@ -619,35 +632,24 @@ fn spawn_network_details(
         15.0,
         TEXT_DIM,
     ));
-    spawn_command_button(
-        panel,
-        fonts,
-        tr("HOST A BATTLE"),
-        MenuCommand::HostNetworkBattle,
-    );
-    panel
-        .spawn(Node {
-            justify_content: JustifyContent::SpaceBetween,
-            align_items: AlignItems::Center,
-            ..default()
-        })
-        .with_children(|row| {
-            row.spawn(fonts.text(tr("Host address (type it)"), 18.0, TEXT_MAIN));
-            row.spawn((
-                button_node(Val::Px(260.0)),
-                BackgroundColor(BUTTON_IDLE),
-                BorderColor::all(ACCENT),
-            ))
-            .with_children(|field| {
-                field.spawn((JoinAddressText, fonts.heading(join_address, 16.0, ACCENT)));
-            });
-        });
-    spawn_command_button(panel, fonts, tr("JOIN"), MenuCommand::JoinNetworkBattle);
+    if !lobby.has_partner() {
+        spawn_command_button(
+            panel,
+            fonts,
+            tr("HOST A BATTLE"),
+            MenuCommand::HostNetworkBattle,
+        );
+        spawn_address_row(panel, fonts, join_address);
+        spawn_command_button(panel, fonts, tr("JOIN"), MenuCommand::JoinNetworkBattle);
+    }
     panel.spawn((NetworkStatusText, fonts.text("", 16.0, GOOD)));
     if let Some(level) = lobby.offered_level() {
         for (line, color) in describe_level(level).into_iter().skip(2) {
             panel.spawn(fonts.text(line, 15.0, color));
         }
+    }
+    if lobby.has_partner() {
+        spawn_chat(panel, fonts, lobby);
     }
     if lobby.can_accept_offer() {
         spawn_command_button(
@@ -660,6 +662,62 @@ fn spawn_network_details(
     if lobby.is_busy() {
         spawn_command_button(panel, fonts, tr("LEAVE"), MenuCommand::CancelNetworkBattle);
     }
+}
+
+fn spawn_text_field(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    label: &str,
+    value: String,
+    marker: impl Component,
+) {
+    panel
+        .spawn(Node {
+            justify_content: JustifyContent::SpaceBetween,
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn(fonts.text(label, 18.0, TEXT_MAIN));
+            row.spawn((
+                button_node(Val::Px(260.0)),
+                BackgroundColor(BUTTON_IDLE),
+                BorderColor::all(ACCENT),
+            ))
+            .with_children(|field| {
+                field.spawn((marker, fonts.heading(value, 16.0, ACCENT)));
+            });
+        });
+}
+
+fn spawn_address_row(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, join_address: &str) {
+    let label = tr("Host address (type it)");
+    spawn_text_field(
+        panel,
+        fonts,
+        label,
+        join_address.to_string(),
+        JoinAddressText,
+    );
+}
+
+fn spawn_chat(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, lobby: &NetLobby) {
+    for line in lobby.chat() {
+        let (who, color) = if line.mine {
+            (tr("You"), Team::Player.ui_color())
+        } else {
+            (tr("Other player"), ACCENT)
+        };
+        panel.spawn(fonts.text(format!("{who}: {}", line.text), 15.0, color));
+    }
+    let label = tr("Message (Enter sends)");
+    spawn_text_field(
+        panel,
+        fonts,
+        label,
+        format!("{}_", lobby.draft),
+        ChatDraftText,
+    );
 }
 
 fn rebuild_details(

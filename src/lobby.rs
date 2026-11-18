@@ -54,6 +54,27 @@ enum LobbyPhase {
     Failed(String),
 }
 
+const CHAT_LINES_SHOWN: usize = 6;
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct ChatLine {
+    pub mine: bool,
+    pub text: String,
+}
+
+impl LobbyPhase {
+    fn session_mut(&mut self) -> Option<&mut NetSession> {
+        match self {
+            LobbyPhase::Negotiating { session, .. }
+            | LobbyPhase::WaitingForOffer(session)
+            | LobbyPhase::Considering { session, .. }
+            | LobbyPhase::Accepted { session, .. }
+            | LobbyPhase::Countdown { session, .. } => Some(session),
+            _ => None,
+        }
+    }
+}
+
 /// Everything needed to begin a network battle on this machine.
 pub struct BattleStart {
     pub level: LevelDefinition,
@@ -70,6 +91,9 @@ pub struct NetLobby {
     changed: bool,
     /// Where the other player can reach this computer, worked out once when hosting starts.
     host_address: String,
+    chat: Vec<ChatLine>,
+    /// The chat line being typed.
+    pub draft: String,
 }
 
 impl NetLobby {
@@ -85,6 +109,7 @@ impl NetLobby {
             return self.fail(tr_fmt("Cannot host: {}", &[&error]));
         }
         self.notice = None;
+        self.chat.clear();
         self.host_address = local_address();
         self.enter(LobbyPhase::Hosting {
             listener,
@@ -114,6 +139,7 @@ impl NetLobby {
             let _ = sender.send(connected);
         });
         self.notice = None;
+        self.chat.clear();
         self.enter(LobbyPhase::Connecting(Mutex::new(receiver)));
     }
 
@@ -131,6 +157,7 @@ impl NetLobby {
     /// Stops hosting or leaves the host; the other machine learns from the closed connection.
     pub fn cancel(&mut self) {
         self.notice = None;
+        self.chat.clear();
         self.enter(LobbyPhase::Idle);
     }
 
@@ -152,6 +179,43 @@ impl NetLobby {
             | LobbyPhase::Countdown { level, .. } => Some(level),
             _ => None,
         }
+    }
+
+    /// Whether there is another player to talk to.
+    pub fn has_partner(&self) -> bool {
+        matches!(
+            self.phase,
+            LobbyPhase::Negotiating { .. }
+                | LobbyPhase::WaitingForOffer(_)
+                | LobbyPhase::Considering { .. }
+                | LobbyPhase::Accepted { .. }
+                | LobbyPhase::Countdown { .. }
+        )
+    }
+
+    /// Sends the line being typed to the other player.
+    pub fn say(&mut self) {
+        let draft = std::mem::take(&mut self.draft);
+        if let Some(sent) = self
+            .phase
+            .session_mut()
+            .and_then(|session| session.say(&draft))
+        {
+            self.remember(ChatLine {
+                mine: true,
+                text: sent,
+            });
+        }
+    }
+
+    /// The latest lines of the conversation, oldest first.
+    pub fn chat(&self) -> &[ChatLine] {
+        &self.chat[self.chat.len().saturating_sub(CHAT_LINES_SHOWN)..]
+    }
+
+    fn remember(&mut self, line: ChatLine) {
+        self.chat.push(line);
+        self.changed = true;
     }
 
     /// Whether the menu should be rebuilt since it last asked.
@@ -202,8 +266,15 @@ impl NetLobby {
     /// Moves the lobby along at `now` seconds; returns the battle once its countdown has run out.
     pub fn advance(&mut self, now: f32) -> Option<BattleStart> {
         let phase = std::mem::take(&mut self.phase);
-        let (next, changed) = self.step(phase, now);
+        let (mut next, changed) = self.step(phase, now);
         self.changed |= changed;
+        let heard = next
+            .session_mut()
+            .map(NetSession::take_chat)
+            .unwrap_or_default();
+        for text in heard {
+            self.remember(ChatLine { mine: false, text });
+        }
         match next {
             LobbyPhase::Countdown {
                 level,

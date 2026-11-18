@@ -107,6 +107,15 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ("I'M READY", "SOM PRIPRAVENÝ", "JSEM PŘIPRAVEN"),
     ("LEAVE", "ODÍSŤ", "ODEJÍT"),
     ("Ping {} ms", "Ping {} ms", "Ping {} ms"),
+    ("You: {}", "Vy: {}", "Vy: {}"),
+    ("Other player: {}", "Súper: {}", "Soupeř: {}"),
+    ("Say: {}_", "Povedz: {}_", "Řekni: {}_"),
+    ("Other player", "Súper", "Soupeř"),
+    (
+        "Message (Enter sends)",
+        "Správa (Enter odošle)",
+        "Zpráva (Enter odešle)",
+    ),
     (
         "Waiting for the other player... {} s",
         "Čakám na druhého hráča... {} s",

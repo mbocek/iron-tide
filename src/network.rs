@@ -53,6 +53,10 @@ enum Message {
     Pong {
         nonce: u64,
     },
+    /// A line the other player typed, in the lobby or during the battle.
+    Chat {
+        text: String,
+    },
     /// The host starts the countdown to the battle.
     Go,
 }
@@ -94,6 +98,7 @@ pub struct NetSession {
     pub state: SessionState,
     reported: Option<SessionState>,
     pings_in_flight: BTreeMap<u64, Instant>,
+    incoming_chat: Vec<String>,
     next_ping: u64,
     last_ping_sent: Option<Instant>,
     round_trip: Option<Duration>,
@@ -132,6 +137,7 @@ impl NetSession {
             state: SessionState::InStep,
             reported: None,
             pings_in_flight: BTreeMap::new(),
+            incoming_chat: Vec::new(),
             next_ping: 0,
             last_ping_sent: None,
             round_trip: None,
@@ -140,6 +146,29 @@ impl NetSession {
 
     pub fn remote_team(&self) -> Team {
         self.remote_team
+    }
+
+    /// Sends a chat line; it is trimmed to a sensible length and stripped of control characters.
+    pub fn say(&mut self, text: &str) -> Option<String> {
+        let line = chat_line(text)?;
+        self.send(&Message::Chat { text: line.clone() });
+        Some(line)
+    }
+
+    /// Chat lines the other player sent since the last call.
+    pub fn take_chat(&mut self) -> Vec<String> {
+        let mut lines = std::mem::take(&mut self.incoming_chat);
+        if let Ok(inbox) = self.inbox.lock() {
+            self.early.extend(inbox.try_iter());
+        }
+        let early = std::mem::take(&mut self.early);
+        for arrival in early {
+            match arrival {
+                Arrival::Message(Message::Chat { text }) => lines.extend(chat_line(&text)),
+                other => self.early.push(other),
+            }
+        }
+        lines
     }
 
     /// The smoothed time a message takes to the other machine and back; `None` until first measured.
@@ -211,6 +240,9 @@ impl NetSession {
                 Arrival::Message(Message::Ready) => news.push(LobbyNews::GuestReady),
                 Arrival::Message(Message::Go) => news.push(LobbyNews::Go),
                 Arrival::Message(Message::Ping { nonce }) => self.send(&Message::Pong { nonce }),
+                Arrival::Message(Message::Chat { text }) => {
+                    self.incoming_chat.extend(chat_line(&text))
+                }
                 Arrival::ConnectionLost => {
                     self.state = SessionState::Disconnected;
                     news.push(LobbyNews::Left);
@@ -275,6 +307,19 @@ impl Drop for NetSession {
     }
 }
 
+const LONGEST_CHAT_LINE: usize = 120;
+
+/// What may be shown of a chat line: printable characters, trimmed, at most `LONGEST_CHAT_LINE` of them.
+fn chat_line(text: &str) -> Option<String> {
+    let clean: String = text
+        .chars()
+        .filter(|character| !character.is_control())
+        .take(LONGEST_CHAT_LINE)
+        .collect();
+    let clean = clean.trim();
+    (!clean.is_empty()).then(|| clean.to_string())
+}
+
 fn read_message(reader: &mut impl Read) -> Option<Message> {
     let mut length = [0; 4];
     reader.read_exact(&mut length).ok()?;
@@ -315,6 +360,9 @@ pub fn receive_turns(session: Option<ResMut<NetSession>>, mut queue: ResMut<Comm
             }
             Arrival::Message(Message::Ping { nonce }) => session.send(&Message::Pong { nonce }),
             Arrival::Message(Message::Pong { nonce }) => session.answered(nonce),
+            Arrival::Message(Message::Chat { text }) => {
+                session.incoming_chat.extend(chat_line(&text))
+            }
             Arrival::Message(Message::Offer { .. } | Message::Ready | Message::Go) => {}
             Arrival::ConnectionLost => session.state = SessionState::Disconnected,
         }
