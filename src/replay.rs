@@ -726,7 +726,7 @@ pub fn refresh_replay_hud(
     let line = tr_fmt(
         "REPLAY  {}  ·  {} / {}  ·  {}  ·  {}",
         &[
-            &level.0.name,
+            &tr_owned(&level.0.name),
             &clock(playback.clock),
             &clock(playback.replay.recorded_secs),
             &state,

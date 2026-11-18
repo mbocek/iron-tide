@@ -434,6 +434,8 @@ pub fn build_main_menu(
     fonts: Res<UiFonts>,
     save_directory: Res<SaveDirectory>,
 ) {
+    // The menu is built on the first frame, before the language from the saved settings is otherwise applied.
+    set_language(settings.language);
     let menu = MainMenu {
         entries: all_levels(),
         replays: list_replays(&replay_directory()),
@@ -778,7 +780,12 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
                         heading = Some(side);
                         list.spawn(fonts.heading(tr(side.title()), 15.0, TEXT_DIM));
                     }
-                    spawn_list_button(list, fonts, &entry.level.name, Selection::Level(index));
+                    spawn_list_button(
+                        list,
+                        fonts,
+                        &tr_owned(&entry.level.name),
+                        Selection::Level(index),
+                    );
                 }
             }
             MenuSection::Custom => {
@@ -786,7 +793,12 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
                 for (index, entry) in menu.entries.iter().enumerate() {
                     if matches!(entry.source, LevelSource::Custom(_)) {
                         any = true;
-                        spawn_list_button(list, fonts, &entry.level.name, Selection::Level(index));
+                        spawn_list_button(
+                            list,
+                            fonts,
+                            &tr_owned(&entry.level.name),
+                            Selection::Level(index),
+                        );
                     }
                 }
                 if !any {
@@ -799,7 +811,11 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
             }
             MenuSection::Replays => {
                 for (index, replay) in menu.replays.iter().enumerate().take(REPLAYS_LISTED) {
-                    let label = format!("{}  ({})", replay.title, minutes(replay.recorded_secs));
+                    let label = format!(
+                        "{}  ({})",
+                        tr_owned(&replay.title),
+                        minutes(replay.recorded_secs)
+                    );
                     spawn_list_button(list, fonts, &label, Selection::Replay(index));
                 }
                 if menu.replays.is_empty() {
@@ -812,7 +828,7 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
 
 fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
     let mut lines = vec![
-        (level.briefing.clone(), TEXT_MAIN),
+        (tr_owned(&level.briefing), TEXT_MAIN),
         (String::new(), TEXT_DIM),
     ];
     lines.push((
@@ -1233,7 +1249,7 @@ fn rebuild_details(
         .with_children(|panel| match menu.selection {
             Selection::Level(index) => {
                 let level = &menu.entries[index].level;
-                panel.spawn(fonts.heading(&level.name, 30.0, ACCENT));
+                panel.spawn(fonts.heading(tr_owned(&level.name), 30.0, ACCENT));
                 for (line, color) in describe_level(level) {
                     panel.spawn(fonts.text(line, 17.0, color));
                 }
@@ -1244,7 +1260,7 @@ fn rebuild_details(
             }
             Selection::Replay(index) => {
                 let replay = &menu.replays[index];
-                panel.spawn(fonts.heading(&replay.title, 30.0, ACCENT));
+                panel.spawn(fonts.heading(tr_owned(&replay.title), 30.0, ACCENT));
                 panel.spawn(fonts.text(
                     format!("{}  ·  {}", tr_owned(&replay.outcome), minutes(replay.recorded_secs)),
                     17.0,

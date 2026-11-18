@@ -36,6 +36,8 @@ const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
 /// `IRON_TIDE_CAPTURE_EDITOR=paint` also drags each brush across the ground beside the player's base, and
 /// `IRON_TIDE_CAPTURE_EDITOR=level` shows the level settings page.
 const CAPTURE_EDITOR_VAR: &str = "IRON_TIDE_CAPTURE_EDITOR";
+/// `IRON_TIDE_CAPTURE_LANGUAGE=Slovak` (or `Czech`, `English`) shows the interface in that language.
+const CAPTURE_LANGUAGE_VAR: &str = "IRON_TIDE_CAPTURE_LANGUAGE";
 /// `IRON_TIDE_CAPTURE_RANDOM=42` plays the random battle rolled from that seed with default options, without
 /// fog so the whole map shows.
 const CAPTURE_RANDOM_VAR: &str = "IRON_TIDE_CAPTURE_RANDOM";
@@ -88,7 +90,7 @@ impl Plugin for CapturePlugin {
             remaining_secs: delay,
             frames_after_shot: None,
         })
-        .add_systems(Startup, let_mouse_pass_through)
+        .add_systems(Startup, (let_mouse_pass_through, use_requested_language))
         .add_systems(
             PostStartup,
             (
@@ -293,6 +295,17 @@ fn accept_network_offer(
 fn open_requested_main_menu_section(menu: Option<ResMut<MainMenu>>) {
     if let (Some(mut menu), Ok(section)) = (menu, std::env::var(CAPTURE_MAIN_MENU_VAR)) {
         menu.open_section_named(&section);
+    }
+}
+
+fn use_requested_language(mut settings: ResMut<crate::settings::GameSettings>) {
+    let requested = std::env::var(CAPTURE_LANGUAGE_VAR).ok().and_then(|name| {
+        crate::i18n::Language::ALL
+            .into_iter()
+            .find(|language| format!("{language:?}") == name)
+    });
+    if let Some(language) = requested {
+        settings.language = language;
     }
 }
 
