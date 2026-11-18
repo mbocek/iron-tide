@@ -13,7 +13,7 @@ use crate::sound::{Sound, SoundCue};
 use crate::structures::{
     Repairing, StructureOrder, StructureOrderKind, can_sell, repair_cost, sale_refund,
 };
-use crate::ui::{ACCENT, FRAME, GOOD, TEXT_DIM, TEXT_MAIN, UiFonts};
+use crate::ui::{ACCENT, FRAME, GOOD, TEXT_DIM, TEXT_MAIN, UiFonts, set_field};
 
 const BUTTON_IDLE: Color = Color::srgb(0.13, 0.15, 0.17);
 const BUTTON_HOVERED: Color = Color::srgb(0.18, 0.21, 0.24);
@@ -206,12 +206,20 @@ pub fn refresh_tool_hint(
         return;
     };
     let (Some(tool), Some(screen)) = (active.0, cursor.screen) else {
-        *visibility = Visibility::Hidden;
+        visibility.set_if_neq(Visibility::Hidden);
         return;
     };
-    *visibility = Visibility::Inherited;
-    node.left = Val::Px(screen.x + HINT_OFFSET.x);
-    node.top = Val::Px(screen.y + HINT_OFFSET.y);
+    visibility.set_if_neq(Visibility::Inherited);
+    set_field(
+        &mut node,
+        |node| &mut node.left,
+        Val::Px(screen.x + HINT_OFFSET.x),
+    );
+    set_field(
+        &mut node,
+        |node| &mut node.top,
+        Val::Px(screen.y + HINT_OFFSET.y),
+    );
 
     let target = own_structure_under(&map, &cursor, &structures)
         .and_then(|entity| structures.get(entity).ok());
@@ -233,8 +241,8 @@ pub fn refresh_tool_hint(
         }
         (StructureOrderKind::Sell, Some(_)) => (tr("Cannot be sold").to_string(), TEXT_DIM),
     };
-    text.0 = message;
-    color.0 = tone;
+    text.set_if_neq(Text(message));
+    color.set_if_neq(TextColor(tone));
 }
 
 /// A slowly turning green cross above every structure being repaired that the player can see.

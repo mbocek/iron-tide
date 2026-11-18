@@ -5,7 +5,7 @@ use crate::catalog::Team;
 use crate::components::{Selected, Unit};
 use crate::i18n::tr_fmt;
 use crate::notifications::Notifications;
-use crate::ui::{ACCENT, FRAME, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
+use crate::ui::{ACCENT, FRAME, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts, set_field};
 
 const GROUP_COUNT: usize = 9;
 /// A second press of the same group key within this time centers the camera on the group.
@@ -229,19 +229,20 @@ pub fn refresh_group_bar(
             .copied()
             .filter(|&e| units.contains(e))
             .collect();
-        node.display = if alive.is_empty() {
+        let display = if alive.is_empty() {
             Display::None
         } else {
             Display::Flex
         };
+        set_field(&mut node, |node| &mut node.display, display);
         let active = !alive.is_empty() && alive.iter().all(|&e| selected.contains(e));
-        *border = BorderColor::all(if active { ACCENT } else { FRAME });
+        border.set_if_neq(BorderColor::all(if active { ACCENT } else { FRAME }));
         let Some(&label) = children.first() else {
             continue;
         };
         if let Ok((mut text, mut color)) = labels.get_mut(label) {
-            text.0 = format!("{}  {}", button.0 + 1, alive.len());
-            color.0 = if active { ACCENT } else { TEXT_DIM };
+            text.set_if_neq(Text(format!("{}  {}", button.0 + 1, alive.len())));
+            color.set_if_neq(TextColor(if active { ACCENT } else { TEXT_DIM }));
         }
     }
 }

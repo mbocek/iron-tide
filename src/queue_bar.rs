@@ -4,7 +4,9 @@ use crate::catalog::{BuildingKind, Team};
 use crate::economy::Economies;
 use crate::i18n::tr;
 use crate::production::{BuildItem, Lane, Placement, Production};
-use crate::ui::{ACCENT, FRAME, GOOD, PANEL, SIDEBAR_WIDTH, TEXT_DIM, UiFonts, icon_path};
+use crate::ui::{
+    ACCENT, FRAME, GOOD, PANEL, SIDEBAR_WIDTH, TEXT_DIM, UiFonts, icon_path, set_field,
+};
 
 const SLOT_ICON_SIZE: f32 = 50.0;
 const PROGRESS_BAR_HEIGHT: f32 = 5.0;
@@ -198,7 +200,11 @@ pub fn animate_queue_progress(
             }
             QueueSlot::Queued { .. } => 0.0,
         };
-        node.width = Val::Percent(fraction * 100.0);
+        set_field(
+            &mut node,
+            |node| &mut node.width,
+            Val::Percent(fraction * 100.0),
+        );
     }
 }
 

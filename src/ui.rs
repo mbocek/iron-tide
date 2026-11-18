@@ -939,6 +939,20 @@ fn spawn_outcome_table(
     }
 }
 
+/// Writes a field only when it differs: any write marks the whole component changed, and changed
+/// interface nodes make Bevy measure text and lay out the interface again.
+pub fn set_field<C, V: PartialEq>(
+    component: &mut Mut<C>,
+    field: impl FnOnce(&mut C) -> &mut V,
+    value: V,
+) {
+    let slot = field(component.bypass_change_detection());
+    if *slot != value {
+        *slot = value;
+        component.set_changed();
+    }
+}
+
 pub fn toggle_controls_help(
     keys: Res<ButtonInput<KeyCode>>,
     settings: Res<GameSettings>,
@@ -1106,25 +1120,26 @@ pub fn refresh_build_tiles(
     let pulse = (time.elapsed_secs() * 5.0).sin() * 0.5 + 0.5;
 
     for (tile, hovered, mut node, mut background, mut border) in &mut tiles {
-        node.display = if tile.0.lane() == active.0 {
+        let display = if tile.0.lane() == active.0 {
             Display::Flex
         } else {
             Display::None
         };
+        set_field(&mut node, |node| &mut node.display, display);
         let hovered = hovered.get();
         let ready = matches!(state_of(tile.0), TileState::Ready);
-        background.0 = match (ready, hovered) {
+        background.set_if_neq(BackgroundColor(match (ready, hovered) {
             (true, _) => TILE_READY,
             (false, true) => TILE_HOVERED,
             (false, false) => TILE,
-        };
-        *border = BorderColor::all(if ready {
+        }));
+        border.set_if_neq(BorderColor::all(if ready {
             GOOD.mix(&TEXT_MAIN, pulse * 0.5)
         } else if hovered {
             ACCENT
         } else {
             FRAME
-        });
+        }));
     }
     for (shade, mut node) in &mut shades {
         let covered = match state_of(shade.0) {
@@ -1132,7 +1147,11 @@ pub fn refresh_build_tiles(
             TileState::Building { fraction, .. } => 1.0 - fraction,
             _ => 0.0,
         };
-        node.height = Val::Percent(covered * 100.0);
+        set_field(
+            &mut node,
+            |node| &mut node.height,
+            Val::Percent(covered * 100.0),
+        );
     }
     for (badge, mut text, mut color) in &mut badges {
         let (label, tint) = match state_of(badge.0) {
@@ -1149,8 +1168,8 @@ pub fn refresh_build_tiles(
             TileState::NotInMission => (tr("N/A").to_string(), TEXT_DIM),
             TileState::Unaffordable | TileState::Available => (String::new(), TEXT_MAIN),
         };
-        text.0 = label;
-        color.0 = tint;
+        text.set_if_neq(Text(label));
+        color.set_if_neq(TextColor(tint));
     }
     for (icon, mut image) in &mut icons {
         let locked = matches!(
@@ -1197,7 +1216,7 @@ pub fn refresh_resources(
 ) {
     let economy = economies.of(Team::Player);
     if let Ok(mut text) = credits_text.single_mut() {
-        text.0 = format!("$ {}", economy.credits);
+        text.set_if_neq(Text(format!("$ {}", economy.credits)));
     }
     let status_color = if economy.has_low_power() {
         DANGER
@@ -1207,26 +1226,28 @@ pub fn refresh_resources(
         GOOD
     };
     if let Ok((mut text, mut color)) = power_text.single_mut() {
-        text.0 = tr_fmt(
+        text.set_if_neq(Text(tr_fmt(
             "POWER {} / {}",
             &[&economy.power_demand, &economy.power_supply],
-        );
-        color.0 = if economy.has_low_power() {
+        )));
+        color.set_if_neq(TextColor(if economy.has_low_power() {
             DANGER
         } else {
             TEXT_MAIN
-        };
+        }));
     }
     let scale = economy
         .power_supply
         .max(economy.power_demand)
         .max(POWER_BAR_SCALE) as f32;
     if let Ok((mut node, mut color)) = power_fill.single_mut() {
-        node.width = Val::Percent(economy.power_supply as f32 / scale * 100.0);
-        color.0 = status_color;
+        let supplied = Val::Percent(economy.power_supply as f32 / scale * 100.0);
+        set_field(&mut node, |node| &mut node.width, supplied);
+        color.set_if_neq(BackgroundColor(status_color));
     }
     if let Ok(mut node) = power_demand.single_mut() {
-        node.left = Val::Percent(economy.power_demand as f32 / scale * 100.0);
+        let demanded = Val::Percent(economy.power_demand as f32 / scale * 100.0);
+        set_field(&mut node, |node| &mut node.left, demanded);
     }
 }
 
@@ -1382,22 +1403,32 @@ pub fn refresh_info_panel(
         }
     };
 
-    title.0 = heading;
-    body.0 = details;
+    title.set_if_neq(Text(heading));
+    body.set_if_neq(Text(details));
     match shown_icon {
         Some(path) => {
-            icon_image.image = asset_server.load(path);
-            *icon_visibility = Visibility::Inherited;
+            set_field(
+                &mut icon_image,
+                |icon| &mut icon.image,
+                asset_server.load(path),
+            );
+            icon_visibility.set_if_neq(Visibility::Inherited);
         }
-        None => *icon_visibility = Visibility::Hidden,
+        None => {
+            icon_visibility.set_if_neq(Visibility::Hidden);
+        }
     }
     let fraction = health.unwrap_or(0.0);
-    health_node.width = Val::Percent(fraction * 100.0);
-    health_color.0 = match fraction {
+    set_field(
+        &mut health_node,
+        |node| &mut node.width,
+        Val::Percent(fraction * 100.0),
+    );
+    health_color.set_if_neq(BackgroundColor(match fraction {
         f if f > 0.6 => GOOD,
         f if f > 0.3 => WARNING,
         _ => DANGER,
-    };
+    }));
 }
 
 pub fn refresh_notifications(
@@ -1408,10 +1439,16 @@ pub fn refresh_notifications(
     for (line, mut text, mut color) in &mut lines {
         match visible.get(line.0) {
             Some((message, opacity)) => {
-                text.0 = (*message).to_string();
-                color.0 = ACCENT.with_alpha(*opacity);
+                if text.0 != *message {
+                    text.0 = (*message).to_string();
+                }
+                color.set_if_neq(TextColor(ACCENT.with_alpha(*opacity)));
             }
-            None => text.0.clear(),
+            None => {
+                if !text.0.is_empty() {
+                    text.0.clear();
+                }
+            }
         }
     }
 }
