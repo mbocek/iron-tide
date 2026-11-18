@@ -7,6 +7,8 @@ use common::Battle;
 use iron_tide::catalog::{Team, UnitKind};
 use iron_tide::determinism::simulation_checksum;
 use iron_tide::economy::Economies;
+use iron_tide::levels::LevelDefinition;
+use iron_tide::lobby::NetLobby;
 use iron_tide::network::SessionState;
 use iron_tide::player_commands::{GroundOrder, PlayerCommand};
 
@@ -151,23 +153,81 @@ fn each_player_wins_or_loses_from_their_own_side() {
     assert_eq!(guest.outcome(), GameOutcome::Victory);
 }
 
-#[test]
-fn the_guest_learns_the_hosts_battle_before_it_starts() {
-    use iron_tide::levels::LevelDefinition;
-    use iron_tide::network::NetSession;
+fn lobby_pair() -> (NetLobby, NetLobby, LevelDefinition) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let guest_end = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-    let (host_end, _) = listener.accept().unwrap();
-    let mut host = NetSession::over(host_end, Team::Crimson).unwrap();
-    let mut guest = NetSession::over(guest_end, Team::Player).unwrap();
+    let address = listener.local_addr().unwrap().to_string();
     let level = LevelDefinition {
         name: "Duel".into(),
         ..LevelDefinition::default()
     };
-    host.start(&level);
-    let started = (0..500).find_map(|_| {
+    let mut host = NetLobby::default();
+    host.host_on(listener, level.clone());
+    let mut guest = NetLobby::default();
+    guest.join(&address);
+    (host, guest, level)
+}
+
+/// Advances both lobbies on a shared clock until `done` holds.
+fn settle(
+    host: &mut NetLobby,
+    guest: &mut NetLobby,
+    clock: &mut f32,
+    mut done: impl FnMut(&NetLobby, &NetLobby) -> bool,
+) {
+    for _ in 0..1000 {
+        if done(host, guest) {
+            return;
+        }
         std::thread::sleep(std::time::Duration::from_millis(2));
-        guest.started_level()
+        *clock += 0.002;
+        assert!(host.advance(*clock).is_none() && guest.advance(*clock).is_none());
+    }
+    panic!(
+        "the lobbies never got there: host {:?}, guest {:?}",
+        host.status(*clock),
+        guest.status(*clock)
+    );
+}
+
+#[test]
+fn the_guest_reads_the_offer_and_both_start_after_the_countdown() {
+    let (mut host, mut guest, level) = lobby_pair();
+    let mut clock = 0.0;
+    settle(&mut host, &mut guest, &mut clock, |_, guest| {
+        guest.can_accept_offer()
     });
-    assert_eq!(started, Some(Ok(level)));
+    assert_eq!(guest.offered_level(), Some(&level));
+    guest.accept_offer();
+    let counting_down = |lobby: &NetLobby| {
+        lobby
+            .status(0.0)
+            .is_some_and(|status| status.contains("begins"))
+    };
+    settle(&mut host, &mut guest, &mut clock, |host, guest| {
+        counting_down(host) && counting_down(guest)
+    });
+    let later = clock + 10.0;
+    let hosted = host.advance(later).expect("the host starts");
+    let joined = guest.advance(later).expect("the guest starts");
+    assert_eq!(hosted.level, level);
+    assert_eq!(joined.level, level);
+    assert_eq!(
+        (hosted.local_team, joined.local_team),
+        (Team::Player, Team::Crimson)
+    );
+}
+
+#[test]
+fn when_the_guest_leaves_the_host_waits_for_another() {
+    let (mut host, mut guest, _) = lobby_pair();
+    let mut clock = 0.0;
+    settle(&mut host, &mut guest, &mut clock, |_, guest| {
+        guest.can_accept_offer()
+    });
+    guest.cancel();
+    settle(&mut host, &mut guest, &mut clock, |host, _| {
+        host.status(0.0)
+            .is_some_and(|status| status.contains("Waiting for the other player"))
+    });
+    assert!(host.is_busy());
 }

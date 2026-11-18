@@ -33,10 +33,24 @@ enum Message {
     /// when the machine that finds it first stops at once.
     Checksum { tick: u64, sum: u64 },
     /// The host's choice of battle, sent once the guest has connected.
-    Start {
+    Offer {
         version: String,
         level: Box<LevelDefinition>,
     },
+    /// The guest accepts the offered battle.
+    Ready,
+    /// The host starts the countdown to the battle.
+    Go,
+}
+
+/// What happened in the lobby since the last look.
+#[derive(Clone, PartialEq, Debug)]
+pub enum LobbyNews {
+    /// The host's battle; `Err` carries the host's version when it differs from this one.
+    Offered(Result<LevelDefinition, String>),
+    GuestReady,
+    Go,
+    Left,
 }
 
 enum Arrival {
@@ -106,32 +120,46 @@ impl NetSession {
         self.remote_team
     }
 
-    /// Sends the host's battle to the guest.
-    pub fn start(&mut self, level: &LevelDefinition) {
-        self.send(&Message::Start {
+    /// Shows the guest the host's battle.
+    pub fn offer(&mut self, level: &LevelDefinition) {
+        self.send(&Message::Offer {
             version: env!("CARGO_PKG_VERSION").to_string(),
             level: Box::new(level.clone()),
         });
     }
 
-    /// The battle the host chose, once it has arrived; `Err` when the host runs another version of the game.
-    pub fn started_level(&mut self) -> Option<Result<LevelDefinition, String>> {
-        let arrivals = self.drain_inbox();
-        let mut started = None;
-        for arrival in arrivals {
+    pub fn accept_offer(&mut self) {
+        self.send(&Message::Ready);
+    }
+
+    pub fn go(&mut self) {
+        self.send(&Message::Go);
+    }
+
+    /// Lobby messages since the last call; battle messages that arrive early are kept for the battle.
+    pub fn lobby_news(&mut self) -> Vec<LobbyNews> {
+        let mut news = Vec::new();
+        for arrival in self.drain_inbox() {
             match arrival {
-                Arrival::Message(Message::Start { version, level }) if started.is_none() => {
-                    started = Some(if version == env!("CARGO_PKG_VERSION") {
-                        Ok(*level)
-                    } else {
-                        Err(version)
-                    });
+                Arrival::Message(Message::Offer { version, level }) => {
+                    news.push(LobbyNews::Offered(
+                        if version == env!("CARGO_PKG_VERSION") {
+                            Ok(*level)
+                        } else {
+                            Err(version)
+                        },
+                    ));
                 }
-                Arrival::ConnectionLost => self.state = SessionState::Disconnected,
-                other => self.early.push(other),
+                Arrival::Message(Message::Ready) => news.push(LobbyNews::GuestReady),
+                Arrival::Message(Message::Go) => news.push(LobbyNews::Go),
+                Arrival::ConnectionLost => {
+                    self.state = SessionState::Disconnected;
+                    news.push(LobbyNews::Left);
+                }
+                battle => self.early.push(battle),
             }
         }
-        started
+        news
     }
 
     fn drain_inbox(&mut self) -> Vec<Arrival> {
@@ -178,6 +206,16 @@ impl NetSession {
     }
 }
 
+/// The reading thread holds its own handle on the connection, so leaving must close it outright for the
+/// other player to notice.
+impl Drop for NetSession {
+    fn drop(&mut self) {
+        if let Ok(stream) = self.writer.lock() {
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+        }
+    }
+}
+
 fn read_message(reader: &mut impl Read) -> Option<Message> {
     let mut length = [0; 4];
     reader.read_exact(&mut length).ok()?;
@@ -216,7 +254,7 @@ pub fn receive_turns(session: Option<ResMut<NetSession>>, mut queue: ResMut<Comm
                 session.remote_checksums.insert(tick, sum);
                 session.compare_checksums(tick);
             }
-            Arrival::Message(Message::Start { .. }) => {}
+            Arrival::Message(Message::Offer { .. } | Message::Ready | Message::Go) => {}
             Arrival::ConnectionLost => session.state = SessionState::Disconnected,
         }
     }

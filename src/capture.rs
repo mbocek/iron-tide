@@ -1,4 +1,5 @@
 use crate::lobby::{NetLobby, network_level};
+use crate::main_menu::MainMenu;
 use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
 use bevy::camera::RenderTarget;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -82,6 +83,7 @@ impl Plugin for CapturePlugin {
         )
         .add_systems(PreUpdate, discard_keyboard.after(InputSystems))
         .add_systems(Update, (follow_main_camera, capture_then_exit).chain())
+        .add_systems(Update, accept_network_offer)
         .add_systems(
             Update,
             (select_all_own_units, zoom_camera, open_requested_menu_page)
@@ -239,6 +241,20 @@ fn zoom_camera(mut cameras: Query<&mut RtsCamera>) {
 fn open_requested_menu_page(mut menu: ResMut<MenuState>) {
     if let Ok(page) = std::env::var(CAPTURE_MENU_VAR) {
         menu.show_page_named(&page);
+    }
+}
+
+/// A capture run that hosts or joins shows the network page, and a joining one accepts the offer at once.
+fn accept_network_offer(mut lobby: ResMut<NetLobby>, menu: Option<ResMut<MainMenu>>) {
+    let joining = std::env::var_os(CAPTURE_JOIN_VAR).is_some();
+    if !joining && std::env::var_os(CAPTURE_HOST_VAR).is_none() {
+        return;
+    }
+    if let Some(mut menu) = menu {
+        menu.show_network_page();
+    }
+    if joining && lobby.can_accept_offer() {
+        lobby.accept_offer();
     }
 }
 

@@ -104,7 +104,38 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Adresa hostitele (napište ji)",
     ),
     ("JOIN", "PRIPOJIŤ SA", "PŘIPOJIT SE"),
-    ("CANCEL", "ZRUŠIŤ", "ZRUŠIT"),
+    ("I'M READY", "SOM PRIPRAVENÝ", "JSEM PŘIPRAVEN"),
+    ("LEAVE", "ODÍSŤ", "ODEJÍT"),
+    (
+        "Map: {}, {}, {} x {} cells",
+        "Mapa: {}, {}, {} x {} polí",
+        "Mapa: {}, {}, {} x {} polí",
+    ),
+    (
+        "A player has joined and is looking at the battle",
+        "Pripojil sa hráč a prezerá si bitku",
+        "Připojil se hráč a prohlíží si bitvu",
+    ),
+    (
+        "The host offers this battle. Ready to play it?",
+        "Hostiteľ ponúka túto bitku. Ste pripravený ju hrať?",
+        "Hostitel nabízí tuto bitvu. Jste připraven ji hrát?",
+    ),
+    (
+        "Ready, waiting for the host",
+        "Pripravený, čakám na hostiteľa",
+        "Připraven, čekám na hostitele",
+    ),
+    (
+        "The battle begins in {}",
+        "Bitka začne o {}",
+        "Bitva začne za {}",
+    ),
+    (
+        "The other player left",
+        "Druhý hráč odišiel",
+        "Druhý hráč odešel",
+    ),
     (
         "Cannot host: {}",
         "Nedá sa hostiť: {}",

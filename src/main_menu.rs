@@ -80,6 +80,7 @@ pub enum MenuCommand {
     DownloadUpdate,
     HostNetworkBattle,
     JoinNetworkBattle,
+    AcceptNetworkOffer,
     CancelNetworkBattle,
     Quit,
 }
@@ -504,6 +505,18 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
     ));
     lines.push((
         tr_fmt(
+            "Map: {}, {}, {} x {} cells",
+            &[
+                &tr_owned(&format!("{:?}", level.landscape)),
+                &tr_owned(&format!("{:?}", level.season)),
+                &level.map_size.cells(),
+                &level.map_size.cells(),
+            ],
+        ),
+        TEXT_MAIN,
+    ));
+    lines.push((
+        tr_fmt(
             "Your base: {}  -  ${}",
             &[&site_name(level.player.site), &level.player.credits],
         ),
@@ -537,6 +550,15 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
 
 const ADDRESS_CHARACTERS: &str = "0123456789.:-abcdefghijklmnopqrstuvwxyz";
 const LONGEST_ADDRESS: usize = 64;
+
+impl MainMenu {
+    pub fn show_network_page(&mut self) {
+        if self.selection != Selection::Network {
+            self.selection = Selection::Network;
+            self.needs_rebuild = true;
+        }
+    }
+}
 
 /// Typing into the host address field while the network battle page is shown.
 pub fn type_join_address(
@@ -575,16 +597,22 @@ pub fn type_join_address(
 }
 
 pub fn show_network_status(
+    time: Res<Time<Real>>,
     lobby: Res<NetLobby>,
     mut lines: Query<&mut Text, With<NetworkStatusText>>,
 ) {
-    let status = lobby.status().unwrap_or_default();
+    let status = lobby.status(time.elapsed_secs()).unwrap_or_default();
     for mut line in &mut lines {
         line.set_if_neq(Text(status.clone()));
     }
 }
 
-fn spawn_network_details(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, join_address: &str) {
+fn spawn_network_details(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    join_address: &str,
+    lobby: &NetLobby,
+) {
     panel.spawn(fonts.heading(tr("Network battle"), 30.0, ACCENT));
     panel.spawn(fonts.text(
         tr("Two players on two computers, one against one. The host plays the Coalition with the battle editor's settings; the other player joins as the Syndicate. Both need the same version of the game, and the host's port 47300 must be reachable."),
@@ -615,8 +643,23 @@ fn spawn_network_details(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, join
             });
         });
     spawn_command_button(panel, fonts, tr("JOIN"), MenuCommand::JoinNetworkBattle);
-    spawn_command_button(panel, fonts, tr("CANCEL"), MenuCommand::CancelNetworkBattle);
     panel.spawn((NetworkStatusText, fonts.text("", 16.0, GOOD)));
+    if let Some(level) = lobby.offered_level() {
+        for (line, color) in describe_level(level).into_iter().skip(2) {
+            panel.spawn(fonts.text(line, 15.0, color));
+        }
+    }
+    if lobby.can_accept_offer() {
+        spawn_command_button(
+            panel,
+            fonts,
+            tr("I'M READY"),
+            MenuCommand::AcceptNetworkOffer,
+        );
+    }
+    if lobby.is_busy() {
+        spawn_command_button(panel, fonts, tr("LEAVE"), MenuCommand::CancelNetworkBattle);
+    }
 }
 
 fn rebuild_details(
@@ -625,6 +668,7 @@ fn rebuild_details(
     fonts: &UiFonts,
     menu: &MainMenu,
     join_address: &str,
+    lobby: &NetLobby,
 ) {
     commands.entity(panel).despawn_related::<Children>();
     commands
@@ -655,7 +699,7 @@ fn rebuild_details(
                 ));
                 spawn_command_button(panel, fonts, tr("WATCH REPLAY"), MenuCommand::WatchReplay);
             }
-            Selection::Network => spawn_network_details(panel, fonts, join_address),
+            Selection::Network => spawn_network_details(panel, fonts, join_address, lobby),
             Selection::Editor => {
                 panel.spawn(fonts.heading(tr("Battle editor"), 30.0, ACCENT));
                 panel.spawn(fonts.text(
@@ -815,6 +859,7 @@ fn run_command(
         MenuCommand::DownloadUpdate => download_update(&mut updates),
         MenuCommand::HostNetworkBattle => lobby.host(network_level(&menu.options)),
         MenuCommand::JoinNetworkBattle => lobby.join(&settings.join_address),
+        MenuCommand::AcceptNetworkOffer => lobby.accept_offer(),
         MenuCommand::CancelNetworkBattle => lobby.cancel(),
         MenuCommand::Quit => {
             exit.write(AppExit::Success);
@@ -826,6 +871,7 @@ pub fn refresh_main_menu(
     mut commands: Commands,
     fonts: Res<UiFonts>,
     settings: Res<GameSettings>,
+    mut lobby: ResMut<NetLobby>,
     menu: Option<ResMut<MainMenu>>,
     lists: Query<Entity, With<LevelList>>,
     panels: Query<Entity, With<DetailPanel>>,
@@ -835,12 +881,22 @@ pub fn refresh_main_menu(
     >,
 ) {
     let Some(mut menu) = menu else { return };
+    if lobby.take_change() && menu.selection == Selection::Network {
+        menu.needs_rebuild = true;
+    }
     if menu.needs_rebuild
         && let (Ok(list), Ok(panel)) = (lists.single(), panels.single())
     {
         menu.needs_rebuild = false;
         rebuild_level_list(&mut commands, list, &fonts, &menu);
-        rebuild_details(&mut commands, panel, &fonts, &menu, &settings.join_address);
+        rebuild_details(
+            &mut commands,
+            panel,
+            &fonts,
+            &menu,
+            &settings.join_address,
+            &lobby,
+        );
     }
     for (hovered, mut background, list_button) in &mut buttons {
         let selected = list_button.is_some_and(|button| button.0 == menu.selection);

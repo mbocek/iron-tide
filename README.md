@@ -210,8 +210,12 @@ or the battles drift apart, the player is told once and the battle stops.
 To play, both players open *Network battle* in the main menu. The host clicks *Host a battle*: the battle
 editor's settings with one opponent are used, the game listens on TCP port 47300 and shows this computer's
 local address. The other player types that address (the port may be left out; the last address is
-remembered) and clicks *Join*. Once connected, the host sends the battle; both need the same game version.
-The host plays the Coalition, the guest the Syndicate. Restarting, saving and loading are disabled during a
+remembered) and clicks *Join*. Once connected, the host offers the battle and the guest reads it (objective,
+bases, map, landscape, season, available units) before clicking *I'm ready*; both need the same game
+version. Then both machines count down three seconds and the battle begins, the host playing the Coalition
+and the guest the Syndicate. Either side can leave the lobby: a host whose guest leaves goes back to waiting
+for another player. Leaving or quitting a battle closes the connection at once, so the other player is told
+straight away. Restarting, saving and loading are disabled during a
 network battle; pausing one machine makes the other wait. Over the internet the host's port 47300 must be
 forwarded. Capture runs can automate this (`IRON_TIDE_CAPTURE_HOST=1`, `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`).
 
