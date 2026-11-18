@@ -41,6 +41,8 @@ const CAPTURE_EDITOR_VAR: &str = "IRON_TIDE_CAPTURE_EDITOR";
 const CAPTURE_HOST_VAR: &str = "IRON_TIDE_CAPTURE_HOST";
 const CAPTURE_JOIN_VAR: &str = "IRON_TIDE_CAPTURE_JOIN";
 const LOAD_AFTER_SECS: f32 = 1.5;
+/// A hosting capture run starts the battle only after this, so spectators can join too.
+const HOST_WAITS_FOR_GUESTS_SECS: f32 = 10.0;
 const DEFAULT_CAPTURE_DELAY_SECS: f32 = 5.0;
 const FRAMES_TO_FLUSH_SCREENSHOT: u32 = 10;
 const CAPTURE_SIZE: UVec2 = UVec2::new(1600, 900);
@@ -260,7 +262,11 @@ fn open_requested_menu_page(mut menu: ResMut<MenuState>) {
 }
 
 /// A capture run that hosts or joins shows the network page, and a joining one accepts the offer at once.
-fn accept_network_offer(mut lobby: ResMut<NetLobby>, menu: Option<ResMut<MainMenu>>) {
+fn accept_network_offer(
+    time: Res<Time<Real>>,
+    mut lobby: ResMut<NetLobby>,
+    menu: Option<ResMut<MainMenu>>,
+) {
     let joining = std::env::var_os(CAPTURE_JOIN_VAR).is_some();
     if !joining && std::env::var_os(CAPTURE_HOST_VAR).is_none() {
         return;
@@ -270,6 +276,10 @@ fn accept_network_offer(mut lobby: ResMut<NetLobby>, menu: Option<ResMut<MainMen
     }
     if joining && lobby.can_accept_offer() {
         lobby.accept_offer();
+    }
+    let others_had_time_to_join = time.elapsed_secs() > HOST_WAITS_FOR_GUESTS_SECS;
+    if others_had_time_to_join && lobby.can_start() {
+        lobby.start_battle();
     }
 }
 

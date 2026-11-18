@@ -221,8 +221,11 @@ editor's settings with one opponent are used, the game listens on TCP port 47300
 local address. The other player types that address (the port may be left out; the last address is
 remembered) and clicks *Join*. Once connected, the host offers the battle and the guest reads it (objective,
 bases, map, landscape, season, available units) before clicking *I'm ready*; both need the same game
-version. Then both machines count down three seconds and the battle begins, the host playing the Coalition
-and the guest the Syndicate. Either side can leave the lobby: a host whose guest leaves goes back to waiting
+version. When every guest is ready the host clicks *Start the battle*; all machines count down three seconds and
+the battle begins, the host leading the faction chosen in the battle editor and the guests the other one.
+Anyone who joins while every seat is taken is offered to watch instead: a spectator sees the whole map without
+fog, follows everyone's orders and gives none, has no build menu or chat, and leaving does not stop the battle.
+Spectators must join before the host starts. Every machine also records the battle as a replay. Either side can leave the lobby: a host whose guest leaves goes back to waiting
 for another player. While hosting, the network page shows the battle editor's settings (all but the number
 of players), and the host can still change them: every guest at once sees the new battle, is told the host
 changed it, and has to click *I'm ready* again. Leaving or quitting a battle closes the connection at once, so the other player is told

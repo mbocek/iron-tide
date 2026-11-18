@@ -88,6 +88,7 @@ pub enum MenuCommand {
     HostNetworkBattle,
     JoinNetworkBattle,
     AcceptNetworkOffer,
+    StartNetworkBattle,
     CancelNetworkBattle,
     Quit,
 }
@@ -672,7 +673,7 @@ fn spawn_network_details(
 ) {
     panel.spawn(fonts.heading(tr("Network battle"), 30.0, ACCENT));
     panel.spawn(fonts.text(
-        tr("Two to four players on their own computers. The host plays the Coalition with the battle editor's settings and can still change them; the others join as the Syndicate commanders. Everyone needs the same version of the game, and the host's port 47300 must be reachable."),
+        tr("Two to four players on their own computers. The host leads the faction chosen in the battle editor's settings and can still change them; the others take the computer corners. Anyone who joins once every seat is taken watches the whole battle. The host starts when everyone is ready. Everyone needs the same version of the game, and the host's port 47300 must be reachable."),
         15.0,
         TEXT_DIM,
     ));
@@ -707,6 +708,14 @@ fn spawn_network_details(
             fonts,
             tr("I'M READY"),
             MenuCommand::AcceptNetworkOffer,
+        );
+    }
+    if lobby.can_start() {
+        spawn_command_button(
+            panel,
+            fonts,
+            tr("START THE BATTLE"),
+            MenuCommand::StartNetworkBattle,
         );
     }
     if lobby.is_busy() {
@@ -972,6 +981,7 @@ fn run_command(
         }
         MenuCommand::JoinNetworkBattle => lobby.join(&settings.join_address),
         MenuCommand::AcceptNetworkOffer => lobby.accept_offer(),
+        MenuCommand::StartNetworkBattle => lobby.start_battle(),
         MenuCommand::CancelNetworkBattle => lobby.cancel(),
         MenuCommand::Quit => {
             exit.write(AppExit::Success);

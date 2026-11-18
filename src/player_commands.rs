@@ -159,6 +159,13 @@ pub struct CommandIssuer<'w> {
 
 impl CommandIssuer<'_> {
     pub fn issue(&mut self, command: PlayerCommand) {
+        if self
+            .session
+            .as_ref()
+            .is_some_and(|session| session.is_spectating())
+        {
+            return;
+        }
         let (tick, team) = (*self.tick, self.local.0);
         let delay = if self.session.is_some() {
             NETWORK_COMMAND_DELAY_TICKS

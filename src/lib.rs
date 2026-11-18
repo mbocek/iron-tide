@@ -470,6 +470,7 @@ impl Plugin for GamePlugin {
             .add_systems(
                 OnEnter(match_flow::GameState::Playing),
                 (
+                    local_view::prepare_spectator_view,
                     camera::focus_on_player_base,
                     map::spawn_terrain_visuals,
                     fog_view::shroud_unexplored_scenery,

@@ -127,7 +127,7 @@ pub fn type_battle_chat(
     mut typed: MessageReader<KeyboardInput>,
     mut notifications: ResMut<Notifications>,
 ) {
-    let Some(mut session) = session else {
+    let Some(mut session) = session.filter(|session| !session.is_spectating()) else {
         chat.draft = None;
         typed.clear();
         return;

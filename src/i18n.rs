@@ -93,9 +93,9 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ("NETWORK", "SIEŤ", "SÍŤ"),
     ("Network battle", "Sieťová bitka", "Síťová bitva"),
     (
-        "Two to four players on their own computers. The host plays the Coalition with the battle editor's settings and can still change them; the others join as the Syndicate commanders. Everyone needs the same version of the game, and the host's port 47300 must be reachable.",
-        "Dvaja až štyria hráči, každý na svojom počítači. Hostiteľ hrá za Koalíciu s nastaveniami editora bitiek a môže ich ešte meniť; ostatní sa pripoja ako velitelia Syndikátu. Všetci potrebujú rovnakú verziu hry a port 47300 hostiteľa musí byť dostupný.",
-        "Dva až čtyři hráči, každý na svém počítači. Hostitel hraje za Koalici s nastavením editoru bitev a může ho ještě měnit; ostatní se připojí jako velitelé Syndikátu. Všichni potřebují stejnou verzi hry a port 47300 hostitele musí být dostupný.",
+        "Two to four players on their own computers. The host leads the faction chosen in the battle editor's settings and can still change them; the others take the computer corners. Anyone who joins once every seat is taken watches the whole battle. The host starts when everyone is ready. Everyone needs the same version of the game, and the host's port 47300 must be reachable.",
+        "Dvaja až štyria hráči, každý na svojom počítači. Hostiteľ vedie frakciu zvolenú v nastaveniach editora bitky a stále ich môže meniť; ostatní dostanú rohy počítača. Kto sa pripojí, keď sú všetky miesta obsadené, sleduje celú bitku. Hostiteľ spustí bitku, keď sú všetci pripravení. Všetci potrebujú rovnakú verziu hry a port 47300 hostiteľa musí byť dostupný.",
+        "Dva až čtyři hráči, každý na svém počítači. Hostitel vede frakci zvolenou v nastavení editoru bitvy a stále je může měnit; ostatní dostanou rohy počítače. Kdo se připojí, když jsou všechna místa obsazená, sleduje celou bitvu. Hostitel spustí bitvu, až budou všichni připraveni. Všichni potřebují stejnou verzi hry a port 47300 hostitele musí být dostupný.",
     ),
     ("HOST A BATTLE", "HOSTIŤ BITKU", "HOSTOVAT BITVU"),
     (
@@ -1021,6 +1021,15 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ("SIDES", "STRANY", "STRANY"),
     ("Computer {}", "Počítač {}", "Počítač {}"),
     ("PLAY IT", "VYSKÚŠAŤ", "VYZKOUŠET"),
+    ("SPECTATOR", "DIVÁK", "DIVÁK"),
+    ("START THE BATTLE", "SPUSTIŤ BITKU", "SPUSTIT BITVU"),
+    ("THE BATTLE IS OVER", "BITKA SKONČILA", "BITVA SKONČILA"),
+    (
+        "Every seat is taken; you can watch the battle. Ready?",
+        "Všetky miesta sú obsadené; bitku môžeš sledovať. Pripravený?",
+        "Všechna místa jsou obsazená; bitvu můžeš sledovat. Připraven?",
+    ),
+    ("A spectator left", "Divák odišiel", "Divák odešel"),
     ("Your faction", "Tvoja frakcia", "Tvoje frakce"),
     ("Your faction: {}", "Tvoja frakcia: {}", "Tvoje frakce: {}"),
     ("+ COMPUTER", "+ POČÍTAČ", "+ POČÍTAČ"),

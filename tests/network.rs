@@ -214,6 +214,14 @@ fn the_guest_reads_the_offer_and_both_start_after_the_countdown() {
             .status(0.0)
             .is_some_and(|status| status.contains("begins"))
     };
+    settle(&mut host, &mut guest, &mut clock, |host, _| {
+        host.can_start()
+    });
+    assert!(
+        !counting_down(&host),
+        "the battle started before the host said so"
+    );
+    host.start_battle();
     settle(&mut host, &mut guest, &mut clock, |host, guest| {
         counting_down(host) && counting_down(guest)
     });
@@ -359,6 +367,7 @@ fn three_players_take_their_seats_and_start_together() {
                 guest.accept_offer();
             }
         }
+        host.start_battle();
         started.extend(host.advance(clock));
         for guest in &mut guests {
             started.extend(guest.advance(clock));
@@ -415,5 +424,139 @@ fn a_change_by_the_host_reaches_the_guest_who_must_accept_again() {
     assert!(
         host.status(0.0)
             .is_some_and(|status| status.contains("0 ready"))
+    );
+}
+
+/// The host and one player, plus a spectator who follows both and gives no orders.
+fn duel_with_a_spectator() -> (Battle, Battle, Battle) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let guest_end = TcpStream::connect(address).unwrap();
+    let (host_to_guest, _) = listener.accept().unwrap();
+    let watcher_end = TcpStream::connect(address).unwrap();
+    let (host_to_watcher, _) = listener.accept().unwrap();
+
+    let mut host = Battle::standard();
+    host.join_session(
+        NetSession::new(
+            vec![
+                Link::new(host_to_guest).unwrap(),
+                Link::new(host_to_watcher).unwrap(),
+            ],
+            vec![Team::Crimson],
+            true,
+        )
+        .with_watchers([1]),
+        Team::Player,
+    );
+    let mut guest = Battle::standard();
+    guest.join_session(
+        NetSession::new(
+            vec![Link::new(guest_end).unwrap()],
+            vec![Team::Player],
+            false,
+        ),
+        Team::Crimson,
+    );
+    let mut watcher = Battle::standard();
+    watcher.join_session(
+        NetSession::watching(
+            vec![Link::new(watcher_end).unwrap()],
+            vec![Team::Player, Team::Crimson],
+        ),
+        Team::Player,
+    );
+    (host, guest, watcher)
+}
+
+#[test]
+fn a_spectator_follows_the_battle_without_holding_it_up() {
+    let (mut host, mut guest, mut watcher) = duel_with_a_spectator();
+    let ticks = 400;
+    let mut rounds = 0;
+    while host.tick() < ticks || guest.tick() < ticks {
+        if host.tick() == 40 {
+            attack_with_tanks(&mut host, Team::Player, IVec2::new(48, 16));
+        }
+        for battle in [&mut host, &mut guest] {
+            if battle.tick() < ticks {
+                battle.run_for(LIMIT_SECS);
+            }
+        }
+        rounds += 1;
+        assert!(rounds < 20 * ticks, "the players stopped advancing");
+    }
+    for _ in 0..20 * ticks {
+        if watcher.tick() >= ticks {
+            break;
+        }
+        watcher.run_for(LIMIT_SECS);
+    }
+    assert_eq!(watcher.tick(), ticks);
+    assert_eq!(watcher.session_state(), Some(SessionState::InStep));
+    assert_eq!(
+        simulation_checksum(watcher.world()),
+        simulation_checksum(host.world())
+    );
+}
+
+#[test]
+fn a_spectator_leaving_does_not_stop_the_battle() {
+    let (mut host, mut guest, watcher) = duel_with_a_spectator();
+    drop(watcher);
+    play_until(&mut host, &mut guest, 200);
+}
+
+#[test]
+fn a_guest_beyond_the_seats_is_offered_to_watch() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let mut host = NetLobby::default();
+    host.host_on(listener, LevelDefinition::default(), 2);
+    let mut guest = NetLobby::default();
+    guest.join(&address);
+    let mut clock = 0.0;
+    settle(&mut host, &mut guest, &mut clock, |_, guest| {
+        guest.can_accept_offer()
+    });
+    let mut spectator = NetLobby::default();
+    spectator.join(&address);
+    settle(&mut host, &mut spectator, &mut clock, |_, spectator| {
+        spectator.can_accept_offer()
+    });
+    assert!(
+        spectator
+            .status(0.0)
+            .is_some_and(|status| status.contains("watch"))
+    );
+
+    guest.accept_offer();
+    spectator.accept_offer();
+    let counting_down = |lobby: &NetLobby| {
+        lobby
+            .status(0.0)
+            .is_some_and(|status| status.contains("begins"))
+    };
+    for _ in 0..1000 {
+        if counting_down(&host) && counting_down(&guest) && counting_down(&spectator) {
+            break;
+        }
+        host.start_battle();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        clock += 0.002;
+        for lobby in [&mut host, &mut guest, &mut spectator] {
+            assert!(lobby.advance(clock).is_none());
+        }
+    }
+    let later = clock + 10.0;
+    let hosted = host.advance(later).expect("the host starts");
+    let joined = guest.advance(later).expect("the guest starts");
+    let watching = spectator.advance(later).expect("the spectator starts");
+    assert!(!hosted.session.is_spectating() && !joined.session.is_spectating());
+    assert!(watching.session.is_spectating());
+    assert_eq!(hosted.session.remote_teams(), &[Team::Crimson]);
+    assert_eq!(
+        watching.session.remote_teams(),
+        &[Team::Player, Team::Crimson]
     );
 }

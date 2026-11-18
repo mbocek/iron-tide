@@ -1,5 +1,6 @@
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::key_bindings::{Action, KeyBindings};
+use crate::local_view::LocalView;
 use crate::match_stats::{MatchStats, TeamTally};
 use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
@@ -198,6 +199,7 @@ pub fn load_fonts(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 pub fn build_interface(
     local: Res<LocalTeam>,
+    view: LocalView,
     production: Res<Production>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -225,11 +227,18 @@ pub fn build_interface(
         ))
         .with_children(|sidebar| {
             let faction = production.faction_of(local.0);
-            spawn_header(sidebar, fonts, local.0, faction);
+            let title = if view.is_spectating() {
+                tr("SPECTATOR")
+            } else {
+                tr(faction.title())
+            };
+            spawn_header(sidebar, fonts, title, local.0);
             spawn_minimap(sidebar, &minimap);
-            spawn_resources(sidebar, fonts);
-            spawn_tabs(sidebar, fonts);
-            spawn_build_grid(sidebar, fonts, &asset_server, faction);
+            if !view.is_spectating() {
+                spawn_resources(sidebar, fonts);
+                spawn_tabs(sidebar, fonts);
+                spawn_build_grid(sidebar, fonts, &asset_server, faction);
+            }
             spawn_info_panel(sidebar, fonts);
         });
 
@@ -245,7 +254,12 @@ pub fn build_interface(
     commands.insert_resource(ActiveTab(Lane::Structures));
 }
 
-fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts, team: Team, faction: Faction) {
+fn spawn_header(
+    sidebar: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    title: &'static str,
+    team: Team,
+) {
     sidebar
         .spawn(Node {
             flex_direction: FlexDirection::Row,
@@ -255,7 +269,7 @@ fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts, team: Team,
         })
         .with_children(|header| {
             header.spawn(fonts.heading("IRON TIDE", 30.0, ACCENT));
-            header.spawn(fonts.heading(tr(faction.title()), 16.0, team.ui_color()));
+            header.spawn(fonts.heading(title, 16.0, team.ui_color()));
             header
                 .spawn((
                     Node {
@@ -1500,6 +1514,7 @@ pub fn refresh_notifications(
 
 pub fn show_outcome(
     local: Res<LocalTeam>,
+    view: LocalView,
     mut commands: Commands,
     fonts: Res<UiFonts>,
     outcome: Res<GameOutcome>,
@@ -1520,6 +1535,7 @@ pub fn show_outcome(
     };
     let banner = match *outcome {
         GameOutcome::Ongoing => None,
+        _ if view.is_spectating() => Some((tr("THE BATTLE IS OVER"), local.0)),
         GameOutcome::Victory => Some((tr("VICTORY"), local.0)),
         GameOutcome::Defeat => Some((tr("DEFEAT"), enemy_side)),
     };

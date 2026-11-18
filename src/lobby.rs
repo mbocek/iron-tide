@@ -14,6 +14,7 @@ use crate::player_commands::LocalTeam;
 
 pub const DEFAULT_PORT: u16 = 47_300;
 pub const MOST_PLAYERS: usize = 4;
+const MOST_SPECTATORS: usize = 4;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const COUNTDOWN_SECS: f32 = 3.0;
 const CHAT_LINES_SHOWN: usize = 6;
@@ -21,10 +22,10 @@ const CHAT_LINES_SHOWN: usize = 6;
 /// address the computer would use, which is what the host tells the other players.
 const ROUTE_PROBE: &str = "192.0.2.1:9";
 
-/// A guest connected to the host, with the team it will play.
+/// A guest connected to the host, with the team it will play; none for a spectator.
 struct Seat {
     link: Link,
-    team: Team,
+    team: Option<Team>,
     ready: bool,
 }
 
@@ -32,12 +33,14 @@ struct Seat {
 enum LobbyPhase {
     #[default]
     Idle,
-    /// The host waits until every seat is taken and every guest is ready.
+    /// The host waits until every seat is taken and every guest is ready, then starts when it chooses,
+    /// so spectators can still come in.
     Hosting {
         listener: TcpListener,
         level: Box<LevelDefinition>,
         players: Vec<Team>,
         seats: Vec<Seat>,
+        start_requested: bool,
     },
     Connecting(Mutex<Receiver<std::io::Result<TcpStream>>>),
     WaitingForOffer(Link),
@@ -53,9 +56,12 @@ enum LobbyPhase {
     Countdown {
         level: Box<LevelDefinition>,
         links: Vec<Link>,
-        local_team: Team,
+        /// None on a spectator's machine.
+        local_team: Option<Team>,
         remote_teams: Vec<Team>,
         relays: bool,
+        /// On the host, which links lead to spectators.
+        watchers: Vec<usize>,
         starts_at: f32,
     },
     Failed(String),
@@ -68,7 +74,7 @@ pub struct ChatLine {
     pub text: String,
 }
 
-/// Everything needed to begin a network battle on this machine.
+/// Everything needed to begin a network battle on this machine; a spectator's view follows the host's team.
 pub struct BattleStart {
     pub level: LevelDefinition,
     pub session: NetSession,
@@ -111,7 +117,27 @@ impl NetLobby {
             level: Box::new(level),
             players,
             seats: Vec::new(),
+            start_requested: false,
         });
+    }
+
+    /// Whether every seat is taken and every guest has accepted, so the host may start.
+    pub fn can_start(&self) -> bool {
+        match &self.phase {
+            LobbyPhase::Hosting { players, seats, .. } => everyone_ready(players, seats),
+            _ => false,
+        }
+    }
+
+    /// The host starts the countdown once everyone is ready.
+    pub fn start_battle(&mut self) {
+        let ready = self.can_start();
+        if let LobbyPhase::Hosting {
+            start_requested, ..
+        } = &mut self.phase
+        {
+            *start_requested = ready;
+        }
     }
 
     /// Connects in the background so the menu keeps responding; `address` may omit the port.
@@ -200,21 +226,23 @@ impl NetLobby {
         }
     }
 
-    /// The team this machine's player will command.
-    fn local_team(&self) -> Team {
+    /// The team this machine's player will command; none for a spectator.
+    fn local_team(&self) -> Option<Team> {
         match &self.phase {
             LobbyPhase::Considering { offer, .. } | LobbyPhase::Accepted { offer, .. } => {
                 offer.your_team
             }
             LobbyPhase::Countdown { local_team, .. } => *local_team,
-            _ => Team::Player,
+            _ => Some(Team::Player),
         }
     }
 
     /// Sends the line being typed to everyone else.
     pub fn say(&mut self) {
         let draft = std::mem::take(&mut self.draft);
-        let team = self.local_team();
+        let Some(team) = self.local_team() else {
+            return;
+        };
         let links: Vec<&Link> = match &self.phase {
             LobbyPhase::Hosting { seats, .. } => seats.iter().map(|seat| &seat.link).collect(),
             LobbyPhase::WaitingForOffer(link)
@@ -268,10 +296,11 @@ impl NetLobby {
             LobbyPhase::Idle => None,
             LobbyPhase::Hosting { players, seats, .. } => {
                 let ready = seats.iter().filter(|seat| seat.ready).count();
+                let seated = seats.iter().filter(|seat| seat.team.is_some()).count();
                 Some(tr_fmt(
                     "Players {} of {}, {} ready. Others join at {} (port {})",
                     &[
-                        &(seats.len() + 1),
+                        &(seated + 1),
                         &players.len(),
                         &ready,
                         &self.host_address,
@@ -283,10 +312,13 @@ impl NetLobby {
             LobbyPhase::WaitingForOffer(_) => {
                 Some(tr("Connected, waiting for the host").to_string())
             }
-            LobbyPhase::Considering { offer, .. } => Some(tr_fmt(
-                "The host offers this battle; you would play {}. Ready?",
-                &[&tr(offer.your_team.name())],
-            )),
+            LobbyPhase::Considering { offer, .. } => Some(match offer.your_team {
+                Some(team) => tr_fmt(
+                    "The host offers this battle; you would play {}. Ready?",
+                    &[&tr(team.name_in(offer.level.faction_of(team)))],
+                ),
+                None => tr("Every seat is taken; you can watch the battle. Ready?").to_string(),
+            }),
             LobbyPhase::Accepted { .. } => {
                 Some(tr("Ready, waiting for the other players").to_string())
             }
@@ -322,13 +354,18 @@ impl NetLobby {
                 local_team,
                 remote_teams,
                 relays,
+                watchers,
                 starts_at,
             } if now >= starts_at => {
                 self.enter(LobbyPhase::Idle);
+                let session = match local_team {
+                    Some(_) => NetSession::new(links, remote_teams, relays).with_watchers(watchers),
+                    None => NetSession::watching(links, remote_teams),
+                };
                 Some(BattleStart {
                     level: *level,
-                    session: NetSession::new(links, remote_teams, relays),
-                    local_team,
+                    session,
+                    local_team: local_team.unwrap_or(Team::Player),
                 })
             }
             next => {
@@ -345,7 +382,8 @@ impl NetLobby {
                 level,
                 players,
                 seats,
-            } => self.host_step(listener, level, players, seats, now),
+                start_requested,
+            } => self.host_step(listener, level, players, seats, start_requested, now),
             LobbyPhase::Connecting(receiver) => {
                 let result = receiver
                     .lock()
@@ -417,7 +455,7 @@ impl NetLobby {
                 } = *offer;
                 let remote_teams = players
                     .into_iter()
-                    .filter(|&team| team != your_team)
+                    .filter(|&team| Some(team) != your_team)
                     .collect();
                 self.changed_to(LobbyPhase::Countdown {
                     level: Box::new(level),
@@ -425,6 +463,7 @@ impl NetLobby {
                     local_team: your_team,
                     remote_teams,
                     relays: false,
+                    watchers: Vec::new(),
                     starts_at: now + COUNTDOWN_SECS,
                 })
             }
@@ -434,6 +473,7 @@ impl NetLobby {
                 local_team,
                 remote_teams,
                 relays,
+                watchers,
                 starts_at,
             } => {
                 let left = links
@@ -449,6 +489,7 @@ impl NetLobby {
                     local_team,
                     remote_teams,
                     relays,
+                    watchers,
                     starts_at,
                 }
             }
@@ -462,16 +503,18 @@ impl NetLobby {
         level: Box<LevelDefinition>,
         players: Vec<Team>,
         mut seats: Vec<Seat>,
+        start_requested: bool,
         now: f32,
     ) -> LobbyPhase {
         let free_team = players
             .iter()
             .skip(1)
             .copied()
-            .find(|team| seats.iter().all(|seat| seat.team != *team));
-        if let Some(team) = free_team
-            && let Some(link) = accept_guest(&listener)
-        {
+            .find(|team| seats.iter().all(|seat| seat.team != Some(*team)));
+        let spectators = seats.iter().filter(|seat| seat.team.is_none()).count();
+        let room = free_team.is_some() || spectators < MOST_SPECTATORS;
+        if room && let Some(link) = accept_guest(&listener) {
+            let team = free_team;
             link.offer(&level, team, &players);
             seats.push(Seat {
                 link,
@@ -505,32 +548,41 @@ impl NetLobby {
             }
             if left {
                 seats.remove(index);
-                self.notice = Some(tr_fmt("{} left", &[&tr(team.name())]));
+                self.notice = Some(match team {
+                    Some(team) => tr_fmt("{} left", &[&tr(team.name_in(level.faction_of(team)))]),
+                    None => tr("A spectator left").to_string(),
+                });
                 self.changed = true;
             } else {
                 index += 1;
             }
         }
-        let everyone_ready =
-            seats.len() + 1 == players.len() && seats.iter().all(|seat| seat.ready);
-        if !everyone_ready {
+        if !(start_requested && everyone_ready(&players, &seats)) {
             return LobbyPhase::Hosting {
                 listener,
                 level,
                 players,
                 seats,
+                start_requested: false,
             };
         }
         for seat in &seats {
             seat.link.go();
         }
-        let remote_teams = seats.iter().map(|seat| seat.team).collect();
+        let remote_teams = seats.iter().filter_map(|seat| seat.team).collect();
+        let watchers = seats
+            .iter()
+            .enumerate()
+            .filter(|(_, seat)| seat.team.is_none())
+            .map(|(index, _)| index)
+            .collect();
         self.changed_to(LobbyPhase::Countdown {
             level,
             links: seats.into_iter().map(|seat| seat.link).collect(),
-            local_team: Team::Player,
+            local_team: Some(Team::Player),
             remote_teams,
             relays: true,
+            watchers,
             starts_at: now + COUNTDOWN_SECS,
         })
     }
@@ -561,6 +613,11 @@ impl NetLobby {
     fn host_gone(&mut self) -> LobbyPhase {
         self.failed(tr("The host closed the connection").to_string())
     }
+}
+
+fn everyone_ready(players: &[Team], seats: &[Seat]) -> bool {
+    let seated = seats.iter().filter(|seat| seat.team.is_some()).count();
+    seated + 1 == players.len() && seats.iter().all(|seat| seat.ready)
 }
 
 fn accept_guest(listener: &TcpListener) -> Option<Link> {

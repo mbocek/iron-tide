@@ -42,11 +42,11 @@ enum Message {
         tick: u64,
         sum: u64,
     },
-    /// The host's battle, the team this guest will play, and every team people play.
+    /// The host's battle, the team this guest will play (none for a spectator), and every team people play.
     Offer {
         version: String,
         level: Box<LevelDefinition>,
-        your_team: Team,
+        your_team: Option<Team>,
         players: Vec<Team>,
     },
     /// The guest accepts the offered battle.
@@ -71,7 +71,8 @@ enum Message {
 #[derive(Clone, PartialEq, Debug)]
 pub struct Offer {
     pub level: LevelDefinition,
-    pub your_team: Team,
+    /// None when every seat is taken and the guest may only watch.
+    pub your_team: Option<Team>,
     pub players: Vec<Team>,
 }
 
@@ -146,7 +147,7 @@ impl Link {
     }
 
     /// Shows a guest the host's battle.
-    pub fn offer(&self, level: &LevelDefinition, your_team: Team, players: &[Team]) {
+    pub fn offer(&self, level: &LevelDefinition, your_team: Option<Team>, players: &[Team]) {
         self.send(&Message::Offer {
             version: env!("CARGO_PKG_VERSION").to_string(),
             level: Box::new(level.clone()),
@@ -243,6 +244,11 @@ pub struct NetSession {
     links: Vec<Link>,
     relays: bool,
     remote_teams: Vec<Team>,
+    /// This machine only watches: it sends no orders and no fingerprints.
+    spectating: bool,
+    /// Links to spectators; losing one does not stop the battle.
+    watcher_links: BTreeSet<usize>,
+    closed_links: BTreeSet<usize>,
     remote_turns: BTreeSet<(u64, usize)>,
     local_checksums: BTreeMap<u64, u64>,
     remote_checksums: BTreeMap<(u64, usize), u64>,
@@ -262,6 +268,9 @@ impl NetSession {
             links,
             relays,
             remote_teams,
+            spectating: false,
+            watcher_links: BTreeSet::new(),
+            closed_links: BTreeSet::new(),
             remote_turns: BTreeSet::new(),
             local_checksums: BTreeMap::new(),
             remote_checksums: BTreeMap::new(),
@@ -282,6 +291,32 @@ impl NetSession {
             vec![remote_team],
             false,
         ))
+    }
+
+    /// A spectator's session: it follows the orders of every team in `players` and gives none.
+    pub fn watching(links: Vec<Link>, players: Vec<Team>) -> Self {
+        Self {
+            spectating: true,
+            ..Self::new(links, players, false)
+        }
+    }
+
+    /// Marks the links at `indices` as spectators' on the host.
+    pub fn with_watchers(mut self, indices: impl IntoIterator<Item = usize>) -> Self {
+        self.watcher_links.extend(indices);
+        self
+    }
+
+    pub fn is_spectating(&self) -> bool {
+        self.spectating
+    }
+
+    fn lose_link(&mut self, index: usize) {
+        if self.watcher_links.contains(&index) {
+            self.closed_links.insert(index);
+        } else {
+            self.state = SessionState::Disconnected;
+        }
     }
 
     pub fn remote_teams(&self) -> &[Team] {
@@ -353,14 +388,16 @@ impl NetSession {
     }
 
     fn send_except(&mut self, message: &Message, skipped: Option<usize>) {
-        let mut lost = false;
-        for (index, link) in self.links.iter().enumerate() {
-            if Some(index) != skipped {
-                lost |= !link.send(message);
-            }
-        }
-        if lost {
-            self.state = SessionState::Disconnected;
+        let lost: Vec<usize> = self
+            .links
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| Some(*index) != skipped && !self.closed_links.contains(index))
+            .filter(|(_, link)| !link.send(message))
+            .map(|(index, _)| index)
+            .collect();
+        for index in lost {
+            self.lose_link(index);
         }
     }
 
@@ -385,7 +422,7 @@ impl NetSession {
                 let message = match arrival {
                     Arrival::Message(message) => message,
                     Arrival::ConnectionLost => {
-                        self.state = SessionState::Disconnected;
+                        self.lose_link(index);
                         continue;
                     }
                 };
@@ -482,6 +519,12 @@ pub fn send_turn(
     local: Res<LocalTeam>,
 ) {
     let Some(mut session) = session else { return };
+    session
+        .remote_turns
+        .retain(|&(received, _)| received >= tick.0);
+    if session.spectating {
+        return;
+    }
     let turn = tick.0 + NETWORK_COMMAND_DELAY_TICKS;
     let message = Message::Turn {
         team: local.0,
@@ -489,9 +532,6 @@ pub fn send_turn(
         commands: queue.scheduled_for(turn, local.0),
     };
     session.broadcast(&message);
-    session
-        .remote_turns
-        .retain(|&(received, _)| received >= tick.0);
 }
 
 pub fn fingerprint_tick(world: &mut World) {
@@ -506,7 +546,9 @@ pub fn fingerprint_tick(world: &mut World) {
     session
         .local_checksums
         .retain(|&checked, _| checked + CHECKSUM_EVERY_TICKS * 30 > tick);
-    session.broadcast(&Message::Checksum { team, tick, sum });
+    if !session.spectating {
+        session.broadcast(&Message::Checksum { team, tick, sum });
+    }
     let teams: Vec<usize> = session
         .remote_teams
         .iter()
