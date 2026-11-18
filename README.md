@@ -252,8 +252,10 @@ Linux. When the rules change on purpose, record them again with
 
 The interface speaks English, Slovak and Czech: choose it with the *Language* button in the main menu or in
 the menu's *Gameplay* tab. Menus, the sidebar, notifications, the tutorial, the end screen and unit and
-structure names and descriptions are translated; mission names and briefings stay in English. Texts live in
-`src/i18n.rs` as one table of English, Slovak and Czech; a text missing there simply stays English.
+structure names and descriptions are translated; mission names and briefings stay in English. Translations live
+in `assets/i18n/sk.json` and `assets/i18n/cs.json`, each mapping the English text to its translation; they are
+built into the game, so a change needs a new build. A text missing there simply stays English, and the tests
+check that both files list the same texts with the same `{}` placeholders.
 
 ## Sound and music
 
@@ -457,7 +459,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `medical` | field medics healing infantry |
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
-| `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
+| `i18n` | interface languages: loads `assets/i18n/*.json`, `tr` / `tr_fmt` |
 | `interpolation` | drawing moving things between simulation ticks |
 | `lobby` | hosting and joining a network battle from the main menu |
 | `local_view` | the battle as this machine's player sees it, for drawing, sound and the interface |
