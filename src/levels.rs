@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use crate::map_edits::MapEdit;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -203,6 +204,8 @@ pub struct LevelDefinition {
     pub weather: Weather,
     pub season: Season,
     pub map_size: MapSize,
+    /// Cells repainted in the map editor, applied over the generated landscape in order.
+    pub map_edits: Vec<MapEdit>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -231,6 +234,7 @@ impl Default for LevelDefinition {
             weather: Weather::Clear,
             season: Season::Summer,
             map_size: MapSize::Standard,
+            map_edits: Vec::new(),
         }
     }
 }
@@ -503,6 +507,7 @@ impl SkirmishOptions {
             weather: self.weather,
             season: self.season,
             map_size: self.map_size,
+            map_edits: Vec::new(),
         }
     }
 }

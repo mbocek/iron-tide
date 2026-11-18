@@ -373,6 +373,42 @@ fn block_with_prop(
     }
 }
 
+/// A blocking tree or rock standing on one cell, as the map editor places them.
+pub fn spawn_obstacle(
+    commands: &mut Commands,
+    models: &ModelLibrary,
+    landscape: Landscape,
+    rng: &mut StdRng,
+    cell: IVec2,
+    obstacle: Obstacle,
+) {
+    let (model_id, scale) = match obstacle {
+        Obstacle::Tree => (pick(rng, &MIXED_FOREST), 0.8..1.25),
+        Obstacle::Rock => (pick(rng, &ROCKS), 0.6..1.3),
+    };
+    let jitter = Vec3::new(
+        rng.random_range(-0.3..0.3),
+        0.0,
+        rng.random_range(-0.3..0.3),
+    );
+    spawn_scenery(
+        commands,
+        models,
+        landscape,
+        rng,
+        model_id,
+        cell_center(cell) + jitter,
+        scale,
+        false,
+    );
+}
+
+#[derive(Clone, Copy)]
+pub enum Obstacle {
+    Tree,
+    Rock,
+}
+
 fn place_decor(
     commands: &mut Commands,
     models: &ModelLibrary,

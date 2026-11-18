@@ -32,6 +32,8 @@ pub mod lobby;
 pub mod local_view;
 pub mod main_menu;
 pub mod map;
+pub mod map_editor;
+pub mod map_edits;
 pub mod match_flow;
 pub mod match_stats;
 pub mod medical;
@@ -185,6 +187,7 @@ impl Plugin for SimulationPlugin {
                     match_flow::unpause,
                     match_flow::reset_match_state,
                     map::generate_map,
+                    map_edits::apply_map_edits,
                     match_flow::deploy_level_forces,
                     network::retire_commanders_of_players,
                     savegame::restore_pending_load,
@@ -200,7 +203,8 @@ impl Plugin for SimulationPlugin {
                 Last,
                 match_flow::scope_match_entities.run_if(
                     in_state(match_flow::GameState::Playing)
-                        .or_else(in_state(match_flow::GameState::Replay)),
+                        .or_else(in_state(match_flow::GameState::Replay))
+                        .or_else(in_state(match_flow::GameState::MapEditor)),
                 ),
             )
             .add_systems(
@@ -349,6 +353,7 @@ impl Plugin for GamePlugin {
                     match_flow::unpause,
                     replay::clear_the_fog,
                     map::generate_map,
+                    map_edits::apply_map_edits,
                     map::spawn_terrain_visuals,
                     camera::focus_on_player_base,
                     battlefield::set_the_weather,
@@ -381,6 +386,43 @@ impl Plugin for GamePlugin {
                     .run_if(in_state(match_flow::GameState::Replay)),
             )
             .add_systems(OnExit(match_flow::GameState::Replay), replay::stop_watching)
+            .add_systems(
+                OnEnter(match_flow::GameState::MapEditor),
+                (
+                    match_flow::unpause,
+                    match_flow::reset_match_state,
+                    replay::clear_the_fog,
+                    map::generate_map,
+                    map_edits::apply_map_edits,
+                    map::spawn_terrain_visuals,
+                    camera::focus_on_player_base,
+                    battlefield::set_the_weather,
+                    map_editor::spawn_map_editor_panel,
+                )
+                    .chain(),
+            )
+            .add_systems(
+                Update,
+                (
+                    camera::track_cursor,
+                    camera::control_camera,
+                    fog_view::paint_fog_texture,
+                    terrain_material::assemble_terrain_material,
+                    terrain_material::fit_terrain_to_level,
+                    terrain_material::dress_terrain_surfaces,
+                    terrain_material::animate_water,
+                    battlefield::draw_rain,
+                    animation::attach_animation_players,
+                    map_editor::choose_brush_by_key,
+                    map_editor::paint_under_cursor,
+                    map_editor::draw_brush_outline,
+                    map_editor::mark_base_sites,
+                    map_editor::refresh_map_editor_panel,
+                    map_editor::leave_on_escape,
+                )
+                    .chain()
+                    .run_if(in_state(match_flow::GameState::MapEditor)),
+            )
             .add_systems(Last, replay::save_replay_on_exit)
             .add_systems(
                 Update,

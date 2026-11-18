@@ -330,7 +330,7 @@ pub fn direct_music(
     let Some(library) = library else { return };
     let outcome = outcome.map_or(GameOutcome::Ongoing, |outcome| *outcome);
     let wanted = match (state.get(), outcome) {
-        (GameState::MainMenu, _) => Some(MusicPiece::Menu),
+        (GameState::MainMenu | GameState::MapEditor, _) => Some(MusicPiece::Menu),
         (GameState::Playing, GameOutcome::Victory) => Some(MusicPiece::Victory),
         (GameState::Playing, GameOutcome::Defeat) => Some(MusicPiece::Defeat),
         (GameState::Playing, GameOutcome::Ongoing) | (GameState::Replay, _) => {

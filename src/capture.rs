@@ -12,9 +12,10 @@ use crate::camera::RtsCamera;
 use crate::catalog::Team;
 use crate::components::{Selected, Unit};
 use crate::levels::{
-    ActiveLevel, SkirmishOptions, campaign, custom_levels, custom_levels_directory,
+    ActiveLevel, LevelDefinition, SkirmishOptions, campaign, custom_levels, custom_levels_directory,
 };
 use crate::map::cell_center;
+use crate::map_editor::open_map_editor;
 use crate::match_flow::GameState;
 use crate::menu::MenuState;
 use crate::savegame::SaveRequests;
@@ -30,6 +31,8 @@ const CAPTURE_REPLAY_VAR: &str = "IRON_TIDE_CAPTURE_REPLAY";
 const CAPTURE_SELECT_ALL_VAR: &str = "IRON_TIDE_CAPTURE_SELECT_ALL";
 const CAPTURE_ZOOM_VAR: &str = "IRON_TIDE_CAPTURE_ZOOM";
 const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
+/// `IRON_TIDE_CAPTURE_EDITOR=1` opens the map editor on the chosen mission instead of playing it.
+const CAPTURE_EDITOR_VAR: &str = "IRON_TIDE_CAPTURE_EDITOR";
 /// `IRON_TIDE_CAPTURE_HOST=2` hosts a network battle for that many players and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`
 /// joins one.
 const CAPTURE_HOST_VAR: &str = "IRON_TIDE_CAPTURE_HOST";
@@ -298,21 +301,20 @@ fn start_requested_mission(
         next_state.set(GameState::Replay);
         return;
     }
-    let Some(number) = std::env::var(CAPTURE_MISSION_VAR)
+    let requested_mission = std::env::var(CAPTURE_MISSION_VAR)
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
-    else {
-        next_state.set(GameState::Playing);
+        .and_then(|number| {
+            campaign()
+                .into_iter()
+                .chain(custom_levels(&custom_levels_directory()))
+                .nth(number.saturating_sub(1))
+        });
+    let level = requested_mission.map_or_else(LevelDefinition::default, |mission| mission.level);
+    if std::env::var_os(CAPTURE_EDITOR_VAR).is_some() {
+        open_map_editor(&mut commands, &mut next_state, level, None);
         return;
-    };
-    let campaign_then_custom = campaign()
-        .into_iter()
-        .chain(custom_levels(&custom_levels_directory()));
-    if let Some(mission) = campaign_then_custom
-        .into_iter()
-        .nth(number.saturating_sub(1))
-    {
-        commands.insert_resource(ActiveLevel(mission.level));
     }
+    commands.insert_resource(ActiveLevel(level));
     next_state.set(GameState::Playing);
 }

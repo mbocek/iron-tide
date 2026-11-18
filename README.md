@@ -368,6 +368,11 @@ attack wave and its income (75 % / 100 % / 135 %).
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Sniper (long-range anti-infantry), Field Medic (heals
   nearby infantry), Engineer, Scout Buggy, Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range
   artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship, Harvester.
+- **Map editor:** EDIT MAP on the battle editor page or on a custom level opens the map in the editor. Paint
+  crystal fields, forests and rocks with the left button (keys 1-4 pick the brush), clear ground with the right
+  one, in brushes of 1, 3 or 5 cells. Mirroring, on by default, paints the opposite cell too so both halves stay
+  equally fair; base sites cannot be built over. SAVE writes the level (with its `map_edits`) to the custom
+  levels, overwriting the custom level it was opened from.
 - **Research:** the RESEARCH tab of the build menu offers three one-time upgrades from the Tech Center, which
   must stand while the research runs: Composite Armour ($1500, vehicles and aircraft take 20 % less damage),
   High-Explosive Warheads ($2000, every weapon deals 15 % more damage) and Combat Drills ($1000, infantry

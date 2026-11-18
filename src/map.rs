@@ -212,6 +212,18 @@ impl GameMap {
         self.building.fill(None);
     }
 
+    pub fn set_crystal(&mut self, cell: IVec2, amount: u32) {
+        if let Some(i) = Self::index(cell) {
+            self.crystal[i] = amount;
+        }
+    }
+
+    pub fn set_obstacle(&mut self, cell: IVec2, blocked: bool) {
+        if let Some(i) = Self::index(cell) {
+            self.terrain_blocked[i] = blocked;
+        }
+    }
+
     pub fn crystal_at(&self, cell: IVec2) -> u32 {
         Self::index(cell).map_or(0, |i| self.crystal[i])
     }
@@ -414,12 +426,15 @@ pub fn generate_map(mut commands: Commands, models: Res<ModelLibrary>, level: Re
     commands.insert_resource(map);
 }
 
+pub fn is_water(landscape: Landscape, cell: IVec2) -> bool {
+    landscape.water_depth(cell.x as f32 + 0.5, cell.y as f32 + 0.5) > RIVER_BLOCKING_DEPTH
+}
+
 fn block_water(map: &mut GameMap, landscape: Landscape) {
     let size = map_cells();
     for row in 0..size {
         for column in 0..size {
-            let depth = landscape.water_depth(column as f32 + 0.5, row as f32 + 0.5);
-            if depth > RIVER_BLOCKING_DEPTH {
+            if is_water(landscape, IVec2::new(column, row)) {
                 map.terrain_blocked[(row * size + column) as usize] = true;
             }
         }

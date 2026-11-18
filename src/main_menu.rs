@@ -1,3 +1,4 @@
+use crate::map_editor::open_map_editor;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
@@ -79,6 +80,7 @@ pub enum MenuCommand {
     StartSelected,
     StartEditorBattle,
     SaveEditorLevel,
+    EditMap,
     WatchReplay,
     CycleLanguage,
     ContinueQuickSave,
@@ -788,6 +790,9 @@ fn rebuild_details(
                     panel.spawn(fonts.text(line, 17.0, color));
                 }
                 spawn_command_button(panel, fonts, tr("START MISSION"), MenuCommand::StartSelected);
+                if matches!(menu.entries[index].source, LevelSource::Custom(_)) {
+                    spawn_command_button(panel, fonts, tr("EDIT MAP"), MenuCommand::EditMap);
+                }
             }
             Selection::Replay(index) => {
                 let replay = &menu.replays[index];
@@ -829,6 +834,7 @@ fn rebuild_details(
                     tr("SAVE AS CUSTOM LEVEL"),
                     MenuCommand::SaveEditorLevel,
                 );
+                spawn_command_button(panel, fonts, tr("EDIT MAP"), MenuCommand::EditMap);
             }
         });
     if let Some(message) = &menu.message {
@@ -918,6 +924,20 @@ fn run_command(
             );
             menu.entries = all_levels();
             menu.needs_rebuild = true;
+        }
+        MenuCommand::EditMap => {
+            let (level, file) = match menu.selection {
+                Selection::Level(index) => {
+                    let entry = &menu.entries[index];
+                    let file = match &entry.source {
+                        LevelSource::Custom(path) => Some(path.clone()),
+                        LevelSource::Campaign(_) | LevelSource::Skirmish => None,
+                    };
+                    (entry.level.clone(), file)
+                }
+                _ => (menu.options.to_level(), None),
+            };
+            open_map_editor(&mut commands, &mut next_state, level, file);
         }
         MenuCommand::WatchReplay => {
             let Selection::Replay(index) = menu.selection else {

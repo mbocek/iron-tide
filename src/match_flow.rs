@@ -32,6 +32,8 @@ pub enum GameState {
     Restarting,
     /// Watching a recorded match.
     Replay,
+    /// Repainting a level's map by hand.
+    MapEditor,
 }
 
 /// Entities that outlive matches: the camera and the sun.
