@@ -24,12 +24,19 @@ use crate::ui::{
 };
 use crate::updates::{UpdateState, Updates, download_update};
 
-const LIST_WIDTH: f32 = 400.0;
-const DETAIL_WIDTH: f32 = 620.0;
+const NAV_WIDTH: f32 = 240.0;
+const LIST_WIDTH: f32 = 330.0;
+const DETAIL_WIDTH: f32 = 640.0;
+const REPLAYS_LISTED: usize = 10;
+const BODY_GAP: f32 = 14.0;
+const EDITOR_FIELD_WIDTH: f32 = 440.0;
+const EDITOR_VALUE_WIDTH: f32 = 230.0;
 const BUTTON_IDLE: Color = Color::srgb(0.13, 0.15, 0.17);
 const BUTTON_HOVERED: Color = Color::srgb(0.19, 0.22, 0.25);
 const BUTTON_SELECTED: Color = Color::srgb(0.17, 0.24, 0.32);
 const BACKDROP: Color = Color::srgb(0.035, 0.045, 0.055);
+const PRIMARY_IDLE: Color = Color::srgb(0.62, 0.45, 0.10);
+const PRIMARY_HOVERED: Color = Color::srgb(0.76, 0.56, 0.14);
 const CREDIT_CHOICES: [i32; 4] = [3000, 5000, 8000, 12000];
 const MAP_VARIANTS: u64 = 5;
 
@@ -39,7 +46,47 @@ enum Selection {
     Editor,
     Network,
     Replay(usize),
+    /// A section with nothing in it yet.
+    Nothing(MenuSection),
 }
+
+/// The groups along the left edge of the main menu; each shows its own list or page.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MenuSection {
+    Campaign,
+    Custom,
+    Editor,
+    Network,
+    Replays,
+}
+
+impl MenuSection {
+    const ALL: [MenuSection; 5] = [
+        MenuSection::Campaign,
+        MenuSection::Custom,
+        MenuSection::Editor,
+        MenuSection::Network,
+        MenuSection::Replays,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            MenuSection::Campaign => tr("CAMPAIGN"),
+            MenuSection::Custom => tr("CUSTOM LEVELS"),
+            MenuSection::Editor => tr("BATTLE EDITOR"),
+            MenuSection::Network => tr("NETWORK BATTLE"),
+            MenuSection::Replays => tr("REPLAYS"),
+        }
+    }
+
+    /// Sections that are a single page need no list beside them.
+    fn has_list(self) -> bool {
+        !matches!(self, MenuSection::Editor | MenuSection::Network)
+    }
+}
+
+#[derive(Component)]
+pub struct SectionButton(MenuSection);
 
 #[derive(Resource)]
 pub struct MainMenu {
@@ -56,6 +103,9 @@ pub struct MainMenuRoot;
 
 #[derive(Component)]
 pub struct LevelList;
+
+#[derive(Component)]
+pub struct ListColumn;
 
 #[derive(Component)]
 pub struct DetailPanel;
@@ -91,6 +141,21 @@ pub enum MenuCommand {
     StartNetworkBattle,
     CancelNetworkBattle,
     Quit,
+}
+
+impl MenuCommand {
+    /// The action a page exists for, drawn larger and in the accent colour.
+    fn is_primary(self) -> bool {
+        matches!(
+            self,
+            MenuCommand::StartSelected
+                | MenuCommand::StartEditorBattle
+                | MenuCommand::WatchReplay
+                | MenuCommand::HostNetworkBattle
+                | MenuCommand::AcceptNetworkOffer
+                | MenuCommand::StartNetworkBattle
+        )
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -288,7 +353,7 @@ pub fn build_main_menu(
         message: None,
         needs_rebuild: true,
     };
-    let has_quick_save = slot_summary(&save_directory, QUICK_SAVE_SLOT);
+    let quick_save = slot_summary(&save_directory, QUICK_SAVE_SLOT);
     commands
         .spawn((
             MainMenuRoot,
@@ -299,81 +364,198 @@ pub fn build_main_menu(
                 right: Val::Px(0.0),
                 top: Val::Px(0.0),
                 bottom: Val::Px(0.0),
-                justify_content: JustifyContent::Center,
+                flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(18.0),
+                padding: UiRect::all(Val::Px(24.0)),
+                row_gap: Val::Px(18.0),
                 ..default()
             },
             BackgroundColor(BACKDROP),
         ))
         .with_children(|root| {
-            root.spawn((
-                Node {
-                    width: Val::Px(LIST_WIDTH),
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(18.0)),
-                    row_gap: Val::Px(8.0),
-                    border: UiRect::all(Val::Px(2.0)),
-                    ..default()
-                },
-                BackgroundColor(PANEL),
-                BorderColor::all(FRAME_BRIGHT),
-            ))
-            .with_children(|column| {
-                column.spawn(fonts.heading("IRON TIDE", 46.0, ACCENT));
-                column.spawn(fonts.text(tr("Coalition command"), 18.0, Team::Player.ui_color()));
-                column
-                    .spawn((
-                        MenuCommand::DownloadUpdate,
-                        UpdateBanner,
-                        Hovered::default(),
-                        Node {
-                            display: Display::None,
-                            ..button_node(Val::Percent(100.0))
-                        },
-                        BackgroundColor(BUTTON_IDLE),
-                        BorderColor::all(GOOD),
-                    ))
-                    .with_children(|button| {
-                        button.spawn(fonts.heading("", 16.0, GOOD));
-                    })
-                    .observe(run_command);
-                if let Some(summary) = has_quick_save {
-                    spawn_command_button(
-                        column,
-                        &fonts,
-                        &tr_fmt("Continue  ({})", &[&summary]),
-                        MenuCommand::ContinueQuickSave,
-                    );
-                }
-                column.spawn((
-                    LevelList,
+            spawn_title_bar(root, &fonts, &settings);
+            root.spawn(Node {
+                width: Val::Px(full_width()),
+                column_gap: Val::Px(BODY_GAP),
+                align_items: AlignItems::FlexStart,
+                ..default()
+            })
+            .with_children(|body| {
+                spawn_section_column(body, &fonts, quick_save);
+                body.spawn((
+                    ListColumn,
                     Node {
+                        width: Val::Px(LIST_WIDTH),
+                        flex_shrink: 0.0,
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(6.0),
+                        padding: UiRect::all(Val::Px(14.0)),
+                        border: UiRect::all(Val::Px(1.0)),
                         ..default()
                     },
+                    BackgroundColor(PANEL),
+                    BorderColor::all(FRAME),
+                ))
+                .with_children(|column| {
+                    column.spawn((
+                        LevelList,
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(5.0),
+                            ..default()
+                        },
+                    ));
+                });
+                body.spawn((
+                    DetailPanel,
+                    Node {
+                        min_width: Val::Px(DETAIL_WIDTH),
+                        flex_grow: 1.0,
+                        min_height: Val::Px(420.0),
+                        flex_direction: FlexDirection::Column,
+                        padding: UiRect::all(Val::Px(20.0)),
+                        row_gap: Val::Px(8.0),
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    BackgroundColor(PANEL),
+                    BorderColor::all(FRAME_BRIGHT),
                 ));
-                let language = format!("{}: {}", tr("Language"), settings.language.native_name());
-                spawn_command_button(column, &fonts, &language, MenuCommand::CycleLanguage);
-                spawn_command_button(column, &fonts, tr("Quit to desktop"), MenuCommand::Quit);
             });
-            root.spawn((
-                DetailPanel,
-                Node {
-                    width: Val::Px(DETAIL_WIDTH),
-                    min_height: Val::Px(560.0),
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(18.0)),
-                    row_gap: Val::Px(8.0),
-                    border: UiRect::all(Val::Px(2.0)),
-                    ..default()
-                },
-                BackgroundColor(PANEL),
-                BorderColor::all(FRAME),
-            ));
         });
     commands.insert_resource(menu);
+}
+
+fn spawn_title_bar(root: &mut ChildSpawnerCommands, fonts: &UiFonts, settings: &GameSettings) {
+    root.spawn(Node {
+        width: Val::Px(full_width()),
+        justify_content: JustifyContent::SpaceBetween,
+        align_items: AlignItems::Center,
+        column_gap: Val::Px(10.0),
+        ..default()
+    })
+    .with_children(|bar| {
+        bar.spawn(Node {
+            flex_direction: FlexDirection::Column,
+            ..default()
+        })
+        .with_children(|title| {
+            title.spawn(fonts.heading("IRON TIDE", 46.0, ACCENT));
+            title.spawn(fonts.text(
+                format!(
+                    "{}  ·  v{}",
+                    tr("Real-time strategy"),
+                    env!("CARGO_PKG_VERSION")
+                ),
+                15.0,
+                TEXT_DIM,
+            ));
+        });
+        bar.spawn(Node {
+            column_gap: Val::Px(8.0),
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(|actions| {
+            actions
+                .spawn((
+                    MenuCommand::DownloadUpdate,
+                    UpdateBanner,
+                    Hovered::default(),
+                    Node {
+                        display: Display::None,
+                        ..button_node(Val::Auto)
+                    },
+                    BackgroundColor(BUTTON_IDLE),
+                    BorderColor::all(GOOD),
+                ))
+                .with_children(|button| {
+                    button.spawn(fonts.heading("", 16.0, GOOD));
+                })
+                .observe(run_command);
+            let language = format!("{}: {}", tr("Language"), settings.language.native_name());
+            spawn_command_button_sized(
+                actions,
+                fonts,
+                &language,
+                MenuCommand::CycleLanguage,
+                Val::Auto,
+            );
+            spawn_command_button_sized(
+                actions,
+                fonts,
+                tr("Quit to desktop"),
+                MenuCommand::Quit,
+                Val::Auto,
+            );
+        });
+    });
+}
+
+fn full_width() -> f32 {
+    NAV_WIDTH + LIST_WIDTH + DETAIL_WIDTH + 2.0 * BODY_GAP
+}
+
+fn spawn_section_column(
+    body: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    quick_save: Option<String>,
+) {
+    body.spawn(Node {
+        width: Val::Px(NAV_WIDTH),
+        flex_shrink: 0.0,
+        flex_direction: FlexDirection::Column,
+        row_gap: Val::Px(8.0),
+        ..default()
+    })
+    .with_children(|column| {
+        if let Some(summary) = quick_save {
+            column
+                .spawn((
+                    MenuCommand::ContinueQuickSave,
+                    Hovered::default(),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        ..button_node(Val::Percent(100.0))
+                    },
+                    BackgroundColor(BUTTON_IDLE),
+                    BorderColor::all(ACCENT),
+                ))
+                .with_children(|button| {
+                    button.spawn(fonts.heading(tr("CONTINUE"), 20.0, ACCENT));
+                    button.spawn(fonts.text(summary, 14.0, TEXT_DIM));
+                })
+                .observe(run_command);
+        }
+        for section in MenuSection::ALL {
+            column
+                .spawn((
+                    SectionButton(section),
+                    Hovered::default(),
+                    Node {
+                        min_height: Val::Px(46.0),
+                        ..button_node(Val::Percent(100.0))
+                    },
+                    BackgroundColor(BUTTON_IDLE),
+                    BorderColor::all(FRAME),
+                ))
+                .with_children(|button| {
+                    button.spawn(fonts.heading(section.label(), 19.0, TEXT_MAIN));
+                })
+                .observe(open_section);
+        }
+    });
+}
+
+fn open_section(
+    click: On<PointerClick>,
+    buttons: Query<&SectionButton>,
+    mut menu: ResMut<MainMenu>,
+) {
+    if let Ok(button) = buttons.get(click.entity) {
+        menu.selection = menu.first_in(button.0);
+        menu.message = None;
+        menu.needs_rebuild = true;
+    }
 }
 
 fn button_node(width: Val) -> Node {
@@ -436,16 +618,35 @@ fn spawn_command_button(
     label: &str,
     command: MenuCommand,
 ) {
+    spawn_command_button_sized(parent, fonts, label, command, Val::Percent(100.0));
+}
+
+fn spawn_command_button_sized(
+    parent: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    label: &str,
+    command: MenuCommand,
+    width: Val,
+) {
+    let (height, size, background) = if command.is_primary() {
+        (44.0, 20.0, PRIMARY_IDLE)
+    } else {
+        (32.0, 17.0, BUTTON_IDLE)
+    };
     parent
         .spawn((
             command,
             Hovered::default(),
-            button_node(Val::Percent(100.0)),
-            BackgroundColor(BUTTON_IDLE),
+            Node {
+                min_height: Val::Px(height),
+                margin: UiRect::top(Val::Px(if command.is_primary() { 6.0 } else { 0.0 })),
+                ..button_node(width)
+            },
+            BackgroundColor(background),
             BorderColor::all(FRAME),
         ))
         .with_children(|button| {
-            button.spawn(fonts.heading(label, 17.0, TEXT_MAIN));
+            button.spawn(fonts.heading(label, size, TEXT_MAIN));
         })
         .observe(run_command);
 }
@@ -472,40 +673,50 @@ fn spawn_list_button(
 
 fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, menu: &MainMenu) {
     commands.entity(list).despawn_related::<Children>();
-    commands.entity(list).with_children(|list| {
-        list.spawn(fonts.heading(tr("CAMPAIGN"), 15.0, TEXT_DIM));
-        for (index, entry) in menu.entries.iter().enumerate() {
-            if index > 0
-                && matches!(entry.source, LevelSource::Custom(_))
-                && !matches!(menu.entries[index - 1].source, LevelSource::Custom(_))
-            {
-                list.spawn(fonts.heading(tr("CUSTOM LEVELS"), 15.0, TEXT_DIM));
+    commands
+        .entity(list)
+        .with_children(|list| match menu.section() {
+            MenuSection::Campaign => {
+                let mut heading = None;
+                for (index, entry) in menu.entries.iter().enumerate() {
+                    if !matches!(entry.source, LevelSource::Campaign(_)) {
+                        continue;
+                    }
+                    let side = entry.level.player_faction;
+                    if heading != Some(side) {
+                        heading = Some(side);
+                        list.spawn(fonts.heading(tr(side.title()), 15.0, TEXT_DIM));
+                    }
+                    spawn_list_button(list, fonts, &entry.level.name, Selection::Level(index));
+                }
             }
-            spawn_list_button(list, fonts, &entry.level.name, Selection::Level(index));
-        }
-        if !menu
-            .entries
-            .iter()
-            .any(|entry| matches!(entry.source, LevelSource::Custom(_)))
-        {
-            list.spawn(fonts.text(
-                tr("No custom levels yet - make one in the battle editor."),
-                14.0,
-                TEXT_DIM,
-            ));
-        }
-        list.spawn(fonts.heading(tr("QUICK BATTLE"), 15.0, TEXT_DIM));
-        spawn_list_button(list, fonts, tr("Battle editor"), Selection::Editor);
-        list.spawn(fonts.heading(tr("NETWORK"), 15.0, TEXT_DIM));
-        spawn_list_button(list, fonts, tr("Network battle"), Selection::Network);
-        if !menu.replays.is_empty() {
-            list.spawn(fonts.heading(tr("REPLAYS"), 15.0, TEXT_DIM));
-        }
-        for (index, replay) in menu.replays.iter().enumerate() {
-            let label = format!("{}  ({})", replay.title, minutes(replay.recorded_secs));
-            spawn_list_button(list, fonts, &label, Selection::Replay(index));
-        }
-    });
+            MenuSection::Custom => {
+                let mut any = false;
+                for (index, entry) in menu.entries.iter().enumerate() {
+                    if matches!(entry.source, LevelSource::Custom(_)) {
+                        any = true;
+                        spawn_list_button(list, fonts, &entry.level.name, Selection::Level(index));
+                    }
+                }
+                if !any {
+                    list.spawn(fonts.text(
+                        tr("No custom levels yet - make one in the battle editor."),
+                        15.0,
+                        TEXT_DIM,
+                    ));
+                }
+            }
+            MenuSection::Replays => {
+                for (index, replay) in menu.replays.iter().enumerate().take(REPLAYS_LISTED) {
+                    let label = format!("{}  ({})", replay.title, minutes(replay.recorded_secs));
+                    spawn_list_button(list, fonts, &label, Selection::Replay(index));
+                }
+                if menu.replays.is_empty() {
+                    list.spawn(fonts.text(tr("Every battle is recorded here."), 15.0, TEXT_DIM));
+                }
+            }
+            MenuSection::Editor | MenuSection::Network => {}
+        });
 }
 
 fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
@@ -570,6 +781,52 @@ const ADDRESS_CHARACTERS: &str = "0123456789.:-abcdefghijklmnopqrstuvwxyz";
 const LONGEST_ADDRESS: usize = 64;
 
 impl MainMenu {
+    fn section(&self) -> MenuSection {
+        match self.selection {
+            Selection::Level(index) => match self.entries[index].source {
+                LevelSource::Custom(_) => MenuSection::Custom,
+                LevelSource::Campaign(_) | LevelSource::Skirmish => MenuSection::Campaign,
+            },
+            Selection::Editor => MenuSection::Editor,
+            Selection::Network => MenuSection::Network,
+            Selection::Replay(_) => MenuSection::Replays,
+            Selection::Nothing(section) => section,
+        }
+    }
+
+    /// What a section shows first: its first entry, or its page.
+    fn first_in(&self, section: MenuSection) -> Selection {
+        let first_level = |custom: bool| {
+            self.entries
+                .iter()
+                .position(|entry| matches!(entry.source, LevelSource::Custom(_)) == custom)
+                .map(Selection::Level)
+        };
+        let first = match section {
+            MenuSection::Campaign => first_level(false),
+            MenuSection::Custom => first_level(true),
+            MenuSection::Editor => Some(Selection::Editor),
+            MenuSection::Network => Some(Selection::Network),
+            MenuSection::Replays => (!self.replays.is_empty()).then_some(Selection::Replay(0)),
+        };
+        first.unwrap_or(Selection::Nothing(section))
+    }
+
+    /// Opens a section by its English name, for capture runs.
+    pub fn open_section_named(&mut self, name: &str) {
+        let section = match name {
+            "custom" => MenuSection::Custom,
+            "editor" => MenuSection::Editor,
+            "network" => MenuSection::Network,
+            "replays" => MenuSection::Replays,
+            _ => MenuSection::Campaign,
+        };
+        if self.section() != section {
+            self.selection = self.first_in(section);
+            self.needs_rebuild = true;
+        }
+    }
+
     pub fn show_network_page(&mut self) {
         if self.selection != Selection::Network {
             self.selection = Selection::Network;
@@ -640,28 +897,37 @@ fn spawn_editor_fields(
     options: &SkirmishOptions,
     fields: &[EditorField],
 ) {
-    for &field in fields {
-        panel
-            .spawn(Node {
-                justify_content: JustifyContent::SpaceBetween,
-                align_items: AlignItems::Center,
-                ..default()
-            })
-            .with_children(|row| {
-                row.spawn(fonts.text(field.label(), 18.0, TEXT_MAIN));
-                row.spawn((
-                    EditorOption(field),
-                    Hovered::default(),
-                    button_node(Val::Px(260.0)),
-                    BackgroundColor(BUTTON_IDLE),
-                    BorderColor::all(FRAME),
-                ))
-                .with_children(|button| {
-                    button.spawn(fonts.heading(field.value(options), 16.0, ACCENT));
+    panel
+        .spawn(Node {
+            flex_wrap: FlexWrap::Wrap,
+            column_gap: Val::Px(24.0),
+            row_gap: Val::Px(6.0),
+            ..default()
+        })
+        .with_children(|grid| {
+            for &field in fields {
+                grid.spawn(Node {
+                    width: Val::Px(EDITOR_FIELD_WIDTH),
+                    justify_content: JustifyContent::SpaceBetween,
+                    align_items: AlignItems::Center,
+                    ..default()
                 })
-                .observe(change_option);
-            });
-    }
+                .with_children(|row| {
+                    row.spawn(fonts.text(field.label(), 17.0, TEXT_MAIN));
+                    row.spawn((
+                        EditorOption(field),
+                        Hovered::default(),
+                        button_node(Val::Px(EDITOR_VALUE_WIDTH)),
+                        BackgroundColor(BUTTON_IDLE),
+                        BorderColor::all(FRAME),
+                    ))
+                    .with_children(|button| {
+                        button.spawn(fonts.heading(field.value(options), 16.0, ACCENT));
+                    })
+                    .observe(change_option);
+                });
+            }
+        });
 }
 
 fn spawn_network_details(
@@ -822,6 +1088,16 @@ fn rebuild_details(
             }
             Selection::Network => {
                 spawn_network_details(panel, fonts, join_address, lobby, &menu.options)
+            }
+            Selection::Nothing(section) => {
+                panel.spawn(fonts.heading(section.label(), 30.0, ACCENT));
+                let hint = match section {
+                    MenuSection::Custom => tr(
+                        "Levels saved from the battle editor or the map editor appear here. Open the battle editor, set up a battle and save it, or edit its map.",
+                    ),
+                    _ => tr("Finish or leave a battle and its replay appears here."),
+                };
+                panel.spawn(fonts.text(hint, 16.0, TEXT_DIM));
             }
             Selection::Editor => {
                 panel.spawn(fonts.heading(tr("Battle editor"), 30.0, ACCENT));
@@ -996,10 +1272,25 @@ pub fn refresh_main_menu(
     mut lobby: ResMut<NetLobby>,
     menu: Option<ResMut<MainMenu>>,
     lists: Query<Entity, With<LevelList>>,
+    mut list_columns: Query<&mut Node, With<ListColumn>>,
+    mut sections: Query<(
+        &SectionButton,
+        &Hovered,
+        &mut BackgroundColor,
+        &mut BorderColor,
+    )>,
     panels: Query<Entity, With<DetailPanel>>,
     mut buttons: Query<
-        (&Hovered, &mut BackgroundColor, Option<&ListButton>),
-        Or<(With<ListButton>, With<MenuCommand>, With<EditorOption>)>,
+        (
+            &Hovered,
+            &mut BackgroundColor,
+            Option<&ListButton>,
+            Option<&MenuCommand>,
+        ),
+        (
+            Or<(With<ListButton>, With<MenuCommand>, With<EditorOption>)>,
+            Without<SectionButton>,
+        ),
     >,
 ) {
     let Some(mut menu) = menu else { return };
@@ -1010,6 +1301,14 @@ pub fn refresh_main_menu(
         && let (Ok(list), Ok(panel)) = (lists.single(), panels.single())
     {
         menu.needs_rebuild = false;
+        let shown = if menu.section().has_list() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        for mut column in &mut list_columns {
+            set_field(&mut column, |node| &mut node.display, shown);
+        }
         rebuild_level_list(&mut commands, list, &fonts, &menu);
         rebuild_details(
             &mut commands,
@@ -1020,14 +1319,27 @@ pub fn refresh_main_menu(
             &lobby,
         );
     }
-    for (hovered, mut background, list_button) in &mut buttons {
-        let selected = list_button.is_some_and(|button| button.0 == menu.selection);
-        background.0 = if selected {
+    let open = menu.section();
+    for (section, hovered, mut background, mut border) in &mut sections {
+        let selected = section.0 == open;
+        background.set_if_neq(BackgroundColor(if selected {
             BUTTON_SELECTED
         } else if hovered.get() {
             BUTTON_HOVERED
         } else {
             BUTTON_IDLE
-        };
+        }));
+        border.set_if_neq(BorderColor::all(if selected { ACCENT } else { FRAME }));
+    }
+    for (hovered, mut background, list_button, command) in &mut buttons {
+        let selected = list_button.is_some_and(|button| button.0 == menu.selection);
+        let primary = command.is_some_and(|command| command.is_primary());
+        background.set_if_neq(BackgroundColor(match (selected, primary, hovered.get()) {
+            (true, ..) => BUTTON_SELECTED,
+            (false, true, true) => PRIMARY_HOVERED,
+            (false, true, false) => PRIMARY_IDLE,
+            (false, false, true) => BUTTON_HOVERED,
+            (false, false, false) => BUTTON_IDLE,
+        }));
     }
 }

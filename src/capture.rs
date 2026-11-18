@@ -39,6 +39,9 @@ const CAPTURE_EDITOR_VAR: &str = "IRON_TIDE_CAPTURE_EDITOR";
 /// `IRON_TIDE_CAPTURE_HOST=2` hosts a network battle for that many players and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`
 /// joins one.
 const CAPTURE_HOST_VAR: &str = "IRON_TIDE_CAPTURE_HOST";
+/// `IRON_TIDE_CAPTURE_MAIN_MENU=1` stays in the main menu; any other value selects that page first
+/// (`editor`, `network`, `replay`).
+const CAPTURE_MAIN_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MAIN_MENU";
 const CAPTURE_JOIN_VAR: &str = "IRON_TIDE_CAPTURE_JOIN";
 const LOAD_AFTER_SECS: f32 = 1.5;
 /// A hosting capture run starts the battle only after this, so spectators can join too.
@@ -93,6 +96,7 @@ impl Plugin for CapturePlugin {
         .add_systems(PreUpdate, discard_keyboard.after(InputSystems))
         .add_systems(Update, (follow_main_camera, capture_then_exit).chain())
         .add_systems(Update, accept_network_offer)
+        .add_systems(Update, open_requested_main_menu_section)
         .add_systems(
             Update,
             drag_test_strokes
@@ -283,6 +287,12 @@ fn accept_network_offer(
     }
 }
 
+fn open_requested_main_menu_section(menu: Option<ResMut<MainMenu>>) {
+    if let (Some(mut menu), Ok(section)) = (menu, std::env::var(CAPTURE_MAIN_MENU_VAR)) {
+        menu.open_section_named(&section);
+    }
+}
+
 fn let_mouse_pass_through(mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>) {
     for mut cursor in &mut cursors {
         cursor.hit_test = false;
@@ -343,6 +353,9 @@ fn start_requested_mission(
     mut next_state: ResMut<NextState<GameState>>,
     mut lobby: ResMut<NetLobby>,
 ) {
+    if std::env::var_os(CAPTURE_MAIN_MENU_VAR).is_some() {
+        return;
+    }
     if std::env::var_os(CAPTURE_HOST_VAR).is_some() {
         let players = std::env::var(CAPTURE_HOST_VAR)
             .ok()

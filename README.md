@@ -256,6 +256,7 @@ structure names and descriptions are translated; mission names and briefings sta
 in `assets/i18n/sk.json` and `assets/i18n/cs.json`, each mapping the English text to its translation; they are
 built into the game, so a change needs a new build. A text missing there simply stays English, and the tests
 check that both files list the same texts with the same `{}` placeholders.
+`tools/add_translations.py add "English" "Slovak" "Czech"` (or `remove "English"`) edits both files at once.
 
 ## Sound and music
 
