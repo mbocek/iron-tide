@@ -185,6 +185,14 @@ the same computer-against-computer battle twice for eight minutes and compares t
 seconds; another does the same while reshuffling the storage of units, structures and projectiles in one
 of the two battles every second.
 
+Everything the player does to the battle (orders to units, rally points, engineers, production and its
+cancelling, placing structures and walls, repairing and selling) becomes a `PlayerCommand`, which names
+units and structures by simulation id and is carried out at the start of a later tick
+(`COMMAND_DELAY_TICKS`). The simulation checks that a team only commands its own units and structures.
+Selecting, the camera and the menus stay local. Feedback such as the acknowledgement sound and the order
+marker is immediate; the change itself happens one tick (50 ms) later. These commands are what machines
+will exchange in a networked match.
+
 ## Languages
 
 The interface speaks English, Slovak and Czech: choose it with the *Language* button in the main menu or in
@@ -368,6 +376,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
 | `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
 | `interpolation` | drawing moving things between simulation ticks |
+| `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |
 | `determinism` | the seeded simulation randomness, simulation ids, single-threaded schedules and the state checksum |
 | `updates` | checking GitHub for a newer release, downloading and opening its package |
 | `season` | summer, autumn and winter: terrain tint, snow, foliage colours, light |

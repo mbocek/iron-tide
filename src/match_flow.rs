@@ -5,7 +5,7 @@ use crate::assets::ModelLibrary;
 use crate::catalog::{BuildingKind, Diplomacy, Team, UnitKind};
 use crate::combat::Targets;
 use crate::control_groups::ControlGroups;
-use crate::determinism::{SimIds, SimulationRng};
+use crate::determinism::{SimEntities, SimIds, SimulationRng};
 use crate::economy::Economies;
 use crate::fog::FogOfWar;
 use crate::intel::Intel;
@@ -15,6 +15,7 @@ use crate::map::{GameMap, cell_center, in_far_half};
 use crate::match_stats::MatchStats;
 use crate::notifications::Notifications;
 use crate::outcome::GameOutcome;
+use crate::player_commands::{CommandQueue, SimulationTick};
 use crate::production::{BuildItem, Placement, PlacementContext, Production, construct_building};
 use crate::savegame::PendingLoad;
 use crate::spawn::{spawn_building, spawn_unit};
@@ -54,6 +55,9 @@ pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
     set_map_size(level.0.map_size);
     commands.insert_resource(SimulationRng::seeded(level.0.map_seed));
     commands.insert_resource(SimIds::default());
+    commands.insert_resource(SimEntities::default());
+    commands.insert_resource(CommandQueue::default());
+    commands.insert_resource(SimulationTick::default());
     commands.insert_resource(FogOfWar::new(level.0.fog_of_war));
     commands.insert_resource(Intel::new(level.0.fog_of_war));
     commands.insert_resource(Diplomacy {

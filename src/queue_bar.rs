@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
 use crate::catalog::{BuildingKind, Team};
-use crate::economy::Economies;
 use crate::i18n::tr;
+use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::production::{BuildItem, Lane, Placement, Production};
 use crate::ui::{
     ACCENT, FRAME, GOOD, PANEL, SIDEBAR_WIDTH, TEXT_DIM, UiFonts, icon_path, set_field,
@@ -211,8 +211,7 @@ pub fn animate_queue_progress(
 fn click_queue_slot(
     click: On<PointerClick>,
     slots: Query<&QueueSlot>,
-    mut production: ResMut<Production>,
-    mut economies: ResMut<Economies>,
+    mut issuer: CommandIssuer,
     mut placement: ResMut<Placement>,
 ) {
     let Ok(&slot) = slots.get(click.entity) else {
@@ -223,13 +222,13 @@ fn click_queue_slot(
             placement.active = Some(kind)
         }
         (QueueSlot::AwaitingPlacement(kind), PointerButton::Secondary) => {
-            production.cancel_ready_structure(&mut economies, Team::Player);
+            issuer.issue(PlayerCommand::CancelReadyStructure);
             if placement.active == Some(kind) {
                 placement.active = None;
             }
         }
         (QueueSlot::Queued { lane, position }, PointerButton::Secondary) => {
-            production.cancel_at(&mut economies, Team::Player, lane, position);
+            issuer.issue(PlayerCommand::CancelQueued { lane, position });
         }
         _ => {}
     }

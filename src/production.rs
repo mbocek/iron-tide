@@ -16,6 +16,7 @@ use crate::map::{
 };
 use crate::movement::{FLIGHT_ALTITUDE, order_move};
 use crate::notifications::Notifications;
+use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::sound::{Sound, SoundCue};
 use crate::spawn::{exit_cell, spawn_building, spawn_unit};
 
@@ -501,16 +502,15 @@ pub fn affordable_wall_line(
 pub fn place_structure(
     mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
+    mut issuer: CommandIssuer,
     mut meshes: ResMut<Assets<Mesh>>,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Res<Cursor>,
-    models: Res<ModelLibrary>,
     ghost_materials: Res<GhostMaterials>,
-    mut map: ResMut<GameMap>,
+    map: Res<GameMap>,
     mut placement: ResMut<Placement>,
-    mut production: ResMut<Production>,
-    mut economies: ResMut<Economies>,
+    economies: Res<Economies>,
     buildings: Query<(&Building, &Team)>,
     units: Query<&Transform, With<Unit>>,
     mut ghosts: Query<
@@ -545,7 +545,8 @@ pub fn place_structure(
         return;
     };
     let origin = placement_origin(ground, footprint);
-    let valid = placement_context(&map, Team::Player, &buildings, &units).can_place(kind, origin);
+    let team = issuer.team();
+    let valid = placement_context(&map, team, &buildings, &units).can_place(kind, origin);
     if let Ok((mut transform, mut material)) = ghosts.get_mut(ghost) {
         transform.translation = footprint_center(origin, footprint) + Vec3::Y * 0.2;
         material.0 = if valid {
@@ -565,29 +566,28 @@ pub fn place_structure(
             return;
         };
         placement.wall_anchor = None;
-        let credits = economies.of(Team::Player).credits;
+        let credits = economies.of(team).credits;
         let segments = {
-            let mut context = placement_context(&map, Team::Player, &buildings, &units);
+            let mut context = placement_context(&map, team, &buildings, &units);
             affordable_wall_line(&mut context, anchor, origin, credits)
         };
         if segments.is_empty() {
             cues.write(SoundCue::interface(Sound::UiError));
             return;
         }
-        for &cell in &segments {
-            construct_building(&mut commands, &models, &mut map, kind, Team::Player, cell);
-        }
-        economies.of_mut(Team::Player).credits -= segments.len() as i32 * kind.spec().cost;
+        issuer.issue(PlayerCommand::LayWall {
+            from: anchor,
+            to: origin,
+        });
         cues.write(SoundCue::at(Sound::BuildingPlaced, cell_center(origin)));
         return;
     }
     if valid && mouse.just_pressed(MouseButton::Left) {
-        construct_building(&mut commands, &models, &mut map, kind, Team::Player, origin);
+        issuer.issue(PlayerCommand::PlaceStructure { kind, origin });
         cues.write(SoundCue::at(
             Sound::BuildingPlaced,
             footprint_center(origin, footprint),
         ));
-        production.lane_mut(Team::Player, Lane::Structures).ready = None;
         placement.active = None;
     }
 }

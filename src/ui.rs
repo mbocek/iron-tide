@@ -1,6 +1,7 @@
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::key_bindings::{Action, KeyBindings};
 use crate::match_stats::{MatchStats, TeamTally};
+use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
 use crate::structure_tools::spawn_tool_buttons;
 use bevy::picking::hover::Hovered;
@@ -46,7 +47,7 @@ const TILE_HEIGHT: f32 = 82.0;
 const TILE_ICON_SIZE: f32 = 46.0;
 const MINIMAP_SIZE: f32 = 276.0;
 const POWER_BAR_SCALE: i32 = 400;
-const SHIFT_CLICK_BATCH: usize = 5;
+const SHIFT_CLICK_BATCH: u32 = 5;
 
 #[derive(Resource)]
 pub struct UiFonts {
@@ -978,10 +979,10 @@ fn select_tab(click: On<PointerClick>, tabs: Query<&TabButton>, mut active: ResM
 fn click_build_tile(
     mut click: On<PointerClick>,
     mut cues: MessageWriter<SoundCue>,
+    mut issuer: CommandIssuer,
     keys: Res<ButtonInput<KeyCode>>,
     tiles: Query<&BuildTile>,
-    mut production: ResMut<Production>,
-    mut economies: ResMut<Economies>,
+    production: Res<Production>,
     mut placement: ResMut<Placement>,
     mut notifications: ResMut<Notifications>,
     outcome: Res<GameOutcome>,
@@ -994,8 +995,9 @@ fn click_build_tile(
     if *outcome != GameOutcome::Ongoing {
         return;
     }
+    let team = issuer.team();
     if click.button == PointerButton::Secondary {
-        production.cancel(&mut economies, Team::Player, item);
+        issuer.issue(PlayerCommand::Cancel { item });
         if let BuildItem::Structure(kind) = item
             && placement.active == Some(kind)
         {
@@ -1006,9 +1008,9 @@ fn click_build_tile(
     if click.button != PointerButton::Primary {
         return;
     }
-    let owned = owned_building_kinds(&buildings, Team::Player);
+    let owned = owned_building_kinds(&buildings, team);
     if let BuildItem::Structure(kind) = item
-        && production.lane(Team::Player, item.lane()).ready == Some(kind)
+        && production.lane(team, item.lane()).ready == Some(kind)
     {
         placement.active = Some(kind);
         return;
@@ -1016,7 +1018,7 @@ fn click_build_tile(
     if let BuildItem::Structure(kind) = item
         && kind.is_wall()
     {
-        let refusal = if !production.allows(Team::Player, item) {
+        let refusal = if !production.allows(team, item) {
             Some(EnqueueRefusal::NotInMission.message())
         } else {
             item.missing_requirement(&owned)
@@ -1040,13 +1042,10 @@ fn click_build_tile(
     } else {
         1
     };
-    for _ in 0..batch {
-        if let Err(refusal) = production.enqueue(&mut economies, Team::Player, item, &owned) {
-            notifications.push(refusal.message());
-            cues.write(SoundCue::interface(Sound::UiError));
-            return;
-        }
-    }
+    issuer.issue(PlayerCommand::Enqueue {
+        item,
+        copies: batch,
+    });
 }
 
 enum TileState {

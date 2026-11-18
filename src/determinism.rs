@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::hash::Hasher;
 
 use bevy::ecs::schedule::{ScheduleLabel, SingleThreadedExecutor};
 use bevy::prelude::*;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use serde::{Deserialize, Serialize};
 
 use crate::catalog::Team;
 use crate::combat::Projectile;
@@ -55,7 +57,9 @@ impl Default for SimulationRng {
 
 /// The simulation's own number for a unit or structure, given in the order the simulation spawned them.
 /// Bevy's entity ids also count effects that differ between machines, so they cannot order the battle.
-#[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(
+    Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize,
+)]
 pub struct SimId(pub u64);
 
 #[derive(Resource, Default)]
@@ -63,24 +67,52 @@ pub struct SimIds {
     next: u64,
 }
 
-pub fn number_new_unit(added: On<Add<Unit>>, mut ids: ResMut<SimIds>, mut commands: Commands) {
-    number(added.entity, &mut ids, &mut commands);
+/// Finds the entity behind a simulation id; units and structures gone from the battle are absent.
+#[derive(Resource, Default)]
+pub struct SimEntities(HashMap<SimId, Entity>);
+
+impl SimEntities {
+    pub fn get(&self, id: SimId) -> Option<Entity> {
+        self.0.get(&id).copied()
+    }
 }
 
-pub fn number_new_building(
-    added: On<Add<Building>>,
-    mut ids: ResMut<SimIds>,
-    mut commands: Commands,
+pub fn forget_removed_entity(
+    removed: On<Remove<SimId>>,
+    ids: Query<&SimId>,
+    mut known: ResMut<SimEntities>,
 ) {
-    number(added.entity, &mut ids, &mut commands);
+    if let Ok(id) = ids.get(removed.entity) {
+        known.0.remove(id);
+    }
 }
 
-pub fn number_new_projectile(
-    added: On<Add<Projectile>>,
-    mut ids: ResMut<SimIds>,
-    mut commands: Commands,
-) {
-    number(added.entity, &mut ids, &mut commands);
+pub fn number_new_unit(added: On<Add<Unit>>, mut registry: Registry) {
+    registry.number(added.entity);
+}
+
+pub fn number_new_building(added: On<Add<Building>>, mut registry: Registry) {
+    registry.number(added.entity);
+}
+
+pub fn number_new_projectile(added: On<Add<Projectile>>, mut registry: Registry) {
+    registry.number(added.entity);
+}
+
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct Registry<'w, 's> {
+    ids: ResMut<'w, SimIds>,
+    entities: ResMut<'w, SimEntities>,
+    commands: Commands<'w, 's>,
+}
+
+impl Registry<'_, '_> {
+    fn number(&mut self, entity: Entity) {
+        let id = SimId(self.ids.next);
+        self.ids.next += 1;
+        self.entities.0.insert(id, entity);
+        self.commands.entity(entity).insert(id);
+    }
 }
 
 /// Query items in the order the simulation spawned them, so the battle cannot depend on how the ECS
@@ -92,11 +124,6 @@ pub fn in_simulation_order<T>(
     let mut items: Vec<T> = items.into_iter().collect();
     items.sort_by_key(|item| id(item));
     items
-}
-
-fn number(entity: Entity, ids: &mut SimIds, commands: &mut Commands) {
-    commands.entity(entity).insert(SimId(ids.next));
-    ids.next += 1;
 }
 
 /// FNV-1a: stable across runs, builds and machines, unlike the standard library's hasher.

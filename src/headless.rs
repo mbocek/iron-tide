@@ -10,6 +10,7 @@ use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::combat::DamageDealt;
 use crate::combat::{DamageSource, Destroyed};
 use crate::components::*;
+use crate::determinism::SimId;
 use crate::economy::Economies;
 use crate::effects::EffectAssets;
 use crate::levels::Difficulty;
@@ -18,6 +19,7 @@ use crate::map::{GameMap, cell_center};
 use crate::match_flow::GameState;
 use crate::movement::order_move;
 use crate::outcome::GameOutcome;
+use crate::player_commands::{CommandQueue, PlayerCommand, SimulationTick};
 use crate::production::{BuildItem, Production, construct_building};
 use crate::savegame::SaveDirectory;
 use crate::sound::{Sound, SoundCue};
@@ -349,6 +351,21 @@ impl Battle {
             .resource_mut::<AiCommanders>()
             .0
             .push(AiCommander::new(team, base, difficulty));
+    }
+
+    /// Gives a command as a player of `team` would; it is carried out on a later tick.
+    pub fn issue(&mut self, team: Team, command: PlayerCommand) {
+        let tick = *self.world().resource::<SimulationTick>();
+        self.world()
+            .resource_mut::<CommandQueue>()
+            .issue(tick, team, command);
+    }
+
+    pub fn sim_id(&mut self, entity: Entity) -> SimId {
+        *self
+            .world()
+            .get::<SimId>(entity)
+            .expect("a simulated unit or structure")
     }
 
     pub fn ledger(&mut self) -> &DamageLedger {

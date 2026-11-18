@@ -28,7 +28,7 @@ pub struct BeingSold {
     remaining_secs: f32,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum StructureOrderKind {
     ToggleRepair,
     Sell,

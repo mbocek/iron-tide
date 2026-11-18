@@ -41,6 +41,7 @@ pub mod orders;
 pub mod outcome;
 pub mod overlay;
 pub mod perf_overlay;
+pub mod player_commands;
 pub mod production;
 pub mod queue_bar;
 pub mod replay;
@@ -137,6 +138,11 @@ impl Plugin for SimulationPlugin {
             .init_resource::<combat::Targets>()
             .init_resource::<determinism::SimulationRng>()
             .init_resource::<determinism::SimIds>()
+            .init_resource::<determinism::SimEntities>()
+            .init_resource::<player_commands::CommandQueue>()
+            .init_resource::<player_commands::SimulationTick>()
+            .init_resource::<player_commands::LocalTeam>()
+            .add_observer(determinism::forget_removed_entity)
             .add_observer(determinism::number_new_unit)
             .add_observer(determinism::number_new_building)
             .add_observer(determinism::number_new_projectile)
@@ -187,6 +193,7 @@ impl Plugin for SimulationPlugin {
                 FixedUpdate,
                 (
                     (
+                        player_commands::carry_out_player_commands,
                         match_flow::advance_match_clock,
                         economy::tally_power,
                         production::advance_production,
@@ -233,6 +240,7 @@ impl Plugin for SimulationPlugin {
                         notifications::watch_base,
                         outcome::decide_outcome,
                         savegame::write_requested_save,
+                        player_commands::count_ticks,
                     )
                         .chain(),
                 )

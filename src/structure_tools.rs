@@ -4,15 +4,15 @@ use bevy::prelude::*;
 use crate::camera::Cursor;
 use crate::catalog::Team;
 use crate::components::{Building, Health};
+use crate::determinism::SimId;
 use crate::fog::FogOfWar;
 use crate::i18n::{tr, tr_fmt};
 use crate::key_bindings::{Action, KeyBindings};
 use crate::map::{GameMap, footprint_center, world_to_cell};
+use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::settings::GameSettings;
 use crate::sound::{Sound, SoundCue};
-use crate::structures::{
-    Repairing, StructureOrder, StructureOrderKind, can_sell, repair_cost, sale_refund,
-};
+use crate::structures::{Repairing, StructureOrderKind, can_sell, repair_cost, sale_refund};
 use crate::ui::{ACCENT, FRAME, GOOD, TEXT_DIM, TEXT_MAIN, UiFonts, set_field};
 
 const BUTTON_IDLE: Color = Color::srgb(0.13, 0.15, 0.17);
@@ -155,19 +155,21 @@ pub fn apply_structure_tool(
     map: Res<GameMap>,
     active: Res<StructureTool>,
     structures: Query<(&Building, &Team, &Health)>,
-    mut orders: MessageWriter<StructureOrder>,
+    sim_ids: Query<&SimId>,
+    mut issuer: CommandIssuer,
     mut cues: MessageWriter<SoundCue>,
 ) {
     let Some(tool) = active.0 else { return };
     if !mouse.just_pressed(MouseButton::Left) || cursor.over_interface {
         return;
     }
-    let Some(building) = own_structure_under(&map, &cursor, &structures) else {
+    let Some(&building) =
+        own_structure_under(&map, &cursor, &structures).and_then(|entity| sim_ids.get(entity).ok())
+    else {
         cues.write(SoundCue::interface(Sound::UiError));
         return;
     };
-    orders.write(StructureOrder {
-        team: Team::Player,
+    issuer.issue(PlayerCommand::OrderStructure {
         building,
         kind: tool,
     });

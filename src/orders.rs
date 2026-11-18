@@ -4,11 +4,12 @@ use crate::camera::{Cursor, RtsCamera};
 use crate::catalog::{BuildingKind, Diplomacy, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
-use crate::engineers::{EngineerJob, EngineerTask, job_for};
+use crate::determinism::SimId;
+use crate::engineers::{EngineerJob, job_for};
 use crate::i18n::{tr, tr_fmt};
 use crate::key_bindings::Action;
-use crate::map::{GameMap, cells_by_distance, world_to_cell};
-use crate::movement::order_move;
+use crate::map::world_to_cell;
+use crate::player_commands::{CommandIssuer, GroundOrder, PlayerCommand};
 use crate::production::Placement;
 use crate::settings::GameSettings;
 use crate::sound::{Sound, SoundCue};
@@ -264,24 +265,14 @@ pub fn select_units(
     }
 }
 
-type CommandableUnit<'a> = (
-    Entity,
-    &'a Transform,
-    Option<&'a mut Mobile>,
-    Option<&'a mut AttackTarget>,
-    Option<&'a mut Harvester>,
-    Option<&'a mut Orders>,
-);
-
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum GroundOrder {
-    Move,
-    AttackMove,
-    Patrol,
+struct Shortcut {
+    order: GroundOrder,
+    queued: bool,
 }
 
 /// Right click on the ground. Ctrl attack-moves, Alt patrols, Shift queues behind current orders.
-fn ground_order_from_keys(keys: &ButtonInput<KeyCode>) -> (GroundOrder, bool) {
+fn ground_order_from_keys(keys: &ButtonInput<KeyCode>) -> Shortcut {
     let order = if keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]) {
         GroundOrder::AttackMove
     } else if keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]) {
@@ -289,10 +280,10 @@ fn ground_order_from_keys(keys: &ButtonInput<KeyCode>) -> (GroundOrder, bool) {
     } else {
         GroundOrder::Move
     };
-    (
+    Shortcut {
         order,
-        keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
-    )
+        queued: keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
+    }
 }
 
 fn produces_units(kind: BuildingKind) -> bool {
@@ -302,36 +293,33 @@ fn produces_units(kind: BuildingKind) -> bool {
     )
 }
 
+/// Turns the player's clicks and keys into commands; the simulation carries them out on a later tick.
 pub fn issue_orders(
-    mut commands: Commands,
     mut cues: MessageWriter<SoundCue>,
+    mut issuer: CommandIssuer,
     mouse: Res<ButtonInput<MouseButton>>,
     (keys, settings): (Res<ButtonInput<KeyCode>>, Res<GameSettings>),
     cursor: Res<Cursor>,
     placement: Res<Placement>,
     tool: Res<StructureTool>,
     targets: Res<Targets>,
-    map: Res<GameMap>,
     mut marker: ResMut<OrderMarker>,
-    mut units: Query<CommandableUnit, (With<Selected>, With<Unit>)>,
-    buildings: Query<&Building>,
-    structures: Query<(&Building, &Health)>,
     diplomacy: Res<Diplomacy>,
-    kinds: Query<&Unit>,
-    selected_buildings: Query<(Entity, &Building, &Team), With<Selected>>,
+    selected_units: Query<(&SimId, &Unit, &Team), With<Selected>>,
+    selected_buildings: Query<(&SimId, &Building, &Team), With<Selected>>,
+    structures: Query<(&SimId, &Building, &Health)>,
+    sim_ids: Query<&SimId>,
 ) {
-    if settings.keys.just_pressed(&keys, Action::Stop) {
-        for (_, _, mobile, attack, _, orders) in &mut units {
-            if let Some(mut mobile) = mobile {
-                mobile.stop();
-            }
-            if let Some(mut attack) = attack {
-                attack.clear();
-            }
-            if let Some(mut orders) = orders {
-                orders.clear();
-            }
-        }
+    let team = issuer.team();
+    let units: Vec<SimId> = selected_units
+        .iter()
+        .filter(|(_, _, owner)| **owner == team)
+        .map(|(&id, ..)| id)
+        .collect();
+    if settings.keys.just_pressed(&keys, Action::Stop) && !units.is_empty() {
+        issuer.issue(PlayerCommand::Stop {
+            units: units.clone(),
+        });
     }
     if placement.active.is_some()
         || tool.0.is_some()
@@ -342,7 +330,7 @@ pub fn issue_orders(
     }
     let Some(ground) = cursor.ground else { return };
     let hovered = target_under(&targets, ground).copied();
-    let goal_cell = world_to_cell(ground);
+    let goal = world_to_cell(ground);
     let mut acknowledge = |marker: &mut OrderMarker, position: Vec3, kind: MarkerKind| {
         cues.write(SoundCue::interface(Sound::UnitAcknowledge));
         *marker = OrderMarker {
@@ -353,113 +341,64 @@ pub fn issue_orders(
     };
 
     if units.is_empty() {
-        let mut rally_set = false;
-        for (entity, building, team) in &selected_buildings {
-            if *team == Team::Player && produces_units(building.kind) {
-                commands.entity(entity).insert(RallyPoint(goal_cell));
-                rally_set = true;
-            }
-        }
-        if rally_set {
+        let producers: Vec<SimId> = selected_buildings
+            .iter()
+            .filter(|(_, building, owner)| **owner == team && produces_units(building.kind))
+            .map(|(&id, ..)| id)
+            .collect();
+        if !producers.is_empty() {
+            issuer.issue(PlayerCommand::SetRally {
+                buildings: producers,
+                cell: goal,
+            });
             acknowledge(&mut marker, ground, MarkerKind::Rally);
         }
         return;
     }
 
     if let Some(structure) = hovered.filter(|t| t.is_building)
-        && let Ok((building, health)) = structures.get(structure.entity)
-        && let Some(job) = job_for(
-            *diplomacy,
-            Team::Player,
-            structure.team,
-            building.kind,
-            health,
-        )
+        && let Ok((&id, building, health)) = structures.get(structure.entity)
+        && let Some(job) = job_for(*diplomacy, team, structure.team, building.kind, health)
     {
-        let engineers: Vec<Entity> = units
+        let engineers: Vec<SimId> = selected_units
             .iter()
-            .map(|(entity, ..)| entity)
-            .filter(|&entity| {
-                kinds
-                    .get(entity)
-                    .is_ok_and(|unit| unit.0 == UnitKind::Engineer)
-            })
+            .filter(|(_, unit, owner)| **owner == team && unit.0 == UnitKind::Engineer)
+            .map(|(&id, ..)| id)
             .collect();
-        for &engineer in &engineers {
-            commands
-                .entity(engineer)
-                .insert(EngineerTask::new(structure.entity, job));
-        }
-        if !engineers.is_empty() && job == EngineerJob::Repair {
-            acknowledge(&mut marker, structure.position, MarkerKind::Move);
-            return;
+        if !engineers.is_empty() {
+            issuer.issue(PlayerCommand::SendEngineers {
+                units: engineers,
+                structure: id,
+            });
+            if job == EngineerJob::Repair {
+                acknowledge(&mut marker, structure.position, MarkerKind::Move);
+                return;
+            }
         }
     }
 
-    if let Some(enemy) = hovered.filter(|t| t.team.is_hostile_to(Team::Player)) {
-        for (_, _, mobile, attack, _, orders) in &mut units {
-            if let (Some(mut attack), Some(mut mobile)) = (attack, mobile) {
-                attack.order(enemy.entity);
-                mobile.ordered_move = false;
-                if let Some(mut orders) = orders {
-                    orders.clear();
-                }
-            }
-        }
+    if let Some(enemy) = hovered.filter(|t| diplomacy.hostile(t.team, team))
+        && let Ok(&target) = sim_ids.get(enemy.entity)
+    {
+        issuer.issue(PlayerCommand::Attack { units, target });
         acknowledge(&mut marker, enemy.position, MarkerKind::Attack);
         return;
     }
 
-    let own_refinery = hovered.filter(|t| {
-        t.team == Team::Player
-            && buildings
-                .get(t.entity)
-                .is_ok_and(|b| b.kind == BuildingKind::Refinery)
+    let refinery = hovered
+        .filter(|t| t.team == team)
+        .and_then(|t| structures.get(t.entity).ok())
+        .filter(|(_, building, _)| building.kind == BuildingKind::Refinery)
+        .map(|(&id, ..)| id);
+    let shortcut = ground_order_from_keys(&keys);
+    issuer.issue(PlayerCommand::Ground {
+        units,
+        goal,
+        order: shortcut.order,
+        queued: shortcut.queued,
+        refinery,
     });
-    let (ground_order, queue) = ground_order_from_keys(&keys);
-    let mut formation = cells_by_distance(goal_cell, 6).filter(|&cell| map.is_passable(cell));
-    for (entity, transform, mobile, attack, harvester, orders) in &mut units {
-        let Some(mut mobile) = mobile else { continue };
-        commands.entity(entity).remove::<EngineerTask>();
-        let position = transform.translation;
-        if let Some(mut harvester) = harvester {
-            if let Some(refinery) = own_refinery {
-                harvester.state = HarvestState::ReturningToRefinery(refinery.entity);
-                mobile.stop();
-                continue;
-            }
-            if map.crystal_at(goal_cell) > 0 {
-                harvester.preferred_field = Some(goal_cell);
-                harvester.state = HarvestState::SeekingField;
-                continue;
-            }
-            harvester.state = HarvestState::Holding;
-            if let Some(cell) = formation.next() {
-                order_move(&mut mobile, &map, position, cell, true);
-            }
-            continue;
-        }
-        let Some(cell) = formation.next() else { break };
-        let order = match ground_order {
-            GroundOrder::Move => Order::Move(cell),
-            GroundOrder::AttackMove => Order::AttackMove(cell),
-            GroundOrder::Patrol => Order::Patrol {
-                from: world_to_cell(position),
-                to: cell,
-            },
-        };
-        let Some(mut orders) = orders else { continue };
-        if queue {
-            orders.queue(order);
-            continue;
-        }
-        orders.replace_with(order);
-        mobile.stop();
-        if let Some(mut attack) = attack {
-            attack.clear();
-        }
-    }
-    let kind = match ground_order {
+    let kind = match shortcut.order {
         GroundOrder::Move => MarkerKind::Move,
         GroundOrder::AttackMove => MarkerKind::Attack,
         GroundOrder::Patrol => MarkerKind::Patrol,
