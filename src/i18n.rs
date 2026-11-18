@@ -93,9 +93,9 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ("NETWORK", "SIEŤ", "SÍŤ"),
     ("Network battle", "Sieťová bitka", "Síťová bitva"),
     (
-        "Two players on two computers, one against one. The host plays the Coalition with the battle editor's settings; the other player joins as the Syndicate. Both need the same version of the game, and the host's port 47300 must be reachable.",
-        "Dvaja hráči na dvoch počítačoch, jeden proti jednému. Hostiteľ hrá za Koalíciu s nastaveniami editora bitiek, druhý hráč sa pripojí za Syndikát. Obaja potrebujú rovnakú verziu hry a port 47300 hostiteľa musí byť dostupný.",
-        "Dva hráči na dvou počítačích, jeden proti jednomu. Hostitel hraje za Koalici s nastavením editoru bitev, druhý hráč se připojí za Syndikát. Oba potřebují stejnou verzi hry a port 47300 hostitele musí být dostupný.",
+        "Two to four players on their own computers. The host plays the Coalition with the battle editor's settings and can still change them; the others join as the Syndicate commanders. Everyone needs the same version of the game, and the host's port 47300 must be reachable.",
+        "Dvaja až štyria hráči, každý na svojom počítači. Hostiteľ hrá za Koalíciu s nastaveniami editora bitiek a môže ich ešte meniť; ostatní sa pripoja ako velitelia Syndikátu. Všetci potrebujú rovnakú verziu hry a port 47300 hostiteľa musí byť dostupný.",
+        "Dva až čtyři hráči, každý na svém počítači. Hostitel hraje za Koalici s nastavením editoru bitev a může ho ještě měnit; ostatní se připojí jako velitelé Syndikátu. Všichni potřebují stejnou verzi hry a port 47300 hostitele musí být dostupný.",
     ),
     ("HOST A BATTLE", "HOSTIŤ BITKU", "HOSTOVAT BITVU"),
     (
@@ -203,6 +203,11 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Hra se rozešla s ostatními hráči v kroku {}",
     ),
     ("Network players", "Hráči v sieti", "Hráči v síti"),
+    (
+        "The host changed the battle",
+        "Hostiteľ zmenil bitku",
+        "Hostitel změnil bitvu",
+    ),
     (
         "Players {} of {}, {} ready. Others join at {} (port {})",
         "Hráči {} z {}, pripravení {}. Ostatní sa pripoja na {} (port {})",

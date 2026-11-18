@@ -151,6 +151,28 @@ impl NetLobby {
         }
     }
 
+    /// The host changed the battle: every guest sees the new one and has to accept it again.
+    pub fn reoffer(&mut self, new_level: LevelDefinition) {
+        if let LobbyPhase::Hosting {
+            level,
+            players,
+            seats,
+            ..
+        } = &mut self.phase
+        {
+            **level = new_level;
+            for seat in seats.iter_mut() {
+                seat.link.offer(level, seat.team, players);
+                seat.ready = false;
+            }
+            self.changed = true;
+        }
+    }
+
+    pub fn is_hosting(&self) -> bool {
+        matches!(self.phase, LobbyPhase::Hosting { .. })
+    }
+
     /// Stops hosting or leaves the host; the other machines learn from the closed connection.
     pub fn cancel(&mut self) {
         self.notice = None;
@@ -357,11 +379,15 @@ impl NetLobby {
                 }
                 LobbyPhase::WaitingForOffer(link)
             }
-            LobbyPhase::Considering { offer, mut link } => {
+            LobbyPhase::Considering {
+                mut offer,
+                mut link,
+            } => {
                 for news in link.lobby_news() {
                     match news {
                         LobbyNews::Left => return self.host_gone(),
                         LobbyNews::Chat(team, text) => self.heard(team, text),
+                        LobbyNews::Offered(Ok(changed)) => offer = self.battle_changed(changed),
                         _ => {}
                     }
                 }
@@ -373,6 +399,10 @@ impl NetLobby {
                     match news {
                         LobbyNews::Left => return self.host_gone(),
                         LobbyNews::Chat(team, text) => self.heard(team, text),
+                        LobbyNews::Offered(Ok(changed)) => {
+                            let offer = self.battle_changed(changed);
+                            return LobbyPhase::Considering { offer, link };
+                        }
                         LobbyNews::Go => go = true,
                         _ => {}
                     }
@@ -503,6 +533,12 @@ impl NetLobby {
             relays: true,
             starts_at: now + COUNTDOWN_SECS,
         })
+    }
+
+    fn battle_changed(&mut self, offer: Box<Offer>) -> Box<Offer> {
+        self.notice = Some(tr("The host changed the battle").to_string());
+        self.changed = true;
+        offer
     }
 
     fn heard(&mut self, team: Team, text: String) {

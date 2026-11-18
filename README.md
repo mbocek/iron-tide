@@ -219,7 +219,9 @@ remembered) and clicks *Join*. Once connected, the host offers the battle and th
 bases, map, landscape, season, available units) before clicking *I'm ready*; both need the same game
 version. Then both machines count down three seconds and the battle begins, the host playing the Coalition
 and the guest the Syndicate. Either side can leave the lobby: a host whose guest leaves goes back to waiting
-for another player. Leaving or quitting a battle closes the connection at once, so the other player is told
+for another player. While hosting, the network page shows the battle editor's settings (all but the number
+of players), and the host can still change them: every guest at once sees the new battle, is told the host
+changed it, and has to click *I'm ready* again. Leaving or quitting a battle closes the connection at once, so the other player is told
 straight away. During a network battle the round trip to the other machine (measured every second
 with a ping, smoothed) shows in the corner of the battlefield, and when the battle has waited more than half
 a second for the other player's orders a banner says so and counts the seconds. The players can chat: in the lobby,

@@ -12,6 +12,7 @@ use iron_tide::levels::{BaseSite, EnemySetup, ForceSetup, LevelDefinition};
 use iron_tide::lobby::NetLobby;
 use iron_tide::network::{Link, NetSession, SessionState};
 use iron_tide::player_commands::{GroundOrder, PlayerCommand};
+use iron_tide::season::Season;
 
 const TICKS_TO_PLAY: u64 = 1200;
 const LIMIT_SECS: f32 = 0.05;
@@ -358,9 +359,9 @@ fn three_players_take_their_seats_and_start_together() {
                 guest.accept_offer();
             }
         }
-        started.extend(host.advance(clock).map(|start| start.local_team));
+        started.extend(host.advance(clock));
         for guest in &mut guests {
-            started.extend(guest.advance(clock).map(|start| start.local_team));
+            started.extend(guest.advance(clock));
         }
         if started.len() == 3 {
             break;
@@ -374,6 +375,45 @@ fn three_players_take_their_seats_and_start_together() {
             clock += 0.5;
         }
     }
-    started.sort_by_key(|team| team.index());
-    assert_eq!(started, vec![Team::Player, Team::Crimson, Team::Amber]);
+    let mut teams: Vec<Team> = started.iter().map(|start| start.local_team).collect();
+    teams.sort_by_key(|team| team.index());
+    assert_eq!(teams, vec![Team::Player, Team::Crimson, Team::Amber]);
+}
+
+#[test]
+fn a_change_by_the_host_reaches_the_guest_who_must_accept_again() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let level = LevelDefinition::default();
+    let mut host = NetLobby::default();
+    host.host_on(listener, level.clone(), 3);
+    let mut guest = NetLobby::default();
+    guest.join(&address);
+    let mut clock = 0.0;
+    settle(&mut host, &mut guest, &mut clock, |_, guest| {
+        guest.can_accept_offer()
+    });
+    guest.accept_offer();
+    settle(&mut host, &mut guest, &mut clock, |host, _| {
+        host.status(0.0)
+            .is_some_and(|status| status.contains("1 ready"))
+    });
+    let winter = LevelDefinition {
+        season: Season::Winter,
+        ..level
+    };
+    host.reoffer(winter.clone());
+    settle(&mut host, &mut guest, &mut clock, |_, guest| {
+        guest
+            .offered_level()
+            .is_some_and(|offered| offered.season == Season::Winter)
+    });
+    assert!(
+        guest.can_accept_offer(),
+        "the guest's earlier acceptance still counted"
+    );
+    assert!(
+        host.status(0.0)
+            .is_some_and(|status| status.contains("0 ready"))
+    );
 }

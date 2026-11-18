@@ -631,19 +631,50 @@ pub fn show_network_status(
     }
 }
 
+fn spawn_editor_fields(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    options: &SkirmishOptions,
+    fields: &[EditorField],
+) {
+    for &field in fields {
+        panel
+            .spawn(Node {
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn(fonts.text(field.label(), 18.0, TEXT_MAIN));
+                row.spawn((
+                    EditorOption(field),
+                    Hovered::default(),
+                    button_node(Val::Px(260.0)),
+                    BackgroundColor(BUTTON_IDLE),
+                    BorderColor::all(FRAME),
+                ))
+                .with_children(|button| {
+                    button.spawn(fonts.heading(field.value(options), 16.0, ACCENT));
+                })
+                .observe(change_option);
+            });
+    }
+}
+
 fn spawn_network_details(
     panel: &mut ChildSpawnerCommands,
     fonts: &UiFonts,
     join_address: &str,
     lobby: &NetLobby,
+    options: &SkirmishOptions,
 ) {
     panel.spawn(fonts.heading(tr("Network battle"), 30.0, ACCENT));
     panel.spawn(fonts.text(
-        tr("Two players on two computers, one against one. The host plays the Coalition with the battle editor's settings; the other player joins as the Syndicate. Both need the same version of the game, and the host's port 47300 must be reachable."),
+        tr("Two to four players on their own computers. The host plays the Coalition with the battle editor's settings and can still change them; the others join as the Syndicate commanders. Everyone needs the same version of the game, and the host's port 47300 must be reachable."),
         15.0,
         TEXT_DIM,
     ));
-    if !lobby.has_partner() {
+    if !lobby.is_busy() {
         spawn_command_button(
             panel,
             fonts,
@@ -654,7 +685,13 @@ fn spawn_network_details(
         spawn_command_button(panel, fonts, tr("JOIN"), MenuCommand::JoinNetworkBattle);
     }
     panel.spawn((NetworkStatusText, fonts.text("", 16.0, GOOD)));
-    if let Some(level) = lobby.offered_level() {
+    if lobby.is_hosting() {
+        let while_hosting: Vec<EditorField> = EDITOR_FIELDS
+            .into_iter()
+            .filter(|&field| field != EditorField::NetworkPlayers)
+            .collect();
+        spawn_editor_fields(panel, fonts, options, &while_hosting);
+    } else if let Some(level) = lobby.offered_level() {
         for (line, color) in describe_level(level).into_iter().skip(2) {
             panel.spawn(fonts.text(line, 15.0, color));
         }
@@ -769,7 +806,9 @@ fn rebuild_details(
                 ));
                 spawn_command_button(panel, fonts, tr("WATCH REPLAY"), MenuCommand::WatchReplay);
             }
-            Selection::Network => spawn_network_details(panel, fonts, join_address, lobby),
+            Selection::Network => {
+                spawn_network_details(panel, fonts, join_address, lobby, &menu.options)
+            }
             Selection::Editor => {
                 panel.spawn(fonts.heading(tr("Battle editor"), 30.0, ACCENT));
                 panel.spawn(fonts.text(
@@ -777,32 +816,7 @@ fn rebuild_details(
                     15.0,
                     TEXT_DIM,
                 ));
-                for field in EDITOR_FIELDS {
-                    panel
-                        .spawn(Node {
-                            justify_content: JustifyContent::SpaceBetween,
-                            align_items: AlignItems::Center,
-                            ..default()
-                        })
-                        .with_children(|row| {
-                            row.spawn(fonts.text(field.label(), 18.0, TEXT_MAIN));
-                            row.spawn((
-                                EditorOption(field),
-                                Hovered::default(),
-                                button_node(Val::Px(260.0)),
-                                BackgroundColor(BUTTON_IDLE),
-                                BorderColor::all(FRAME),
-                            ))
-                            .with_children(|button| {
-                                button.spawn(fonts.heading(
-                                    field.value(&menu.options),
-                                    16.0,
-                                    ACCENT,
-                                ));
-                            })
-                            .observe(change_option);
-                        });
-                }
+                spawn_editor_fields(panel, fonts, &menu.options, &EDITOR_FIELDS);
                 panel.spawn(fonts.text(
                     menu.options.to_level().objective.describe(),
                     16.0,
@@ -836,12 +850,17 @@ fn change_option(
     click: On<PointerClick>,
     fields: Query<&EditorOption>,
     mut menu: ResMut<MainMenu>,
+    mut lobby: ResMut<NetLobby>,
 ) {
     let Ok(field) = fields.get(click.entity) else {
         return;
     };
     let forward = click.button != PointerButton::Secondary;
     field.0.change(&mut menu.options, forward);
+    if lobby.is_hosting() {
+        let players = menu.options.network_players;
+        lobby.reoffer(network_level(&menu.options, players));
+    }
     menu.message = None;
     menu.needs_rebuild = true;
 }
