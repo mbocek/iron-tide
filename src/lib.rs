@@ -27,6 +27,7 @@ pub mod i18n;
 pub mod intel;
 pub mod interpolation;
 pub mod key_bindings;
+pub mod level_editing;
 pub mod levels;
 pub mod lobby;
 pub mod local_view;
@@ -397,7 +398,6 @@ impl Plugin for GamePlugin {
                     map::spawn_terrain_visuals,
                     camera::focus_on_player_base,
                     battlefield::set_the_weather,
-                    map_editor::spawn_map_editor_panel,
                 )
                     .chain(),
             )
@@ -418,7 +418,7 @@ impl Plugin for GamePlugin {
                     map_editor::resoil_after_stroke,
                     map_editor::draw_brush_outline,
                     map_editor::mark_base_sites,
-                    map_editor::refresh_map_editor_panel,
+                    map_editor::rebuild_map_editor_panel,
                     map_editor::leave_on_escape,
                 )
                     .chain()
@@ -500,6 +500,12 @@ impl Plugin for GamePlugin {
             .init_resource::<updates::Updates>()
             .init_resource::<lobby::NetLobby>()
             .init_resource::<network_hud::BattleChat>()
+            .add_systems(
+                PreUpdate,
+                map_editor::type_level_text
+                    .after(bevy::input::InputSystems)
+                    .run_if(in_state(match_flow::GameState::MapEditor)),
+            )
             .add_systems(
                 PreUpdate,
                 network_hud::type_battle_chat

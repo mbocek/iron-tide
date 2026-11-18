@@ -50,6 +50,15 @@ impl BaseSite {
         }]
     }
 
+    pub fn name(self) -> &'static str {
+        match self {
+            BaseSite::SouthWest => tr("South-west"),
+            BaseSite::NorthEast => tr("North-east"),
+            BaseSite::NorthWest => tr("North-west"),
+            BaseSite::SouthEast => tr("South-east"),
+        }
+    }
+
     /// Which way units leave the base: towards the map centre.
     pub fn facing(self) -> f32 {
         match self {

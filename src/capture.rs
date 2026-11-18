@@ -33,7 +33,8 @@ const CAPTURE_SELECT_ALL_VAR: &str = "IRON_TIDE_CAPTURE_SELECT_ALL";
 const CAPTURE_ZOOM_VAR: &str = "IRON_TIDE_CAPTURE_ZOOM";
 const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
 /// `IRON_TIDE_CAPTURE_EDITOR=1` opens the map editor on the chosen mission instead of playing it;
-/// `IRON_TIDE_CAPTURE_EDITOR=paint` also drags each brush across the ground beside the player's base.
+/// `IRON_TIDE_CAPTURE_EDITOR=paint` also drags each brush across the ground beside the player's base, and
+/// `IRON_TIDE_CAPTURE_EDITOR=level` shows the level settings page.
 const CAPTURE_EDITOR_VAR: &str = "IRON_TIDE_CAPTURE_EDITOR";
 /// `IRON_TIDE_CAPTURE_HOST=2` hosts a network battle for that many players and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`
 /// joins one.
@@ -365,6 +366,11 @@ fn start_requested_mission(
     let level = requested_mission.map_or_else(LevelDefinition::default, |mission| mission.level);
     if std::env::var_os(CAPTURE_EDITOR_VAR).is_some() {
         open_map_editor(&mut commands, &mut next_state, level, None);
+        if std::env::var(CAPTURE_EDITOR_VAR).is_ok_and(|value| value == "level") {
+            let mut editor = crate::map_editor::MapEditor::new(None);
+            editor.page = crate::map_editor::EditorPage::Level;
+            commands.insert_resource(editor);
+        }
         return;
     }
     commands.insert_resource(ActiveLevel(level));

@@ -170,7 +170,7 @@ impl EditorField {
             },
             EditorField::Tech => options.tech.label().into(),
             EditorField::MapVariant => tr_fmt("{} of {}", &[&options.map_variant, &MAP_VARIANTS]),
-            EditorField::PlayerSite => site_name(options.player_site).into(),
+            EditorField::PlayerSite => options.player_site.name().into(),
             EditorField::FogOfWar => if options.fog_of_war {
                 tr("On")
             } else {
@@ -255,15 +255,6 @@ impl EditorField {
                 options.network_players = cycle(&counts, options.network_players, forward);
             }
         }
-    }
-}
-
-fn site_name(site: BaseSite) -> &'static str {
-    match site {
-        BaseSite::SouthWest => tr("South-west"),
-        BaseSite::NorthEast => tr("North-east"),
-        BaseSite::NorthWest => tr("North-west"),
-        BaseSite::SouthEast => tr("South-east"),
     }
 }
 
@@ -535,7 +526,7 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
     lines.push((
         tr_fmt(
             "Your base: {}  -  ${}",
-            &[&site_name(level.player.site), &level.player.credits],
+            &[&level.player.site.name(), &level.player.credits],
         ),
         Team::Player.ui_color(),
     ));
@@ -544,7 +535,7 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
             format!(
                 "{}: {}, {}, ${}",
                 tr(team.name()),
-                site_name(enemy.force.site),
+                enemy.force.site.name(),
                 tr_owned(&format!("{:?}", enemy.difficulty)),
                 enemy.force.credits
             ),

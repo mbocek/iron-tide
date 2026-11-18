@@ -1,10 +1,15 @@
 use std::path::PathBuf;
 
+use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 
 use crate::camera::Cursor;
 use crate::catalog::{BuildingKind, Team};
-use crate::i18n::{tr, tr_fmt};
+use crate::i18n::{tr, tr_fmt, tr_owned};
+use crate::level_editing::{
+    LevelText, add_enemy, cycle_difficulty, cycle_objective, erase_from, move_side, remove_enemy,
+    type_into,
+};
 use crate::levels::{ActiveLevel, LevelDefinition, custom_levels_directory, save_custom_level};
 use crate::map::{
     GameMap, PlayfieldGround, cell_center, cells_by_distance, footprint_center, opposite_cell,
@@ -35,6 +40,10 @@ pub struct MapEditor {
     /// Where the level is saved; none until the first save creates a new custom level file.
     pub file: Option<PathBuf>,
     pub message: Option<String>,
+    pub page: EditorPage,
+    /// The text the keyboard writes into; brush keys and camera keys rest meanwhile.
+    pub typing: Option<LevelText>,
+    panel_outdated: bool,
 }
 
 impl MapEditor {
@@ -45,8 +54,17 @@ impl MapEditor {
             mirror: true,
             file,
             message: None,
+            page: EditorPage::Paint,
+            typing: None,
+            panel_outdated: true,
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum EditorPage {
+    Paint,
+    Level,
 }
 
 /// Opens the map editor on a level; `file` is the custom level it overwrites when saved.
@@ -63,23 +81,42 @@ pub fn open_map_editor(
 
 #[derive(Component, Clone, Copy)]
 pub enum EditorButton {
+    Page(EditorPage),
     Brush(Brush),
     Radius(i32),
     Mirror,
+    Type(LevelText),
+    Objective,
+    MoveSide(usize),
+    Difficulty(usize),
+    AddEnemy,
+    RemoveEnemy,
+    PlayTest,
     Save,
     Exit,
 }
 
 #[derive(Component)]
-pub struct EditorMessage;
+pub struct MapEditorPanel;
 
-pub fn spawn_map_editor_panel(
+/// Builds the panel again after anything on it changed; it is a few dozen nodes.
+pub fn rebuild_map_editor_panel(
     mut commands: Commands,
     fonts: Res<UiFonts>,
     level: Res<ActiveLevel>,
+    mut editor: ResMut<MapEditor>,
+    panels: Query<Entity, With<MapEditorPanel>>,
 ) {
+    if !editor.panel_outdated {
+        return;
+    }
+    editor.panel_outdated = false;
+    for panel in &panels {
+        commands.entity(panel).despawn();
+    }
     commands
         .spawn((
+            MapEditorPanel,
             DespawnOnExit(GameState::MapEditor),
             Node {
                 position_type: PositionType::Absolute,
@@ -89,7 +126,7 @@ pub fn spawn_map_editor_panel(
                 width: Val::Px(SIDEBAR_WIDTH),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(14.0)),
-                row_gap: Val::Px(8.0),
+                row_gap: Val::Px(7.0),
                 border: UiRect::left(Val::Px(1.0)),
                 ..default()
             },
@@ -98,34 +135,136 @@ pub fn spawn_map_editor_panel(
         ))
         .with_children(|panel| {
             panel.spawn(fonts.heading(tr("MAP EDITOR"), 24.0, ACCENT));
-            panel.spawn(fonts.text(level.0.name.clone(), 15.0, TEXT_DIM));
-            panel.spawn(fonts.heading(tr("BRUSH"), 15.0, TEXT_DIM));
-            for (index, brush) in Brush::ALL.into_iter().enumerate() {
-                let label = format!("{}  {}", index + 1, tr(brush.name()));
-                spawn_button(panel, &fonts, &label, EditorButton::Brush(brush));
+            row(panel, |row| {
+                for (page, label) in [
+                    (EditorPage::Paint, tr("PAINT")),
+                    (EditorPage::Level, tr("LEVEL")),
+                ] {
+                    spawn_button(
+                        row,
+                        &fonts,
+                        label,
+                        EditorButton::Page(page),
+                        editor.page == page,
+                    );
+                }
+            });
+            match editor.page {
+                EditorPage::Paint => spawn_paint_page(panel, &fonts, &editor),
+                EditorPage::Level => spawn_level_page(panel, &fonts, &level.0, editor.typing),
             }
-            panel.spawn(fonts.heading(tr("SIZE"), 15.0, TEXT_DIM));
-            panel
-                .spawn(Node {
-                    column_gap: Val::Px(6.0),
-                    ..default()
-                })
-                .with_children(|row| {
-                    for radius in BRUSH_SIZES {
-                        let label = (2 * radius + 1).to_string();
-                        spawn_button(row, &fonts, &label, EditorButton::Radius(radius));
-                    }
-                });
-            spawn_button(panel, &fonts, "", EditorButton::Mirror);
-            panel.spawn(fonts.text(
-                tr("Left button paints, right button clears. Bases stay open. Mirroring keeps both halves of the map equally fair."),
-                14.0,
-                TEXT_DIM,
-            ));
-            spawn_button(panel, &fonts, tr("SAVE"), EditorButton::Save);
-            spawn_button(panel, &fonts, tr("BACK TO MENU"), EditorButton::Exit);
-            panel.spawn((EditorMessage, fonts.text("", 14.0, GOOD)));
+            spawn_button(panel, &fonts, tr("PLAY IT"), EditorButton::PlayTest, false);
+            spawn_button(panel, &fonts, tr("SAVE"), EditorButton::Save, false);
+            spawn_button(panel, &fonts, tr("BACK TO MENU"), EditorButton::Exit, false);
+            if let Some(message) = &editor.message {
+                panel.spawn(fonts.text(message.clone(), 14.0, GOOD));
+            }
         });
+}
+
+fn spawn_paint_page(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, editor: &MapEditor) {
+    panel.spawn(fonts.heading(tr("BRUSH"), 15.0, TEXT_DIM));
+    for (index, brush) in Brush::ALL.into_iter().enumerate() {
+        let label = format!("{}  {}", index + 1, tr(brush.name()));
+        spawn_button(
+            panel,
+            fonts,
+            &label,
+            EditorButton::Brush(brush),
+            editor.brush == brush,
+        );
+    }
+    panel.spawn(fonts.heading(tr("SIZE"), 15.0, TEXT_DIM));
+    row(panel, |row| {
+        for radius in BRUSH_SIZES {
+            let label = (2 * radius + 1).to_string();
+            spawn_button(
+                row,
+                fonts,
+                &label,
+                EditorButton::Radius(radius),
+                editor.radius == radius,
+            );
+        }
+    });
+    let mirror = if editor.mirror {
+        tr("Mirror: on")
+    } else {
+        tr("Mirror: off")
+    };
+    spawn_button(panel, fonts, mirror, EditorButton::Mirror, editor.mirror);
+    panel.spawn(fonts.text(
+        tr("Left button paints, right button clears. Bases stay open. Mirroring keeps both halves of the map equally fair."),
+        14.0,
+        TEXT_DIM,
+    ));
+}
+
+fn spawn_level_page(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    level: &LevelDefinition,
+    typing: Option<LevelText>,
+) {
+    for (target, label, text) in [
+        (LevelText::Name, tr("Name"), &level.name),
+        (LevelText::Briefing, tr("Briefing"), &level.briefing),
+    ] {
+        panel.spawn(fonts.heading(label, 15.0, TEXT_DIM));
+        let cursor = if typing == Some(target) { "_" } else { "" };
+        spawn_button(
+            panel,
+            fonts,
+            &format!("{text}{cursor}"),
+            EditorButton::Type(target),
+            typing == Some(target),
+        );
+    }
+    panel.spawn(fonts.heading(tr("Objective"), 15.0, TEXT_DIM));
+    spawn_button(
+        panel,
+        fonts,
+        &level.objective.describe(),
+        EditorButton::Objective,
+        false,
+    );
+    panel.spawn(fonts.heading(tr("SIDES"), 15.0, TEXT_DIM));
+    let sides = std::iter::once((tr("You").to_string(), level.player.site, None)).chain(
+        level.enemies.iter().enumerate().map(|(index, enemy)| {
+            let name = tr_fmt("Computer {}", &[&(index + 1)]);
+            (name, enemy.force.site, Some((index, enemy.difficulty)))
+        }),
+    );
+    for (side, (name, site, difficulty)) in sides.enumerate() {
+        row(panel, |row| {
+            row.spawn(fonts.text(name, 15.0, Team::ALL[side].ui_color()));
+            spawn_button(row, fonts, site.name(), EditorButton::MoveSide(side), false);
+            if let Some((enemy, difficulty)) = difficulty {
+                let label = tr_owned(&format!("{difficulty:?}"));
+                spawn_button(row, fonts, &label, EditorButton::Difficulty(enemy), false);
+            }
+        });
+    }
+    row(panel, |row| {
+        spawn_button(row, fonts, tr("+ COMPUTER"), EditorButton::AddEnemy, false);
+        spawn_button(
+            row,
+            fonts,
+            tr("- COMPUTER"),
+            EditorButton::RemoveEnemy,
+            false,
+        );
+    });
+}
+
+fn row(parent: &mut ChildSpawnerCommands, children: impl FnOnce(&mut ChildSpawnerCommands)) {
+    parent
+        .spawn(Node {
+            column_gap: Val::Px(6.0),
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(children);
 }
 
 fn spawn_button(
@@ -133,12 +272,13 @@ fn spawn_button(
     fonts: &UiFonts,
     label: &str,
     button: EditorButton,
+    active: bool,
 ) {
     parent
         .spawn((
             button,
             Node {
-                min_height: Val::Px(30.0),
+                min_height: Val::Px(28.0),
                 min_width: Val::Px(44.0),
                 padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
                 align_items: AlignItems::Center,
@@ -146,11 +286,11 @@ fn spawn_button(
                 border: UiRect::all(Val::Px(1.0)),
                 ..default()
             },
-            BackgroundColor(BUTTON_IDLE),
-            BorderColor::all(FRAME),
+            BackgroundColor(if active { BUTTON_ACTIVE } else { BUTTON_IDLE }),
+            BorderColor::all(if active { ACCENT } else { FRAME }),
         ))
         .with_children(|button| {
-            button.spawn(fonts.heading(label, 16.0, TEXT_MAIN));
+            button.spawn(fonts.heading(label, 15.0, TEXT_MAIN));
         })
         .observe(press_editor_button);
 }
@@ -158,7 +298,7 @@ fn spawn_button(
 fn press_editor_button(
     click: On<PointerClick>,
     buttons: Query<&EditorButton>,
-    level: Res<ActiveLevel>,
+    mut level: ResMut<ActiveLevel>,
     mut editor: ResMut<MapEditor>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
@@ -168,13 +308,55 @@ fn press_editor_button(
     if click.button != PointerButton::Primary {
         return;
     }
+    let level = &mut level.0;
+    let clicked_text = matches!(button, EditorButton::Type(_));
+    if !clicked_text {
+        editor.typing = None;
+    }
     match button {
+        EditorButton::Page(page) => editor.page = page,
         EditorButton::Brush(brush) => editor.brush = brush,
         EditorButton::Radius(radius) => editor.radius = radius,
         EditorButton::Mirror => editor.mirror = !editor.mirror,
-        EditorButton::Save => save_edited_level(&mut editor, &level.0),
+        EditorButton::Type(target) => editor.typing = Some(target),
+        EditorButton::Objective => cycle_objective(level),
+        EditorButton::MoveSide(side) => move_side(level, side),
+        EditorButton::Difficulty(enemy) => cycle_difficulty(level, enemy),
+        EditorButton::AddEnemy => {
+            add_enemy(level);
+        }
+        EditorButton::RemoveEnemy => {
+            remove_enemy(level);
+        }
+        EditorButton::PlayTest => next_state.set(GameState::Playing),
+        EditorButton::Save => save_edited_level(&mut editor, level),
         EditorButton::Exit => next_state.set(GameState::MainMenu),
     }
+    editor.panel_outdated = true;
+}
+
+/// While a text is being written the keyboard belongs to it: brush and camera keys see nothing.
+pub fn type_level_text(
+    mut typed: MessageReader<KeyboardInput>,
+    mut keys: ResMut<ButtonInput<KeyCode>>,
+    mut editor: ResMut<MapEditor>,
+    mut level: ResMut<ActiveLevel>,
+) {
+    let Some(target) = editor.typing else {
+        typed.clear();
+        return;
+    };
+    for key in typed.read().filter(|key| key.state.is_pressed()) {
+        match &key.logical_key {
+            Key::Enter | Key::Escape => editor.typing = None,
+            Key::Backspace => erase_from(&mut level.0, target),
+            Key::Space => type_into(&mut level.0, target, " "),
+            Key::Character(text) => type_into(&mut level.0, target, text),
+            _ => {}
+        }
+        editor.panel_outdated = true;
+    }
+    keys.reset_all();
 }
 
 fn save_edited_level(editor: &mut MapEditor, level: &LevelDefinition) {
@@ -182,6 +364,7 @@ fn save_edited_level(editor: &mut MapEditor, level: &LevelDefinition) {
         Some(path) => overwrite_level(path, level).map(|()| path.clone()),
         None => save_custom_level(&custom_levels_directory(), level),
     };
+    editor.panel_outdated = true;
     editor.message = Some(match saved {
         Ok(path) => {
             let message = tr_fmt(
@@ -212,6 +395,7 @@ pub fn leave_on_escape(
 pub fn choose_brush_by_key(keys: Res<ButtonInput<KeyCode>>, mut editor: ResMut<MapEditor>) {
     if let Some(index) = BRUSH_KEYS.iter().position(|&key| keys.just_pressed(key)) {
         editor.brush = Brush::ALL[index];
+        editor.panel_outdated = true;
     }
 }
 
@@ -322,46 +506,6 @@ pub fn mark_base_sites(level: Res<ActiveLevel>, mut gizmos: Gizmos) {
             6.0,
             team.ui_color(),
         );
-    }
-}
-
-pub fn refresh_map_editor_panel(
-    editor: Res<MapEditor>,
-    buttons: Query<(&EditorButton, &Children)>,
-    mut backgrounds: Query<(&EditorButton, &mut BackgroundColor)>,
-    mut texts: Query<&mut Text, Without<EditorMessage>>,
-    mut message: Query<&mut Text, With<EditorMessage>>,
-) {
-    for (button, mut background) in &mut backgrounds {
-        let active = match *button {
-            EditorButton::Brush(brush) => brush == editor.brush,
-            EditorButton::Radius(radius) => radius == editor.radius,
-            EditorButton::Mirror => editor.mirror,
-            EditorButton::Save | EditorButton::Exit => false,
-        };
-        background.set_if_neq(BackgroundColor(if active {
-            BUTTON_ACTIVE
-        } else {
-            BUTTON_IDLE
-        }));
-    }
-    for (button, children) in &buttons {
-        if !matches!(button, EditorButton::Mirror) {
-            continue;
-        }
-        let label = if editor.mirror {
-            tr("Mirror: on")
-        } else {
-            tr("Mirror: off")
-        };
-        for &child in children {
-            if let Ok(mut text) = texts.get_mut(child) {
-                text.set_if_neq(Text(label.to_string()));
-            }
-        }
-    }
-    if let Ok(mut text) = message.single_mut() {
-        text.set_if_neq(Text(editor.message.clone().unwrap_or_default()));
     }
 }
 

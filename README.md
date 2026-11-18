@@ -376,7 +376,10 @@ attack wave and its income (75 % / 100 % / 135 %).
   crystal fields, forests and rocks with the left button (keys 1-4 pick the brush), clear ground with the right
   one, in brushes of 1, 3 or 5 cells. Mirroring, on by default, paints the opposite cell too so both halves stay
   equally fair; base sites cannot be built over. SAVE writes the level (with its `map_edits`) to the custom
-  levels, overwriting the custom level it was opened from.
+  levels, overwriting the custom level it was opened from. The LEVEL page sets the name, the briefing (click the
+  field and type, Enter ends), the objective, and which corner each side starts in, with one to three computer
+  opponents and their difficulty. Bases stay in the four corners, where the ground is levelled for them. PLAY IT
+  starts a battle on the level as it stands.
 - **Research:** the RESEARCH tab of the build menu offers three one-time upgrades from the Tech Center, which
   must stand while the research runs: Composite Armour ($1500, vehicles and aircraft take 20 % less damage),
   High-Explosive Warheads ($2000, every weapon deals 15 % more damage) and Combat Drills ($1000, infantry
