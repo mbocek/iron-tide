@@ -9,6 +9,7 @@ use crate::levels::{
 };
 use crate::match_flow::GameState;
 use crate::savegame::{QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_summary};
+use crate::terrain::Landscape;
 use crate::ui::{ACCENT, FRAME, FRAME_BRIGHT, GOOD, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
 
 const LIST_WIDTH: f32 = 400.0;
@@ -70,9 +71,10 @@ pub enum EditorField {
     PlayerSite,
     FogOfWar,
     Alliance,
+    Landscape,
 }
 
-const EDITOR_FIELDS: [EditorField; 9] = [
+const EDITOR_FIELDS: [EditorField; 10] = [
     EditorField::Enemies,
     EditorField::Difficulty,
     EditorField::Credits,
@@ -82,6 +84,7 @@ const EDITOR_FIELDS: [EditorField; 9] = [
     EditorField::PlayerSite,
     EditorField::FogOfWar,
     EditorField::Alliance,
+    EditorField::Landscape,
 ];
 
 fn cycle<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
@@ -106,6 +109,7 @@ impl EditorField {
             EditorField::PlayerSite => "Your base",
             EditorField::FogOfWar => "Fog of war",
             EditorField::Alliance => "Opponents",
+            EditorField::Landscape => "Landscape",
         }
     }
 
@@ -130,6 +134,7 @@ impl EditorField {
                 "Allied"
             }
             .into(),
+            EditorField::Landscape => format!("{:?}", options.landscape),
         }
     }
 
@@ -171,6 +176,9 @@ impl EditorField {
             }
             EditorField::FogOfWar => options.fog_of_war = !options.fog_of_war,
             EditorField::Alliance => options.free_for_all = !options.free_for_all,
+            EditorField::Landscape => {
+                options.landscape = cycle(&Landscape::ALL, options.landscape, forward);
+            }
         }
     }
 }

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::map::BASE_SITES;
 use crate::settings::game_data_directory;
+use crate::terrain::Landscape;
 
 const CUSTOM_LEVELS_DIRECTORY: &str = "levels";
 const CAMPAIGN_SOURCES: [&str; 4] = [
@@ -177,6 +178,7 @@ pub struct LevelDefinition {
     pub tutorial: bool,
     /// The opponents fight each other as well as the player.
     pub free_for_all: bool,
+    pub landscape: Landscape,
 }
 
 impl Default for LevelDefinition {
@@ -193,6 +195,7 @@ impl Default for LevelDefinition {
             fog_of_war: true,
             tutorial: false,
             free_for_all: false,
+            landscape: Landscape::River,
         }
     }
 }
@@ -374,6 +377,7 @@ pub struct SkirmishOptions {
     pub player_site: BaseSite,
     pub fog_of_war: bool,
     pub free_for_all: bool,
+    pub landscape: Landscape,
 }
 
 impl Default for SkirmishOptions {
@@ -388,6 +392,7 @@ impl Default for SkirmishOptions {
             player_site: BaseSite::SouthWest,
             fog_of_war: true,
             free_for_all: false,
+            landscape: Landscape::River,
         }
     }
 }
@@ -432,6 +437,7 @@ impl SkirmishOptions {
             fog_of_war: self.fog_of_war,
             tutorial: false,
             free_for_all: self.free_for_all,
+            landscape: self.landscape,
         }
     }
 }

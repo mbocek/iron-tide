@@ -16,7 +16,7 @@ use crate::levels::ActiveLevel;
 use crate::map::{MAP_WORLD_SIZE, footprint_center};
 use crate::match_flow::Persistent;
 use crate::settings::GameSettings;
-use crate::terrain::terrain_height;
+use crate::terrain::Landscape;
 use crate::ui::SIDEBAR_WIDTH;
 
 const PAN_SPEED: f32 = 1.1;
@@ -238,7 +238,11 @@ pub fn control_camera(
         .focus
         .z
         .clamp(-FOCUS_MARGIN, MAP_WORLD_SIZE + FOCUS_MARGIN);
-    let ground_under_focus = terrain_height(camera.focus.x, camera.focus.z).max(0.0);
+    let ground_under_focus = level
+        .0
+        .landscape
+        .height(camera.focus.x, camera.focus.z)
+        .max(0.0);
     camera.focus.y += (ground_under_focus - camera.focus.y) * (dt * 4.0).min(1.0);
 
     let offset = yaw_rotation * Vec3::new(0.0, PITCH.sin(), PITCH.cos()) * camera.distance;
@@ -247,6 +251,7 @@ pub fn control_camera(
 }
 
 pub fn track_cursor(
+    level: Res<ActiveLevel>,
     hover_map: Res<HoverMap>,
     interface_nodes: Query<(), With<Node>>,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -266,12 +271,12 @@ pub fn track_cursor(
     cursor.over_interface = over_sidebar || over_panel;
     cursor.ground = cursor.screen.and_then(|screen| {
         let ray = camera.viewport_to_world(camera_transform, screen).ok()?;
-        Some(ray_hit_on_terrain(ray))
+        Some(ray_hit_on_terrain(ray, level.0.landscape))
     });
 }
 
 /// Refines a flat-ground hit by re-intersecting at the terrain height under the previous guess.
-pub fn ray_hit_on_terrain(ray: Ray3d) -> Vec3 {
+pub fn ray_hit_on_terrain(ray: Ray3d, landscape: Landscape) -> Vec3 {
     let refinement_steps = 6;
     let mut point = ray.origin;
     let mut ground_height = 0.0;
@@ -282,7 +287,7 @@ pub fn ray_hit_on_terrain(ray: Ray3d) -> Vec3 {
             break;
         };
         point = ray.get_point(distance);
-        ground_height = terrain_height(point.x, point.z);
+        ground_height = landscape.height(point.x, point.z);
     }
     point.with_y(ground_height)
 }

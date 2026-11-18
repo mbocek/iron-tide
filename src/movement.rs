@@ -2,8 +2,8 @@ use bevy::prelude::*;
 
 use crate::catalog::ArmorClass;
 use crate::components::*;
+use crate::levels::ActiveLevel;
 use crate::map::{GameMap, cell_center, world_to_cell};
-use crate::terrain::terrain_height;
 
 const WAYPOINT_REACHED_DISTANCE: f32 = 0.2;
 /// Vehicles drive forward only once roughly facing their next waypoint, so they turn on the spot like tracked vehicles.
@@ -57,11 +57,15 @@ pub fn follow_paths(time: Res<Time>, mut movers: Query<(&mut Mobile, &mut Transf
 
 /// Rests every unit on the terrain. Vehicles sample the ground under their nose, tail and flanks,
 /// tilt to that plane and sit on the highest supports so crests and banks cannot poke through the hull.
-pub fn settle_on_terrain(mut units: Query<(&Mobile, &mut Transform, &Armor, &BodyRadius)>) {
+pub fn settle_on_terrain(
+    level: Res<ActiveLevel>,
+    mut units: Query<(&Mobile, &mut Transform, &Armor, &BodyRadius)>,
+) {
+    let landscape = level.0.landscape;
     for (mobile, mut transform, armor, radius) in &mut units {
         let heading = Quat::from_rotation_y(mobile.facing);
         let position = transform.translation;
-        let center_height = terrain_height(position.x, position.z);
+        let center_height = landscape.height(position.x, position.z);
         if armor.0 == ArmorClass::Infantry {
             transform.translation.y = center_height;
             transform.rotation = heading;
@@ -73,7 +77,7 @@ pub fn settle_on_terrain(mut units: Query<(&Mobile, &mut Transform, &Armor, &Bod
         let half_width = radius.0 * VEHICLE_HALF_WIDTH_PER_RADIUS;
         let height_at = |offset: Vec3| {
             let probe = position + offset;
-            terrain_height(probe.x, probe.z)
+            landscape.height(probe.x, probe.z)
         };
         let (front, back) = (
             height_at(forward * half_length),
@@ -98,6 +102,16 @@ pub fn settle_on_terrain(mut units: Query<(&Mobile, &mut Transform, &Armor, &Bod
 
         transform.translation.y = resting_height + HULL_CLEARANCE;
         transform.rotation = Quat::from_rotation_arc(Vec3::Y, ground_up) * heading;
+    }
+}
+
+/// Structures are placed at an approximate height; this seats each new one on the real ground.
+pub fn seat_new_buildings(
+    level: Res<ActiveLevel>,
+    mut buildings: Query<&mut Transform, Added<Building>>,
+) {
+    for mut transform in &mut buildings {
+        transform.translation = level.0.landscape.on_ground(transform.translation);
     }
 }
 

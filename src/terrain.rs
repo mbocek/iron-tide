@@ -2,6 +2,8 @@ use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 
+use serde::{Deserialize, Serialize};
+
 use crate::map::{BASE_SITES, CELL_SIZE, MAP_CELLS, MAP_WORLD_SIZE};
 
 pub const WATER_LEVEL: f32 = -0.45;
@@ -19,6 +21,9 @@ const MOUNTAIN_HEIGHT: f32 = 16.0;
 const MOUNTAIN_RISE_DISTANCE: f32 = 26.0;
 const BASE_FLAT_RADIUS_CELLS: f32 = 9.0;
 const BASE_PAD_RADIUS_CELLS: f32 = 4.5;
+const LAKE_LENGTH_CELLS: f32 = 13.0;
+const LAKE_WIDTH_CELLS: f32 = 5.5;
+const CAUSEWAY_HALF_WIDTH_CELLS: f32 = 1.2;
 const ROAD_HALF_WIDTH: f32 = 1.4;
 const ROAD_SHOULDER: f32 = 1.6;
 
@@ -99,7 +104,7 @@ fn distance_to_bases_cells(column: f32, row: f32) -> f32 {
         .fold(f32::MAX, f32::min)
 }
 
-fn mountain_height(position: Vec2, river_proximity: f32) -> f32 {
+fn mountain_height(position: Vec2, gorge: f32) -> f32 {
     let outside = distance_outside_map(position);
     if outside <= 0.0 {
         return 0.0;
@@ -107,75 +112,202 @@ fn mountain_height(position: Vec2, river_proximity: f32) -> f32 {
     let rise = smoothstep(0.0, MOUNTAIN_RISE_DISTANCE, outside);
     let massif = 0.65 + 0.35 * fractal_noise(position * 0.03, 3, 71);
     let crags = fractal_noise(position * 0.11, 3, 97).abs() * 0.25;
-    let gorge = 1.0 - river_proximity;
-    MOUNTAIN_HEIGHT * rise * (massif + crags) * gorge
+    MOUNTAIN_HEIGHT * rise * (massif + crags) * (1.0 - gorge)
 }
 
-/// Terrain surface height in meters at a world position.
-pub fn terrain_height(x: f32, z: f32) -> f32 {
-    let position = Vec2::new(x, z);
-    let (column, row) = (x / CELL_SIZE, z / CELL_SIZE);
-    let river_distance = distance_to_river_cells(column, row);
-    let river_proximity = 1.0 - smoothstep(2.0, 7.0, river_distance);
-    let calm_near_river = smoothstep(2.0, 5.0, river_distance);
+fn rolling_hills(position: Vec2) -> f32 {
+    let (column, row) = (position.x / CELL_SIZE, position.y / CELL_SIZE);
     let calm_near_bases = smoothstep(
         BASE_FLAT_RADIUS_CELLS * 0.6,
         BASE_FLAT_RADIUS_CELLS,
         distance_to_bases_cells(column, row),
     );
     let hill_shape = fractal_noise(position * 0.03, 3, 11) * 0.5 + 0.5;
-    let rolling = hill_shape * ROLLING_HILLS_HEIGHT * calm_near_river * calm_near_bases;
-    rolling + mountain_height(position, river_proximity) - river_depth(column, row)
+    hill_shape * ROLLING_HILLS_HEIGHT * calm_near_bases
 }
 
-pub fn terrain_normal(x: f32, z: f32) -> Vec3 {
-    let step = 0.4;
-    let dx = terrain_height(x + step, z) - terrain_height(x - step, z);
-    let dz = terrain_height(x, z + step) - terrain_height(x, z - step);
-    Vec3::new(-dx, 2.0 * step, -dz).normalize()
+/// Ground height without any water, the same for every landscape; good enough to place things that settle
+/// onto the real surface afterwards.
+pub fn approximate_ground(position: Vec3) -> Vec3 {
+    position.with_y(rolling_hills(position.xz()))
 }
 
-pub fn on_ground(position: Vec3) -> Vec3 {
-    position.with_y(terrain_height(position.x, position.z))
+/// Where the lake sits: `along` runs from the north-west to the south-east site, `across` from base to base.
+fn lake_coordinates(column: f32, row: f32) -> (f32, f32) {
+    let offset = Vec2::new(column, row) - Vec2::splat(MAP_CENTER_CELLS);
+    let along = (offset.x + offset.y) * std::f32::consts::FRAC_1_SQRT_2;
+    let across = (offset.x - offset.y) * std::f32::consts::FRAC_1_SQRT_2;
+    (along, across)
 }
 
-fn road_network() -> Vec<Vec<Vec2>> {
-    let ford = |column: f32| Vec2::new(column, river_centerline(column) + 0.5);
-    let cells = |points: &[Vec2]| points.iter().map(|p| *p * CELL_SIZE).collect::<Vec<_>>();
-    let [south_west, north_east, north_west, south_east] =
-        BASE_SITES.map(|site| site.as_vec2() + Vec2::splat(1.5));
+/// 0 at the lake's middle, 1 on its shore.
+fn lake_ellipse(column: f32, row: f32) -> f32 {
+    let (along, across) = lake_coordinates(column, row);
+    ((along / LAKE_LENGTH_CELLS).powi(2) + (across / LAKE_WIDTH_CELLS).powi(2)).sqrt()
+}
+
+/// The shape of the battlefield. Every landscape is point-symmetric around the map centre.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum Landscape {
+    /// A winding river with three fords.
+    #[default]
+    River,
+    /// A long lake between the bases with a narrow causeway across its middle.
+    Lake,
+    /// Open ground without water.
+    Plains,
+}
+
+impl Landscape {
+    pub const ALL: [Landscape; 3] = [Landscape::River, Landscape::Lake, Landscape::Plains];
+
+    /// Depth of the water bed below the surrounding ground at a point in cell units; zero on dry land.
+    pub fn water_depth(self, column: f32, row: f32) -> f32 {
+        match self {
+            Landscape::River => river_depth(column, row),
+            Landscape::Lake => {
+                let (along, _) = lake_coordinates(column, row);
+                let causeway_bank = smoothstep(
+                    CAUSEWAY_HALF_WIDTH_CELLS,
+                    CAUSEWAY_HALF_WIDTH_CELLS + 1.0,
+                    along.abs(),
+                );
+                RIVER_DEPTH * smoothstep(1.0, 0.7, lake_ellipse(column, row)) * causeway_bank
+            }
+            Landscape::Plains => 0.0,
+        }
+    }
+
+    /// Distance in cells from the middle of the nearest water; `f32::MAX` where there is none.
+    fn distance_to_water(self, column: f32, row: f32) -> f32 {
+        match self {
+            Landscape::River => distance_to_river_cells(column, row),
+            Landscape::Lake => (lake_ellipse(column, row) - 0.7).max(0.0) * LAKE_WIDTH_CELLS,
+            Landscape::Plains => f32::MAX,
+        }
+    }
+
+    /// Only the river leaves the map, cutting a gorge through the mountains.
+    fn gorge(self, column: f32, row: f32) -> f32 {
+        match self {
+            Landscape::River => 1.0 - smoothstep(2.0, 7.0, distance_to_river_cells(column, row)),
+            Landscape::Lake | Landscape::Plains => 0.0,
+        }
+    }
+
+    /// Terrain surface height in meters at a world position.
+    pub fn height(self, x: f32, z: f32) -> f32 {
+        let position = Vec2::new(x, z);
+        let (column, row) = (x / CELL_SIZE, z / CELL_SIZE);
+        let calm_near_water = smoothstep(2.0, 5.0, self.distance_to_water(column, row));
+        rolling_hills(position) * calm_near_water
+            + mountain_height(position, self.gorge(column, row))
+            - self.water_depth(column, row)
+    }
+
+    pub fn normal(self, x: f32, z: f32) -> Vec3 {
+        let step = 0.4;
+        let dx = self.height(x + step, z) - self.height(x - step, z);
+        let dz = self.height(x, z + step) - self.height(x, z - step);
+        Vec3::new(-dx, 2.0 * step, -dz).normalize()
+    }
+
+    pub fn on_ground(self, position: Vec3) -> Vec3 {
+        position.with_y(self.height(position.x, position.z))
+    }
+
+    /// Ground beside the water where reeds grow.
+    pub fn is_shore(self, column: f32, row: f32) -> bool {
+        let shore_band = match self {
+            Landscape::River => RIVER_HALF_WIDTH_CELLS + 0.2..RIVER_HALF_WIDTH_CELLS + 0.9,
+            Landscape::Lake => 1.6..2.4,
+            Landscape::Plains => return false,
+        };
+        self.water_depth(column, row) == 0.0
+            && shore_band.contains(&self.distance_to_water(column, row))
+    }
+
+    fn roads(self) -> Vec<Vec<Vec2>> {
+        match self {
+            Landscape::River => river_roads(),
+            Landscape::Lake | Landscape::Plains => open_roads(),
+        }
+    }
+}
+
+fn base_gates() -> ([Vec2; 4], impl Fn(Vec2) -> Vec2, impl Fn(Vec2) -> Vec2) {
+    let sites = BASE_SITES.map(|site| site.as_vec2() + Vec2::splat(1.5));
     let west_gate = |site: Vec2| site + Vec2::new(3.0, 0.0);
     let east_gate = |site: Vec2| site + Vec2::new(-3.0, 0.0);
+    (sites, west_gate, east_gate)
+}
+
+fn in_world(points: &[Vec2]) -> Vec<Vec2> {
+    points.iter().map(|p| *p * CELL_SIZE).collect()
+}
+
+fn river_roads() -> Vec<Vec<Vec2>> {
+    let ford = |column: f32| Vec2::new(column, river_centerline(column) + 0.5);
+    let ([south_west, north_east, north_west, south_east], west_gate, east_gate) = base_gates();
     vec![
-        cells(&[
+        in_world(&[
             west_gate(south_west),
             Vec2::new(12.0, 44.0),
             ford(11.5),
             Vec2::new(14.0, 20.0),
             west_gate(north_west),
         ]),
-        cells(&[
+        in_world(&[
             west_gate(north_west),
             Vec2::new(30.0, 11.0),
             east_gate(north_east),
         ]),
-        cells(&[
+        in_world(&[
             west_gate(south_west),
             Vec2::new(28.0, 46.0),
             ford(31.5),
             Vec2::new(40.0, 18.0),
             east_gate(north_east),
         ]),
-        cells(&[
+        in_world(&[
             west_gate(south_west),
             Vec2::new(32.0, 53.0),
             east_gate(south_east),
         ]),
-        cells(&[
+        in_world(&[
             east_gate(south_east),
             Vec2::new(54.0, 44.0),
             ford(51.5),
             Vec2::new(55.0, 20.0),
+            east_gate(north_east),
+        ]),
+    ]
+}
+
+/// One road straight across the middle (over the causeway where there is a lake) and two along the edges.
+fn open_roads() -> Vec<Vec<Vec2>> {
+    let ([south_west, north_east, north_west, south_east], west_gate, east_gate) = base_gates();
+    let middle = Vec2::splat(MAP_CENTER_CELLS + 0.5);
+    vec![
+        in_world(&[west_gate(south_west), middle, east_gate(north_east)]),
+        in_world(&[
+            west_gate(north_west),
+            Vec2::new(30.0, 11.0),
+            east_gate(north_east),
+        ]),
+        in_world(&[
+            west_gate(south_west),
+            Vec2::new(32.0, 53.0),
+            east_gate(south_east),
+        ]),
+        in_world(&[
+            west_gate(south_west),
+            Vec2::new(10.0, 30.0),
+            west_gate(north_west),
+        ]),
+        in_world(&[
+            east_gate(south_east),
+            Vec2::new(53.0, 32.0),
             east_gate(north_east),
         ]),
     ]
@@ -193,25 +325,21 @@ fn distance_to_polyline(point: Vec2, polyline: &[Vec2]) -> f32 {
 }
 
 pub struct GroundLayers {
+    landscape: Landscape,
     roads: Vec<Vec<Vec2>>,
 }
 
-impl Default for GroundLayers {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl GroundLayers {
-    pub fn new() -> Self {
+    pub fn new(landscape: Landscape) -> Self {
         Self {
-            roads: road_network(),
+            landscape,
+            roads: landscape.roads(),
         }
     }
 
     /// Blend weights of the terrain layers dirt, rock, riverbed and base gravel; grass fills the remainder.
     pub fn weights(&self, position: Vec2, crystal_soil: f32) -> Vec4 {
-        layer_weights(position, &self.roads, crystal_soil)
+        layer_weights(self.landscape, position, &self.roads, crystal_soil)
     }
 
     pub fn minimap_color(&self, position: Vec2, crystal: bool) -> Vec3 {
@@ -230,20 +358,24 @@ impl GroundLayers {
     }
 }
 
-fn layer_weights(position: Vec2, roads: &[Vec<Vec2>], crystal_soil: f32) -> Vec4 {
+fn layer_weights(
+    landscape: Landscape,
+    position: Vec2,
+    roads: &[Vec<Vec2>],
+    crystal_soil: f32,
+) -> Vec4 {
     let (column, row) = (position.x / CELL_SIZE, position.y / CELL_SIZE);
-    let normal = terrain_normal(position.x, position.y);
+    let normal = landscape.normal(position.x, position.y);
     let slope = 1.0 - normal.y;
-    let river_proximity = 1.0 - smoothstep(2.0, 7.0, distance_to_river_cells(column, row));
-    let mountain = mountain_height(position, river_proximity);
+    let mountain = mountain_height(position, landscape.gorge(column, row));
     let patchiness = fractal_noise(position * 0.08, 3, 23);
 
     let rock = (smoothstep(0.08, 0.3, slope)
         + smoothstep(2.0, 7.0, mountain)
         + smoothstep(0.55, 0.8, patchiness) * 0.6)
         .min(1.0);
-    let riverbed = smoothstep(0.05, 0.5, river_depth(column, row))
-        .max(1.0 - smoothstep(1.4, 2.6, distance_to_river_cells(column, row)));
+    let riverbed = smoothstep(0.05, 0.5, landscape.water_depth(column, row))
+        .max(1.0 - smoothstep(1.4, 2.6, landscape.distance_to_water(column, row)));
     let road_distance = roads
         .iter()
         .map(|road| distance_to_polyline(position, road))
@@ -288,11 +420,11 @@ fn layer_weights(position: Vec2, roads: &[Vec<Vec2>], crystal_soil: f32) -> Vec4
 }
 
 /// Builds the visible ground including the mountain rim, with layer weights stored as vertex colors.
-pub fn build_terrain_mesh(crystal_soil: impl Fn(IVec2) -> bool) -> Mesh {
+pub fn build_terrain_mesh(landscape: Landscape, crystal_soil: impl Fn(IVec2) -> bool) -> Mesh {
     let start = -OUTLANDS_WIDTH;
     let span = MAP_WORLD_SIZE + 2.0 * OUTLANDS_WIDTH;
     let vertices_per_side = (span / MESH_SPACING) as u32 + 1;
-    let ground = GroundLayers::new();
+    let ground = GroundLayers::new(landscape);
     let mut positions = Vec::with_capacity((vertices_per_side * vertices_per_side) as usize);
     let mut colors = Vec::with_capacity(positions.capacity());
     let mut uvs = Vec::with_capacity(positions.capacity());
@@ -307,7 +439,7 @@ pub fn build_terrain_mesh(crystal_soil: impl Fn(IVec2) -> bool) -> Mesh {
             let soil = if crystal_soil(cell) { 1.0 } else { 0.0 };
             positions.push([
                 position.x,
-                terrain_height(position.x, position.y),
+                landscape.height(position.x, position.y),
                 position.y,
             ]);
             colors.push(ground.weights(position, soil).to_array());
@@ -366,7 +498,7 @@ mod tests {
         while x < MAP_WORLD_SIZE {
             let mut z = 0.0;
             while z < MAP_WORLD_SIZE {
-                let height = terrain_height(x, z);
+                let height = Landscape::River.height(x, z);
                 assert!(height.is_finite());
                 assert!(
                     (-RIVER_DEPTH - 0.1..=ROLLING_HILLS_HEIGHT + 0.1).contains(&height),
@@ -384,21 +516,23 @@ mod tests {
             let center = (base.as_vec2() + Vec2::splat(1.5)) * CELL_SIZE;
             for offset in [Vec2::ZERO, Vec2::new(4.0, 0.0), Vec2::new(0.0, -4.0)] {
                 let point = center + offset;
-                assert!(terrain_height(point.x, point.y).abs() < 0.05);
+                for landscape in Landscape::ALL {
+                    assert!(landscape.height(point.x, point.y).abs() < 0.05);
+                }
             }
         }
     }
 
     #[test]
     fn mountains_rise_around_the_map() {
-        let outside = terrain_height(-OUTLANDS_WIDTH * 0.8, MAP_WORLD_SIZE * 0.2);
+        let outside = Landscape::River.height(-OUTLANDS_WIDTH * 0.8, MAP_WORLD_SIZE * 0.2);
         assert!(outside > 4.0, "rim only {outside} m high");
     }
 
     #[test]
     fn terrain_normals_point_up() {
         for (x, z) in [(10.0, 10.0), (64.0, 64.0), (-20.0, 50.0)] {
-            let normal = terrain_normal(x, z);
+            let normal = Landscape::River.normal(x, z);
             assert!(normal.y > 0.0 && (normal.length() - 1.0).abs() < 1e-4);
         }
     }

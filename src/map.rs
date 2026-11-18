@@ -9,7 +9,9 @@ use crate::catalog::CRYSTAL_PER_CELL;
 use crate::fog_view::FogTexture;
 use crate::levels::ActiveLevel;
 use crate::scenery;
-use crate::terrain::{OUTLANDS_WIDTH, WATER_LEVEL, build_terrain_mesh, on_ground, river_depth};
+use crate::terrain::{
+    Landscape, OUTLANDS_WIDTH, WATER_LEVEL, approximate_ground, build_terrain_mesh,
+};
 use crate::terrain_material::{TerrainSurface, WaterMaterial, WaterSurface, water_material};
 
 pub const CELL_SIZE: f32 = 2.0;
@@ -228,7 +230,7 @@ pub fn footprint_cells(origin: IVec2, footprint: IVec2) -> impl Iterator<Item = 
 }
 
 pub fn cell_center(cell: IVec2) -> Vec3 {
-    on_ground(Vec3::new(
+    approximate_ground(Vec3::new(
         (cell.x as f32 + 0.5) * CELL_SIZE,
         0.0,
         (cell.y as f32 + 0.5) * CELL_SIZE,
@@ -236,7 +238,7 @@ pub fn cell_center(cell: IVec2) -> Vec3 {
 }
 
 pub fn footprint_center(origin: IVec2, footprint: IVec2) -> Vec3 {
-    on_ground(Vec3::new(
+    approximate_ground(Vec3::new(
         (origin.x as f32 + footprint.x as f32 * 0.5) * CELL_SIZE,
         0.0,
         (origin.y as f32 + footprint.y as f32 * 0.5) * CELL_SIZE,
@@ -299,16 +301,17 @@ pub fn near_crystal_field(cell: IVec2) -> bool {
 pub fn generate_map(mut commands: Commands, models: Res<ModelLibrary>, level: Res<ActiveLevel>) {
     let mut rng = StdRng::seed_from_u64(level.0.map_seed);
     let mut map = GameMap::empty();
-    block_river(&mut map);
+    let landscape = level.0.landscape;
+    block_water(&mut map, landscape);
     seed_crystal_fields(&mut commands, &models, &mut map, &mut rng);
-    scenery::scatter(&mut commands, &models, &mut map, &mut rng);
+    scenery::scatter(&mut commands, &models, landscape, &mut map, &mut rng);
     commands.insert_resource(map);
 }
 
-fn block_river(map: &mut GameMap) {
+fn block_water(map: &mut GameMap, landscape: Landscape) {
     for row in 0..MAP_CELLS {
         for column in 0..MAP_CELLS {
-            let depth = river_depth(column as f32 + 0.5, row as f32 + 0.5);
+            let depth = landscape.water_depth(column as f32 + 0.5, row as f32 + 0.5);
             if depth > RIVER_BLOCKING_DEPTH {
                 map.terrain_blocked[(row * MAP_CELLS + column) as usize] = true;
             }
@@ -325,10 +328,13 @@ pub fn spawn_terrain_visuals(
     mut images: ResMut<Assets<Image>>,
     mut water_materials: ResMut<Assets<WaterMaterial>>,
     fog: Res<FogTexture>,
+    level: Res<ActiveLevel>,
 ) {
     commands.spawn((
         TerrainSurface,
-        Mesh3d(meshes.add(build_terrain_mesh(|cell| map.crystal_at(cell) > 0))),
+        Mesh3d(meshes.add(build_terrain_mesh(level.0.landscape, |cell| {
+            map.crystal_at(cell) > 0
+        }))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(0.30, 0.36, 0.20),
             perceptual_roughness: 0.95,
@@ -417,7 +423,7 @@ mod tests {
 
     fn map_with_river() -> GameMap {
         let mut map = GameMap::empty();
-        block_river(&mut map);
+        block_water(&mut map, Landscape::River);
         map
     }
 
@@ -472,6 +478,52 @@ mod tests {
         for pair in CRYSTAL_FIELDS.chunks(2) {
             assert_eq!(opposite_cell(pair[0].center), pair[1].center);
             assert_eq!(pair[0].radius, pair[1].radius);
+        }
+    }
+
+    #[test]
+    fn every_landscape_connects_the_bases_and_mirrors_its_water() {
+        for landscape in Landscape::ALL {
+            let mut map = GameMap::empty();
+            block_water(&mut map, landscape);
+            for (from, to) in [
+                (BASE_SITES[0], BASE_SITES[1]),
+                (BASE_SITES[2], BASE_SITES[3]),
+            ] {
+                assert!(
+                    map.find_path(from, to).is_some(),
+                    "{landscape:?}: {from} cut off from {to}"
+                );
+            }
+            for cell in (0..MAP_CELLS).flat_map(|y| (0..MAP_CELLS).map(move |x| IVec2::new(x, y))) {
+                let mirror = opposite_cell(cell);
+                if GameMap::in_bounds(mirror) {
+                    assert_eq!(
+                        map.is_passable(cell),
+                        map.is_passable(mirror),
+                        "{landscape:?} at {cell}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_lake_blocks_the_middle_except_for_its_causeway() {
+        let mut map = GameMap::empty();
+        block_water(&mut map, Landscape::Lake);
+        let middle = IVec2::splat(31);
+        assert!(map.is_passable(middle), "the causeway is flooded");
+        assert!(
+            !map.is_passable(middle + IVec2::new(4, 4)),
+            "no water beside the causeway"
+        );
+        for field in &CRYSTAL_FIELDS {
+            assert!(
+                map.is_passable(field.center),
+                "crystals under water at {}",
+                field.center
+            );
         }
     }
 

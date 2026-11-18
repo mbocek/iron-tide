@@ -10,8 +10,9 @@ use crate::catalog::Team;
 use crate::components::{Building, Unit};
 use crate::fog::{CellSight, FogOfWar};
 use crate::fog_view::Discovered;
+use crate::levels::ActiveLevel;
 use crate::map::{CELL_SIZE, GameMap, MAP_CELLS, MAP_WORLD_SIZE, footprint_cells};
-use crate::terrain::{GroundLayers, river_depth};
+use crate::terrain::GroundLayers;
 use crate::ui::SIDEBAR_WIDTH;
 
 const PIXELS_PER_CELL: i32 = 3;
@@ -34,15 +35,17 @@ pub fn create_minimap(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     map: Res<GameMap>,
+    level: Res<ActiveLevel>,
 ) {
-    let ground = GroundLayers::new();
+    let landscape = level.0.landscape;
+    let ground = GroundLayers::new(landscape);
     let mut terrain = Vec::with_capacity((RESOLUTION * RESOLUTION * 4) as usize);
     for py in 0..RESOLUTION {
         for px in 0..RESOLUTION {
             let world =
                 (Vec2::new(px as f32, py as f32) + 0.5) * (CELL_SIZE / PIXELS_PER_CELL as f32);
             let cell = (world / CELL_SIZE).floor().as_ivec2();
-            let rgb = if river_depth(world.x / CELL_SIZE, world.y / CELL_SIZE) > 0.25 {
+            let rgb = if landscape.water_depth(world.x / CELL_SIZE, world.y / CELL_SIZE) > 0.25 {
                 WATER
             } else if !map.is_passable(cell) {
                 OBSTACLE
@@ -146,6 +149,7 @@ pub fn redraw_minimap(
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &GlobalTransform), With<RtsCamera>>,
     fog: Res<FogOfWar>,
+    level: Res<ActiveLevel>,
     buildings: Query<(&Building, &Team, Has<Discovered>)>,
     units: Query<(&Transform, &Team), With<Unit>>,
 ) {
@@ -206,7 +210,7 @@ pub fn redraw_minimap(
         .iter()
         .map(|&screen| {
             let ray = camera.viewport_to_world(camera_transform, screen).ok()?;
-            let hit = ray_hit_on_terrain(ray)
+            let hit = ray_hit_on_terrain(ray, level.0.landscape)
                 .clamp(Vec3::ZERO, Vec3::splat(MAP_WORLD_SIZE).with_y(f32::MAX));
             Some(to_minimap(hit))
         })

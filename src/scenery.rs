@@ -13,9 +13,7 @@ use crate::map::{
     CELL_SIZE, GameMap, MAP_CELLS, MAP_WORLD_SIZE, cell_center, near_base, near_crystal_field,
     opposite_cell,
 };
-use crate::terrain::{
-    GroundLayers, OUTLANDS_WIDTH, river_centerline, terrain_height, terrain_normal,
-};
+use crate::terrain::{GroundLayers, Landscape, OUTLANDS_WIDTH};
 
 const FOREST_PAIRS: usize = 8;
 const ROCK_PAIRS: usize = 20;
@@ -34,7 +32,8 @@ const ROCKS: [&str; 3] = ["rock", "rock_a", "rock_b"];
 const MEADOW_ATTEMPTS: usize = 2600;
 const CLUMP_SIZE: std::ops::Range<usize> = 2..6;
 const CLUMP_SPREAD: f32 = 0.9;
-const RIVERBANK_REED_ATTEMPTS: usize = 420;
+const SHORE_REEDS: usize = 420;
+const SHORE_SAMPLES: usize = 40_000;
 const OUTLAND_TREE_ATTEMPTS: usize = 1100;
 const OUTLAND_BOULDER_COUNT: usize = 90;
 const MAX_MEADOW_DIRT: f32 = 0.35;
@@ -76,15 +75,16 @@ pub struct Decor;
 pub fn scatter(
     commands: &mut Commands,
     models: &ModelLibrary,
+    landscape: Landscape,
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
-    let ground = GroundLayers::new();
-    plant_forests(commands, models, map, rng);
-    place_rocks(commands, models, map, rng);
-    dress_meadows(commands, models, map, rng, &ground);
-    line_riverbanks(commands, models, map, rng);
-    cover_mountains(commands, models, rng);
+    let ground = GroundLayers::new(landscape);
+    plant_forests(commands, models, landscape, map, rng);
+    place_rocks(commands, models, landscape, map, rng);
+    dress_meadows(commands, models, landscape, map, rng, &ground);
+    line_shores(commands, models, landscape, map, rng);
+    cover_mountains(commands, models, landscape, rng);
 }
 
 fn pick<'a>(rng: &mut StdRng, models: &[&'a str]) -> &'a str {
@@ -94,6 +94,7 @@ fn pick<'a>(rng: &mut StdRng, models: &[&'a str]) -> &'a str {
 fn plant_forests(
     commands: &mut Commands,
     models: &ModelLibrary,
+    landscape: Landscape,
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
@@ -114,7 +115,16 @@ fn plant_forests(
             } else {
                 pick(rng, species)
             };
-            block_with_prop(commands, models, map, rng, cell, model, 0.8..1.25);
+            block_with_prop(
+                commands,
+                models,
+                landscape,
+                map,
+                rng,
+                cell,
+                model,
+                0.8..1.25,
+            );
         }
         for _ in 0..rng.random_range(4..9) {
             let offset = Vec3::new(
@@ -132,6 +142,7 @@ fn plant_forests(
                 place_decor(
                     commands,
                     models,
+                    landscape,
                     rng,
                     undergrowth,
                     position,
@@ -146,6 +157,7 @@ fn plant_forests(
 fn place_rocks(
     commands: &mut Commands,
     models: &ModelLibrary,
+    landscape: Landscape,
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
@@ -155,13 +167,14 @@ fn place_rocks(
             rng.random_range(0..MAP_CELLS),
         );
         let model = pick(rng, &ROCKS);
-        block_with_prop(commands, models, map, rng, cell, model, 0.6..1.3);
+        block_with_prop(commands, models, landscape, map, rng, cell, model, 0.6..1.3);
     }
 }
 
 fn dress_meadows(
     commands: &mut Commands,
     models: &ModelLibrary,
+    landscape: Landscape,
     map: &GameMap,
     rng: &mut StdRng,
     ground: &GroundLayers,
@@ -198,6 +211,7 @@ fn dress_meadows(
             place_decor(
                 commands,
                 models,
+                landscape,
                 rng,
                 model,
                 position + offset,
@@ -208,28 +222,51 @@ fn dress_meadows(
     }
 }
 
-fn line_riverbanks(
+fn line_shores(
     commands: &mut Commands,
     models: &ModelLibrary,
+    landscape: Landscape,
     map: &GameMap,
     rng: &mut StdRng,
 ) {
-    for _ in 0..RIVERBANK_REED_ATTEMPTS {
-        let column = rng.random_range(
-            -OUTLANDS_WIDTH / CELL_SIZE..MAP_CELLS as f32 + OUTLANDS_WIDTH / CELL_SIZE,
+    let span = -OUTLANDS_WIDTH / CELL_SIZE..MAP_CELLS as f32 + OUTLANDS_WIDTH / CELL_SIZE;
+    let mut planted = 0;
+    for _ in 0..SHORE_SAMPLES {
+        if planted == SHORE_REEDS {
+            break;
+        }
+        let (column, row) = (
+            rng.random_range(span.clone()),
+            rng.random_range(span.clone()),
         );
-        let side = if rng.random_bool(0.5) { 1.0 } else { -1.0 };
-        let row = river_centerline(column) + side * rng.random_range(1.5..2.4);
+        if !landscape.is_shore(column, row) {
+            continue;
+        }
         let position = Vec3::new(column * CELL_SIZE, 0.0, row * CELL_SIZE);
         let inside_map = GameMap::in_bounds((position.xz() / CELL_SIZE).floor().as_ivec2());
         if inside_map && !is_open_ground(map, position) {
             continue;
         }
-        place_decor(commands, models, rng, "reeds", position, 0.8..1.3, false);
+        place_decor(
+            commands,
+            models,
+            landscape,
+            rng,
+            "reeds",
+            position,
+            0.8..1.3,
+            false,
+        );
+        planted += 1;
     }
 }
 
-fn cover_mountains(commands: &mut Commands, models: &ModelLibrary, rng: &mut StdRng) {
+fn cover_mountains(
+    commands: &mut Commands,
+    models: &ModelLibrary,
+    landscape: Landscape,
+    rng: &mut StdRng,
+) {
     let span = -OUTLANDS_WIDTH..MAP_WORLD_SIZE + OUTLANDS_WIDTH;
     let random_outland_point = |rng: &mut StdRng| loop {
         let position = Vec3::new(
@@ -245,8 +282,8 @@ fn cover_mountains(commands: &mut Commands, models: &ModelLibrary, rng: &mut Std
     };
     for _ in 0..OUTLAND_TREE_ATTEMPTS {
         let position = random_outland_point(rng);
-        let height = terrain_height(position.x, position.z);
-        let too_steep = terrain_normal(position.x, position.z).y < 0.8;
+        let height = landscape.height(position.x, position.z);
+        let too_steep = landscape.normal(position.x, position.z).y < 0.8;
         if too_steep || height < 0.2 || height > 13.0 {
             continue;
         }
@@ -257,13 +294,23 @@ fn cover_mountains(commands: &mut Commands, models: &ModelLibrary, rng: &mut Std
         } else {
             pick(rng, &MIXED_FOREST)
         };
-        place_decor(commands, models, rng, model, position, 0.9..1.5, false);
+        place_decor(
+            commands,
+            models,
+            landscape,
+            rng,
+            model,
+            position,
+            0.9..1.5,
+            false,
+        );
     }
     for _ in 0..OUTLAND_BOULDER_COUNT {
         let position = random_outland_point(rng);
         place_decor(
             commands,
             models,
+            landscape,
             rng,
             "boulder_large",
             position,
@@ -281,6 +328,7 @@ fn is_open_ground(map: &GameMap, position: Vec3) -> bool {
 fn block_with_prop(
     commands: &mut Commands,
     models: &ModelLibrary,
+    landscape: Landscape,
     map: &mut GameMap,
     rng: &mut StdRng,
     cell: IVec2,
@@ -305,6 +353,7 @@ fn block_with_prop(
         spawn_scenery(
             commands,
             models,
+            landscape,
             rng,
             model_id,
             cell_center(cell) + jitter,
@@ -317,6 +366,7 @@ fn block_with_prop(
 fn place_decor(
     commands: &mut Commands,
     models: &ModelLibrary,
+    landscape: Landscape,
     rng: &mut StdRng,
     model_id: &str,
     position: Vec3,
@@ -326,6 +376,7 @@ fn place_decor(
     let entity = spawn_scenery(
         commands,
         models,
+        landscape,
         rng,
         model_id,
         position,
@@ -338,20 +389,17 @@ fn place_decor(
 fn spawn_scenery(
     commands: &mut Commands,
     models: &ModelLibrary,
+    landscape: Landscape,
     rng: &mut StdRng,
     model_id: &str,
     position: Vec3,
     scale: Range<f32>,
     follow_slope: bool,
 ) -> Entity {
-    let ground = Vec3::new(
-        position.x,
-        terrain_height(position.x, position.z),
-        position.z,
-    );
+    let ground = landscape.on_ground(position);
     let heading = Quat::from_rotation_y(rng.random_range(0.0..TAU));
     let rotation = if follow_slope {
-        Quat::from_rotation_arc(Vec3::Y, terrain_normal(ground.x, ground.z)) * heading
+        Quat::from_rotation_arc(Vec3::Y, landscape.normal(ground.x, ground.z)) * heading
     } else {
         heading
     };

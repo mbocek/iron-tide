@@ -15,5 +15,6 @@
   ],
   "objective": "DestroyAllEnemies",
   "available_units": [],
-  "available_buildings": []
+  "available_buildings": [],
+  "landscape": "Plains"
 }

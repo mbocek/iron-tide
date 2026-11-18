@@ -182,6 +182,7 @@ impl Plugin for SimulationPlugin {
                         movement::follow_paths,
                         movement::separate_units,
                         movement::settle_on_terrain,
+                        movement::seat_new_buildings,
                         combat::aim_and_fire,
                         combat::fly_projectiles,
                         combat::remove_destroyed,

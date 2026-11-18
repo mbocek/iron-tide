@@ -161,9 +161,9 @@ The game opens in a main menu:
 - **Campaign:** four missions (`assets/levels/*.json`), each with its own objective and unlocking new units.
   1. Bridgehead (1 enemy, destroy everything; with a step-by-step tutorial)
   2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics)
-  3. Iron Hammer (destroy both enemy Command Centers, introduces the Bulwark)
-  4. Three Fronts (three Hard enemies)
-- **Battle editor:** 1-3 enemy commanders (allied or free-for-all), difficulty Easy/Normal/Hard, starting credits, objective
+  3. Iron Hammer (destroy both enemy Command Centers, introduces the Bulwark; on the lake)
+  4. Three Fronts (three Hard enemies; on the plains)
+- **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard, starting credits, objective
   (destroy everything / destroy Command Centers / survive 10 minutes / stockpile credits), available units,
   map variant and your starting corner. *Save as custom level* writes a JSON file to
   `~/.config/iron_tide/levels/`; every valid file there is listed under *Custom levels*.
@@ -186,10 +186,13 @@ A level file is plain JSON; omitted fields take defaults:
   "available_buildings": [],
   "fog_of_war": true,
   "tutorial": false,
-  "free_for_all": false
+  "free_for_all": false,
+  "landscape": "River"
 }
 ```
 
+Landscapes: `River` (a winding river with three fords), `Lake` (a long lake between the bases with one
+causeway across its middle) and `Plains` (open ground without water); all of them are point-symmetric.
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel
@@ -253,7 +256,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `orders` | selection and player orders |
 | `ai` | computer opponents: build plan, saving up for structures, gathered attack waves, base defense |
 | `headless` | windowless battle harness shared by the tests and the balance tool |
-| `terrain`, `terrain_material` | terrain height, roads, texture layers, WESL shader, water |
+| `terrain`, `terrain_material` | landscapes (river, lake, plains): terrain height, water, roads, texture layers, WESL shader |
 | `scenery`, `flat_scenery` | forests, meadows, reeds, mountains with boulders; scenery models merged into one mesh each |
 | `minimap`, `notifications` | minimap, status messages |
 | `ui`, `overlay` | sidebar (tabs, tiles with icons), health bars, selection |
