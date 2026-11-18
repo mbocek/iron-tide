@@ -179,6 +179,14 @@ pub struct LevelDefinition {
     /// The opponents fight each other as well as the player.
     pub free_for_all: bool,
     pub landscape: Landscape,
+    pub weather: Weather,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum Weather {
+    #[default]
+    Clear,
+    Rain,
 }
 
 impl Default for LevelDefinition {
@@ -196,6 +204,7 @@ impl Default for LevelDefinition {
             tutorial: false,
             free_for_all: false,
             landscape: Landscape::River,
+            weather: Weather::Clear,
         }
     }
 }
@@ -378,6 +387,7 @@ pub struct SkirmishOptions {
     pub fog_of_war: bool,
     pub free_for_all: bool,
     pub landscape: Landscape,
+    pub weather: Weather,
 }
 
 impl Default for SkirmishOptions {
@@ -393,6 +403,7 @@ impl Default for SkirmishOptions {
             fog_of_war: true,
             free_for_all: false,
             landscape: Landscape::River,
+            weather: Weather::Clear,
         }
     }
 }
@@ -438,6 +449,7 @@ impl SkirmishOptions {
             tutorial: false,
             free_for_all: self.free_for_all,
             landscape: self.landscape,
+            weather: self.weather,
         }
     }
 }

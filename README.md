@@ -160,7 +160,7 @@ the menu's *Audio* tab.
 The game opens in a main menu:
 - **Campaign:** four missions (`assets/levels/*.json`), each with its own objective and unlocking new units.
   1. Bridgehead (1 enemy, destroy everything; with a step-by-step tutorial)
-  2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics)
+  2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics; in the rain)
   3. Iron Hammer (destroy both enemy Command Centers, introduces the Bulwark; on the lake)
   4. Three Fronts (three Hard enemies; on the plains)
 - **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard, starting credits, objective
@@ -187,12 +187,14 @@ A level file is plain JSON; omitted fields take defaults:
   "fog_of_war": true,
   "tutorial": false,
   "free_for_all": false,
-  "landscape": "River"
+  "landscape": "River",
+  "weather": "Clear"
 }
 ```
 
 Landscapes: `River` (a winding river with three fords), `Lake` (a long lake between the bases with one
 causeway across its middle) and `Plains` (open ground without water); all of them are point-symmetric.
+Weather: `Clear` or `Rain` (falling rain, a dimmer sun and sky).
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel
@@ -230,6 +232,9 @@ attack wave and its income (75 % / 100 % / 135 %).
   hit counts). At their own price in experience they become Veterans (+20 % damage and health, one gold
   chevron), at three times it Elites (+40 %, two chevrons, and they slowly mend their own wounds). Structures
   that shoot do not gain ranks. Ranks are kept in saves.
+- **Battlefield:** shells and explosions leave scorch marks that fade after 40 s; destroyed vehicles leave
+  their charred hulls, smoking for a while, until they sink into the ground; damaged structures smoke and
+  burn. All of it only where you can see.
 - **Victory:** depends on the mission objective (destroy everything, destroy the Command Centers, survive, stockpile credits).
 - **Fog of war:** unexplored ground is black; explored ground stays visible but enemy units show only within
   the sight of your units and buildings. Enemy structures stay on the map once spotted. Your units only open
@@ -273,6 +278,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |
 | `outcome` | mission objectives, victory and defeat |
+| `battlefield` | scorch marks, vehicle wrecks and rain |
 | `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves) |
 
 ## Model contract (Blender → game)

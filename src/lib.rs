@@ -4,6 +4,7 @@ pub mod ai;
 pub mod ambience;
 pub mod animation;
 pub mod assets;
+pub mod battlefield;
 pub mod camera;
 pub mod capture;
 pub mod catalog;
@@ -131,6 +132,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<savegame::SaveDirectory>()
             .add_message::<combat::DamageDealt>()
             .add_message::<combat::Destroyed>()
+            .add_message::<combat::Impact>()
             .add_message::<sound::SoundCue>()
             .add_message::<structures::StructureOrder>()
             .add_systems(
@@ -252,6 +254,19 @@ impl Plugin for GamePlugin {
                 )
                     .chain(),
             )
+            .add_systems(
+                Update,
+                (
+                    battlefield::scorch_the_ground,
+                    battlefield::fade_craters,
+                    battlefield::leave_wrecks,
+                    battlefield::char_wrecks,
+                    battlefield::smoulder_and_sink_wrecks,
+                    battlefield::draw_rain,
+                )
+                    .chain()
+                    .in_set(FramePhase::Presentation),
+            )
             .init_resource::<structure_tools::StructureTool>()
             .add_plugins((
                 bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
@@ -276,6 +291,7 @@ impl Plugin for GamePlugin {
                     fog_view::create_fog_texture,
                     sound::load_sounds,
                     flat_scenery::load_flat_scenery_sources,
+                    battlefield::create_battlefield_assets,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),
@@ -290,6 +306,7 @@ impl Plugin for GamePlugin {
                     ui::build_interface,
                     structure_tools::prepare_structure_tools,
                     tutorial::start_tutorial,
+                    battlefield::set_the_weather,
                     orders::spawn_selection_box,
                     ambience::light_crystal_fields,
                     ambience::index_trampleable_vegetation,

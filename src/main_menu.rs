@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::catalog::Team;
 use crate::levels::{
     ActiveLevel, BaseSite, Difficulty, LevelDefinition, LevelEntry, LevelSource, ObjectiveKind,
-    SkirmishOptions, TechLevel, campaign, custom_levels, custom_levels_directory,
+    SkirmishOptions, TechLevel, Weather, campaign, custom_levels, custom_levels_directory,
     save_custom_level,
 };
 use crate::match_flow::GameState;
@@ -72,9 +72,10 @@ pub enum EditorField {
     FogOfWar,
     Alliance,
     Landscape,
+    Weather,
 }
 
-const EDITOR_FIELDS: [EditorField; 10] = [
+const EDITOR_FIELDS: [EditorField; 11] = [
     EditorField::Enemies,
     EditorField::Difficulty,
     EditorField::Credits,
@@ -85,6 +86,7 @@ const EDITOR_FIELDS: [EditorField; 10] = [
     EditorField::FogOfWar,
     EditorField::Alliance,
     EditorField::Landscape,
+    EditorField::Weather,
 ];
 
 fn cycle<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
@@ -110,6 +112,7 @@ impl EditorField {
             EditorField::FogOfWar => "Fog of war",
             EditorField::Alliance => "Opponents",
             EditorField::Landscape => "Landscape",
+            EditorField::Weather => "Weather",
         }
     }
 
@@ -135,6 +138,7 @@ impl EditorField {
             }
             .into(),
             EditorField::Landscape => format!("{:?}", options.landscape),
+            EditorField::Weather => format!("{:?}", options.weather),
         }
     }
 
@@ -178,6 +182,9 @@ impl EditorField {
             EditorField::Alliance => options.free_for_all = !options.free_for_all,
             EditorField::Landscape => {
                 options.landscape = cycle(&Landscape::ALL, options.landscape, forward);
+            }
+            EditorField::Weather => {
+                options.weather = cycle(&[Weather::Clear, Weather::Rain], options.weather, forward);
             }
         }
     }

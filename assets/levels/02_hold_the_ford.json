@@ -14,5 +14,6 @@
   ],
   "objective": { "Survive": { "minutes": 8.0 } },
   "available_units": ["Rifleman", "Rocketeer", "Medic", "Scout", "Tank", "Artillery", "Harvester"],
-  "available_buildings": []
+  "available_buildings": [],
+  "weather": "Rain"
 }
