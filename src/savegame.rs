@@ -11,6 +11,7 @@ use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::components::*;
 use crate::economy::Economies;
 use crate::fog::FogOfWar;
+use crate::i18n::{tr, tr_fmt};
 use crate::intel::Intel;
 use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::{GameMap, cell_of_index, spawn_crystal_visual};
@@ -117,9 +118,9 @@ fn slot_path(directory: &SaveDirectory, slot: usize) -> PathBuf {
 
 pub fn slot_label(slot: usize) -> String {
     if slot == QUICK_SAVE_SLOT {
-        "Quick save".to_string()
+        tr("Quick save").to_string()
     } else {
-        format!("Slot {slot}")
+        tr_fmt("Slot {}", &[&slot])
     }
 }
 
@@ -132,10 +133,10 @@ fn unix_now() -> u64 {
 fn describe_age(saved_at: u64) -> String {
     let minutes = unix_now().saturating_sub(saved_at) / 60;
     match minutes {
-        0 => "just now".to_string(),
-        1..=59 => format!("{minutes} min ago"),
-        60..=1439 => format!("{} h ago", minutes / 60),
-        _ => format!("{} days ago", minutes / 1440),
+        0 => tr("just now").to_string(),
+        1..=59 => tr_fmt("{} min ago", &[&minutes]),
+        60..=1439 => tr_fmt("{} h ago", &[&(minutes / 60)]),
+        _ => tr_fmt("{} days ago", &[&(minutes / 1440)]),
     }
 }
 
@@ -148,11 +149,13 @@ pub fn slot_summary(directory: &SaveDirectory, slot: usize) -> Option<String> {
         .iter()
         .filter(|unit| unit.team == Team::Player)
         .count();
-    Some(format!(
+    Some(tr_fmt(
         "{}  -  ${}, {} units",
-        describe_age(save.saved_at_unix_secs),
-        save.credits[Team::Player.index()],
-        own_units
+        &[
+            &describe_age(save.saved_at_unix_secs),
+            &save.credits[Team::Player.index()],
+            &own_units,
+        ],
     ))
 }
 
@@ -281,24 +284,24 @@ pub fn write_requested_save(
         .and_then(|_| serde_json::to_string(&save).map_err(|error| error.to_string()))
         .and_then(|json| std::fs::write(&path, json).map_err(|error| error.to_string()));
     match written {
-        Ok(()) => notifications.push(format!("Game saved - {}", slot_label(slot))),
+        Ok(()) => notifications.push(tr_fmt("Game saved - {}", &[&slot_label(slot)])),
         Err(error) => {
             warn!("could not write {}: {error}", path.display());
-            notifications.push("Saving failed");
+            notifications.push(tr("Saving failed"));
         }
     }
 }
 
 fn read_save(directory: &SaveDirectory, slot: usize) -> Result<SaveGame, &'static str> {
     let json = std::fs::read_to_string(slot_path(directory, slot))
-        .map_err(|_| "No saved game in that slot")?;
+        .map_err(|_| tr("No saved game in that slot"))?;
     #[derive(Deserialize)]
     struct VersionOnly {
         version: u32,
     }
     let version: VersionOnly = serde_json::from_str(&json).map_err(|_| "Saved game is damaged")?;
     if version.version != SAVE_VERSION {
-        return Err("Saved game is from an incompatible version");
+        return Err(tr("Saved game is from an incompatible version"));
     }
     serde_json::from_str(&json).map_err(|_| "Saved game is damaged")
 }
@@ -438,7 +441,7 @@ pub fn restore_pending_load(
     for mut camera in &mut cameras {
         camera.focus = Vec3::from_array(save.camera_focus);
     }
-    notifications.push("Game loaded");
+    notifications.push(tr("Game loaded"));
 }
 
 #[cfg(test)]

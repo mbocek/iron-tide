@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::catalog::{BuildingKind, Team, UnitKind};
+use crate::i18n::{tr, tr_fmt};
 use crate::map::BASE_SITES;
 use crate::settings::game_data_directory;
 use crate::terrain::Landscape;
@@ -111,13 +112,15 @@ pub enum Objective {
 impl Objective {
     pub fn describe(self) -> String {
         match self {
-            Objective::DestroyAllEnemies => "Destroy every enemy unit and structure".into(),
-            Objective::DestroyCommandCenters => "Destroy all enemy Command Centers".into(),
+            Objective::DestroyAllEnemies => tr("Destroy every enemy unit and structure").into(),
+            Objective::DestroyCommandCenters => tr("Destroy all enemy Command Centers").into(),
             Objective::CaptureCommandCenter => {
-                "Capture an enemy Command Center with an engineer".into()
+                tr("Capture an enemy Command Center with an engineer").into()
             }
-            Objective::Survive { minutes } => format!("Hold out for {minutes:.0} minutes"),
-            Objective::ReachCredits { credits } => format!("Stockpile ${credits}"),
+            Objective::Survive { minutes } => {
+                tr_fmt("Hold out for {} minutes", &[&format!("{minutes:.0}")])
+            }
+            Objective::ReachCredits { credits } => tr_fmt("Stockpile ${}", &[&credits]),
         }
     }
 }
@@ -354,9 +357,9 @@ pub enum TechLevel {
 impl TechLevel {
     pub fn label(self) -> &'static str {
         match self {
-            TechLevel::Basic => "Basic (no heavy units)",
-            TechLevel::Standard => "Standard (no Bulwark)",
-            TechLevel::Full => "Full arsenal",
+            TechLevel::Basic => tr("Basic (no heavy units)"),
+            TechLevel::Standard => tr("Standard (no Bulwark)"),
+            TechLevel::Full => tr("Full arsenal"),
         }
     }
 

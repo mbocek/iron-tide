@@ -5,6 +5,7 @@ use crate::camera::Cursor;
 use crate::catalog::Team;
 use crate::components::{Building, Health};
 use crate::fog::FogOfWar;
+use crate::i18n::{tr, tr_fmt};
 use crate::map::{GameMap, footprint_center, world_to_cell};
 use crate::sound::{Sound, SoundCue};
 use crate::structures::{
@@ -37,8 +38,8 @@ fn hotkey(tool: StructureOrderKind) -> KeyCode {
 
 fn label(tool: StructureOrderKind) -> &'static str {
     match tool {
-        StructureOrderKind::ToggleRepair => "REPAIR  T",
-        StructureOrderKind::Sell => "SELL  Y",
+        StructureOrderKind::ToggleRepair => tr("REPAIR  T"),
+        StructureOrderKind::Sell => tr("SELL  Y"),
     }
 }
 
@@ -198,21 +199,21 @@ pub fn refresh_tool_hint(
         .and_then(|entity| structures.get(entity).ok());
     let (message, tone) = match (tool, target) {
         (StructureOrderKind::ToggleRepair, None) => {
-            ("Repair: pick a structure".to_string(), TEXT_DIM)
+            (tr("Repair: pick a structure").to_string(), TEXT_DIM)
         }
-        (StructureOrderKind::Sell, None) => ("Sell: pick a structure".to_string(), TEXT_DIM),
+        (StructureOrderKind::Sell, None) => (tr("Sell: pick a structure").to_string(), TEXT_DIM),
         (StructureOrderKind::ToggleRepair, Some((building, _, health))) => {
             let cost = repair_cost(building.kind, health);
             if cost == 0 {
-                ("Undamaged".to_string(), TEXT_DIM)
+                (tr("Undamaged").to_string(), TEXT_DIM)
             } else {
-                (format!("Repair  ${cost}"), GOOD)
+                (tr_fmt("Repair  ${}", &[&cost]), GOOD)
             }
         }
         (StructureOrderKind::Sell, Some((building, ..))) if can_sell(building.kind) => {
-            (format!("Sell  +${}", sale_refund(building.kind)), ACCENT)
+            (tr_fmt("Sell  +${}", &[&sale_refund(building.kind)]), ACCENT)
         }
-        (StructureOrderKind::Sell, Some(_)) => ("Cannot be sold".to_string(), TEXT_DIM),
+        (StructureOrderKind::Sell, Some(_)) => (tr("Cannot be sold").to_string(), TEXT_DIM),
     };
     text.0 = message;
     color.0 = tone;

@@ -3,6 +3,7 @@ use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 
 use crate::components::Selected;
+use crate::i18n::{Language, tr, tr_owned};
 use crate::match_flow::GameState;
 use crate::production::Placement;
 use crate::savegame::{
@@ -40,11 +41,11 @@ impl MenuPage {
 
     fn title(self) -> &'static str {
         match self {
-            MenuPage::Game => "GAME",
-            MenuPage::Graphics => "GRAPHICS",
-            MenuPage::Gameplay => "GAMEPLAY",
-            MenuPage::Audio => "AUDIO",
-            MenuPage::SaveLoad => "SAVE / LOAD",
+            MenuPage::Game => tr("GAME"),
+            MenuPage::Graphics => tr("GRAPHICS"),
+            MenuPage::Gameplay => tr("GAMEPLAY"),
+            MenuPage::Audio => tr("AUDIO"),
+            MenuPage::SaveLoad => tr("SAVE / LOAD"),
         }
     }
 }
@@ -77,6 +78,7 @@ enum Setting {
     MasterVolume,
     MusicVolume,
     EffectsVolume,
+    Language,
 }
 
 const GRAPHICS_SETTINGS: [Setting; 10] = [
@@ -99,7 +101,8 @@ const AUDIO_SETTINGS: [Setting; 3] = [
 ];
 const VOLUME_STEP: f32 = 0.1;
 
-const GAMEPLAY_SETTINGS: [Setting; 6] = [
+const GAMEPLAY_SETTINGS: [Setting; 7] = [
+    Setting::Language,
     Setting::GameSpeed,
     Setting::EdgeScroll,
     Setting::ScrollSpeed,
@@ -125,7 +128,11 @@ fn step_volume(volume: f32, forward: bool) -> f32 {
 }
 
 fn on_off(value: bool) -> String {
-    if value { "On".into() } else { "Off".into() }
+    if value {
+        tr("On").into()
+    } else {
+        tr("Off").into()
+    }
 }
 
 /// Steps through a fixed list of choices, wrapping at both ends.
@@ -145,36 +152,37 @@ fn step<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
 impl Setting {
     fn label(self) -> &'static str {
         match self {
-            Setting::Preset => "Quality preset",
-            Setting::Shadows => "Shadows",
-            Setting::AmbientOcclusion => "Ambient occlusion",
-            Setting::Bloom => "Glow (bloom)",
-            Setting::AntiAliasing => "Anti-aliasing (SMAA)",
-            Setting::Vegetation => "Grass and flowers",
-            Setting::Wind => "Wind in vegetation",
+            Setting::Preset => tr("Quality preset"),
+            Setting::Shadows => tr("Shadows"),
+            Setting::AmbientOcclusion => tr("Ambient occlusion"),
+            Setting::Bloom => tr("Glow (bloom)"),
+            Setting::AntiAliasing => tr("Anti-aliasing (SMAA)"),
+            Setting::Vegetation => tr("Grass and flowers"),
+            Setting::Wind => tr("Wind in vegetation"),
             Setting::Vsync => "VSync",
-            Setting::FrameLimit => "Frame rate limit",
-            Setting::Fullscreen => "Fullscreen",
-            Setting::GameSpeed => "Game speed",
-            Setting::EdgeScroll => "Edge scrolling",
-            Setting::ScrollSpeed => "Scroll speed",
-            Setting::DamageNumbers => "Damage numbers",
-            Setting::HealthBars => "Health bars",
-            Setting::PerformanceOverlay => "Performance overlay (F3)",
-            Setting::MasterVolume => "Master volume",
-            Setting::MusicVolume => "Music volume",
-            Setting::EffectsVolume => "Effects volume",
+            Setting::FrameLimit => tr("Frame rate limit"),
+            Setting::Fullscreen => tr("Fullscreen"),
+            Setting::GameSpeed => tr("Game speed"),
+            Setting::EdgeScroll => tr("Edge scrolling"),
+            Setting::ScrollSpeed => tr("Scroll speed"),
+            Setting::DamageNumbers => tr("Damage numbers"),
+            Setting::HealthBars => tr("Health bars"),
+            Setting::PerformanceOverlay => tr("Performance overlay (F3)"),
+            Setting::MasterVolume => tr("Master volume"),
+            Setting::MusicVolume => tr("Music volume"),
+            Setting::EffectsVolume => tr("Effects volume"),
+            Setting::Language => tr("Language"),
         }
     }
 
     fn value(self, settings: &GameSettings) -> String {
         match self {
-            Setting::Preset => format!("{:?}", settings.preset),
-            Setting::Shadows => format!("{:?}", settings.shadows),
+            Setting::Preset => tr_owned(&format!("{:?}", settings.preset)),
+            Setting::Shadows => tr_owned(&format!("{:?}", settings.shadows)),
             Setting::AmbientOcclusion => on_off(settings.ambient_occlusion),
             Setting::Bloom => on_off(settings.bloom),
             Setting::AntiAliasing => on_off(settings.anti_aliasing),
-            Setting::Vegetation => format!("{:?}", settings.vegetation),
+            Setting::Vegetation => tr_owned(&format!("{:?}", settings.vegetation)),
             Setting::Wind => on_off(settings.wind),
             Setting::Vsync => on_off(settings.vsync),
             Setting::FrameLimit => settings
@@ -184,17 +192,18 @@ impl Setting {
             Setting::Fullscreen => on_off(settings.fullscreen),
             Setting::GameSpeed => format!("{:.2}x", settings.game_speed_factor()),
             Setting::EdgeScroll => on_off(settings.edge_scroll),
-            Setting::ScrollSpeed => format!("{:?}", settings.scroll_speed),
+            Setting::ScrollSpeed => tr_owned(&format!("{:?}", settings.scroll_speed)),
             Setting::DamageNumbers => on_off(settings.damage_numbers),
             Setting::HealthBars => match settings.health_bars {
-                HealthBars::Always => "Always".into(),
-                HealthBars::DamagedOrSelected => "Damaged / selected".into(),
-                HealthBars::SelectedOnly => "Selected only".into(),
+                HealthBars::Always => tr("Always").into(),
+                HealthBars::DamagedOrSelected => tr("Damaged / selected").into(),
+                HealthBars::SelectedOnly => tr("Selected only").into(),
             },
             Setting::PerformanceOverlay => on_off(settings.performance_overlay),
             Setting::MasterVolume => percent(settings.master_volume),
             Setting::MusicVolume => percent(settings.music_volume),
             Setting::EffectsVolume => percent(settings.effects_volume),
+            Setting::Language => settings.language.native_name().into(),
         }
     }
 
@@ -288,6 +297,9 @@ impl Setting {
             Setting::EffectsVolume => {
                 settings.effects_volume = step_volume(settings.effects_volume, forward)
             }
+            Setting::Language => {
+                settings.language = step(&Language::ALL, settings.language, forward);
+            }
         }
         if self.is_detail_option() {
             settings.preset = QualityPreset::Custom;
@@ -365,7 +377,7 @@ pub fn spawn_menu(commands: &mut Commands, fonts: &UiFonts) {
                         .with_children(|header| {
                             header.spawn(fonts.heading("IRON TIDE", 30.0, ACCENT));
                             header.spawn(fonts.text(
-                                "paused  -  Esc / F10 to resume",
+                                tr("paused  -  Esc / F10 to resume"),
                                 15.0,
                                 TEXT_DIM,
                             ));
@@ -612,17 +624,17 @@ fn spawn_slot_row(
                 info.spawn(fonts.heading(slot_label(slot), 17.0, TEXT_MAIN));
                 let (detail, color) = match &summary {
                     Some(summary) => (summary.clone(), TEXT_DIM),
-                    None => ("empty".to_string(), FRAME_BRIGHT),
+                    None => (tr("empty").to_string(), FRAME_BRIGHT),
                 };
                 info.spawn(fonts.text(detail, 14.0, color));
             });
-            let save = spawn_button(row, fonts, "Save", 90.0);
+            let save = spawn_button(row, fonts, tr("Save"), 90.0);
             row.commands()
                 .entity(save)
                 .insert(ActionButton(MenuAction::Save(slot)))
                 .observe(run_action);
             if summary.is_some() {
-                let load = spawn_button(row, fonts, "Load", 90.0);
+                let load = spawn_button(row, fonts, tr("Load"), 90.0);
                 row.commands()
                     .entity(load)
                     .insert(ActionButton(MenuAction::Load(slot)))
@@ -651,15 +663,15 @@ pub fn rebuild_menu_page(
     commands.entity(content).with_children(|content| match page {
         MenuPage::Game => {
             content.spawn(fonts.text(
-                "Battle is paused. Graphics and gameplay options are saved automatically.\nF5 quick save, F9 quick load, F3 performance overlay.",
+                tr("Battle is paused. Graphics and gameplay options are saved automatically.\nF5 quick save, F9 quick load, F3 performance overlay."),
                 16.0,
                 TEXT_DIM,
             ));
             let actions = [
-                ("Resume", MenuAction::Resume),
-                ("Restart mission", MenuAction::Restart),
-                ("Back to main menu", MenuAction::MainMenu),
-                ("Quit to desktop", MenuAction::Quit),
+                (tr("Resume"), MenuAction::Resume),
+                (tr("Restart mission"), MenuAction::Restart),
+                (tr("Back to main menu"), MenuAction::MainMenu),
+                (tr("Quit to desktop"), MenuAction::Quit),
             ];
             for (label, action) in actions {
                 let button = spawn_button(content, &fonts, label, 240.0);
@@ -670,7 +682,7 @@ pub fn rebuild_menu_page(
             for setting in GRAPHICS_SETTINGS {
                 spawn_setting_row(content, &fonts, &settings, setting);
             }
-            content.spawn(fonts.text("Left click: next value, right click: previous.", 14.0, TEXT_DIM));
+            content.spawn(fonts.text(tr("Left click: next value, right click: previous."), 14.0, TEXT_DIM));
         }
         MenuPage::Gameplay => {
             for setting in GAMEPLAY_SETTINGS {

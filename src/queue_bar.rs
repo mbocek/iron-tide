@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::catalog::{BuildingKind, Team};
 use crate::economy::Economies;
+use crate::i18n::tr;
 use crate::production::{BuildItem, Lane, Placement, Production};
 use crate::ui::{ACCENT, FRAME, GOOD, PANEL, SIDEBAR_WIDTH, TEXT_DIM, UiFonts, icon_path};
 
@@ -78,7 +79,7 @@ pub fn spawn_queue_bar(commands: &mut Commands, fonts: &UiFonts) {
                     Visibility::Hidden,
                 ))
                 .with_children(|bar| {
-                    bar.spawn(fonts.heading("QUEUE", 15.0, TEXT_DIM));
+                    bar.spawn(fonts.heading(tr("QUEUE"), 15.0, TEXT_DIM));
                 });
         });
 }
@@ -171,7 +172,7 @@ fn spawn_slot(
             });
             if matches!(slot, QueueSlot::AwaitingPlacement(_)) {
                 tile.spawn((
-                    fonts.heading("READY", 13.0, ACCENT),
+                    fonts.heading(tr("READY"), 13.0, ACCENT),
                     TextShadow::default(),
                     Node {
                         position_type: PositionType::Absolute,

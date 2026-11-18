@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::camera::RtsCamera;
 use crate::catalog::Team;
 use crate::components::{Selected, Unit};
+use crate::i18n::tr_fmt;
 use crate::notifications::Notifications;
 use crate::ui::{ACCENT, FRAME, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
 
@@ -99,10 +100,9 @@ fn run_group_command(
     match command {
         GroupCommand::Assign => {
             groups.members[group] = selected.iter().filter(is_own_unit).collect();
-            notifications.push(format!(
+            notifications.push(tr_fmt(
                 "Group {} - {} units",
-                group + 1,
-                groups.members[group].len()
+                &[&(group + 1), &groups.members[group].len()],
             ));
         }
         GroupCommand::AddToSelection => {

@@ -9,6 +9,7 @@ use crate::camera::Cursor;
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::components::*;
 use crate::economy::Economies;
+use crate::i18n::{tr, tr_fmt};
 use crate::map::{
     CELL_SIZE, GameMap, cell_center, footprint_cells, footprint_center, world_to_cell,
 };
@@ -50,8 +51,8 @@ impl Lane {
 impl BuildItem {
     pub fn name(self) -> &'static str {
         match self {
-            BuildItem::Structure(kind) => kind.spec().name,
-            BuildItem::Unit(kind) => kind.spec().name,
+            BuildItem::Structure(kind) => tr(kind.spec().name),
+            BuildItem::Unit(kind) => tr(kind.spec().name),
         }
     }
 
@@ -100,10 +101,10 @@ pub enum EnqueueRefusal {
 impl EnqueueRefusal {
     pub fn message(self) -> String {
         match self {
-            EnqueueRefusal::NotInMission => "Not available in this mission".into(),
-            EnqueueRefusal::Requires(missing) => format!("Requires {}", missing.spec().name),
-            EnqueueRefusal::QueueFull => "Production queue is full".into(),
-            EnqueueRefusal::InsufficientFunds => "Insufficient funds".into(),
+            EnqueueRefusal::NotInMission => tr("Not available in this mission").into(),
+            EnqueueRefusal::Requires(missing) => tr_fmt("Requires {}", &[&tr(missing.spec().name)]),
+            EnqueueRefusal::QueueFull => tr("Production queue is full").into(),
+            EnqueueRefusal::InsufficientFunds => tr("Insufficient funds").into(),
         }
     }
 }
@@ -277,8 +278,8 @@ pub fn advance_production(
                 };
                 cues.write(SoundCue::interface(fanfare));
                 notifications.push(match item {
-                    BuildItem::Structure(_) => "Construction complete".to_string(),
-                    BuildItem::Unit(kind) => format!("{} ready", kind.spec().name),
+                    BuildItem::Structure(_) => tr("Construction complete").to_string(),
+                    BuildItem::Unit(kind) => tr_fmt("{} ready", &[&tr(kind.spec().name)]),
                 });
             }
             match (item, producer) {

@@ -4,6 +4,8 @@ use bevy::prelude::*;
 use bevy::window::{MonitorSelection, PresentMode, PrimaryWindow, WindowMode};
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::{Language, set_language};
+
 const GAME_DIRECTORY: &str = "iron_tide";
 const SETTINGS_FILE: &str = "settings.json";
 const QUALITY_VAR: &str = "IRON_TIDE_QUALITY";
@@ -95,6 +97,7 @@ pub struct GameSettings {
     pub master_volume: f32,
     pub music_volume: f32,
     pub effects_volume: f32,
+    pub language: Language,
 }
 
 impl Default for GameSettings {
@@ -119,6 +122,7 @@ impl Default for GameSettings {
             master_volume: 0.8,
             music_volume: 0.6,
             effects_volume: 0.8,
+            language: Language::English,
         };
         settings.apply_preset(QualityPreset::High);
         settings
@@ -242,6 +246,8 @@ pub fn load_settings() -> GameSettings {
     if let Some(preset) = override_preset {
         settings.apply_preset(preset);
     }
+    // Screens built before the first frame already need the language.
+    set_language(settings.language);
     settings
 }
 
@@ -256,6 +262,12 @@ pub fn persist_settings(settings: Res<GameSettings>) {
         .and_then(|json| std::fs::write(&path, json).map_err(|error| error.to_string()));
     if let Err(error) = written {
         warn!("could not save settings to {}: {error}", path.display());
+    }
+}
+
+pub fn apply_language(settings: Res<GameSettings>) {
+    if settings.is_changed() {
+        set_language(settings.language);
     }
 }
 

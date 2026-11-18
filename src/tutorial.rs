@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::components::{Building, Mobile, Order, Orders, Selected, Unit};
+use crate::i18n::{tr, tr_fmt};
 use crate::levels::ActiveLevel;
 use crate::sound::{Sound, SoundCue};
 use crate::ui::{ACCENT, FRAME_BRIGHT, GOOD, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
@@ -38,23 +39,25 @@ impl TutorialStep {
     pub fn instruction(self) -> &'static str {
         match self {
             TutorialStep::SelectUnits => {
-                "Select your troops: drag a box around them with the left mouse button."
+                tr("Select your troops: drag a box around them with the left mouse button.")
             }
-            TutorialStep::MoveUnits => "Right-click the ground to send the selected troops there.",
-            TutorialStep::BuildPowerPlant => {
-                "Open the BASE tab, click Power Plant, and place it next to your Command Center when it is ready."
+            TutorialStep::MoveUnits => {
+                tr("Right-click the ground to send the selected troops there.")
             }
-            TutorialStep::BuildRefinery => {
-                "Build a Refinery near the crystals. It comes with a harvester that earns credits."
-            }
-            TutorialStep::BuildBarracks => "Build Barracks to train infantry.",
-            TutorialStep::TrainRifleman => "Open the INFANTRY tab and train a Rifleman.",
-            TutorialStep::AttackMove => {
-                "Select your troops and Ctrl + right-click across the river: they fight anything on the way."
-            }
-            TutorialStep::DestroyOutpost => {
-                "Destroy the Syndicate outpost in the north-east. Press F1 any time for all controls."
-            }
+            TutorialStep::BuildPowerPlant => tr(
+                "Open the BASE tab, click Power Plant, and place it next to your Command Center when it is ready.",
+            ),
+            TutorialStep::BuildRefinery => tr(
+                "Build a Refinery near the crystals. It comes with a harvester that earns credits.",
+            ),
+            TutorialStep::BuildBarracks => tr("Build Barracks to train infantry."),
+            TutorialStep::TrainRifleman => tr("Open the INFANTRY tab and train a Rifleman."),
+            TutorialStep::AttackMove => tr(
+                "Select your troops and Ctrl + right-click across the river: they fight anything on the way.",
+            ),
+            TutorialStep::DestroyOutpost => tr(
+                "Destroy the Syndicate outpost in the north-east. Press F1 any time for all controls.",
+            ),
         }
     }
 }
@@ -158,12 +161,12 @@ pub fn start_tutorial(mut commands: Commands, level: Res<ActiveLevel>, fonts: Re
                     ..default()
                 })
                 .with_children(|header| {
-                    header.spawn((TutorialCounter, fonts.heading("TUTORIAL", 14.0, ACCENT)));
-                    header.spawn(fonts.text("hide  ×", 13.0, TEXT_DIM)).observe(
-                        |_: On<PointerClick>, mut tutorial: ResMut<Tutorial>| {
+                    header.spawn((TutorialCounter, fonts.heading(tr("TUTORIAL"), 14.0, ACCENT)));
+                    header
+                        .spawn(fonts.text(tr("hide  ×"), 13.0, TEXT_DIM))
+                        .observe(|_: On<PointerClick>, mut tutorial: ResMut<Tutorial>| {
                             tutorial.hidden = true;
-                        },
-                    );
+                        });
                 });
             panel.spawn((TutorialText, fonts.text("", 16.0, TEXT_MAIN)));
         });
@@ -232,15 +235,18 @@ pub fn refresh_tutorial_panel(
     let Some(step) = tutorial.current() else {
         return;
     };
-    let counter = format!("TUTORIAL  {} / {}", tutorial.step + 1, TUTORIAL_STEPS.len());
+    let counter = tr_fmt(
+        "TUTORIAL  {} / {}",
+        &[&(tutorial.step + 1), &TUTORIAL_STEPS.len()],
+    );
     for mut text in &mut counters {
         if text.0 != counter {
             text.0 = counter.clone();
         }
     }
     for mut text in &mut texts {
-        if text.0 != step.instruction() {
-            text.0 = step.instruction().to_string();
+        if text.0 != tr(step.instruction()) {
+            text.0 = tr(step.instruction()).to_string();
         }
     }
 }

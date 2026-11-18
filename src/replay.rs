@@ -10,6 +10,7 @@ use crate::catalog::{ArmorClass, BuildingKind, ProjectileStyle, Team, UnitKind};
 use crate::combat::{Impact, Projectile};
 use crate::components::{Aircraft, Building, Health, Mobile, Unit};
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
+use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::footprint_center;
 use crate::match_flow::{GameState, MatchClock};
@@ -488,7 +489,7 @@ pub fn spawn_replay_hud(mut commands: Commands, fonts: Res<UiFonts>) {
             ));
             hud.spawn((
                 fonts.text(
-                    "Space pause  ·  + / - speed  ·  Left / Right 10 s  ·  Home restart  ·  Esc menu",
+                    tr("Space pause  ·  + / - speed  ·  Left / Right 10 s  ·  Home restart  ·  Esc menu"),
                     15.0,
                     TEXT_MAIN,
                 ),
@@ -716,17 +717,19 @@ pub fn refresh_replay_hud(
 ) {
     let clock = |secs: f32| format!("{:02}:{:02}", secs as u32 / 60, secs as u32 % 60);
     let state = if playback.paused {
-        "paused".to_string()
+        tr("paused").to_string()
     } else {
         format!("{}x", SPEEDS[playback.speed])
     };
-    let line = format!(
+    let line = tr_fmt(
         "REPLAY  {}  ·  {} / {}  ·  {}  ·  {}",
-        level.0.name,
-        clock(playback.clock),
-        clock(playback.replay.recorded_secs),
-        state,
-        playback.replay.outcome
+        &[
+            &level.0.name,
+            &clock(playback.clock),
+            &clock(playback.replay.recorded_secs),
+            &state,
+            &tr_owned(&playback.replay.outcome),
+        ],
     );
     for mut text in &mut huds {
         if text.0 != line {

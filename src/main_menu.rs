@@ -2,6 +2,7 @@ use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 
 use crate::catalog::Team;
+use crate::i18n::{Language, set_language, tr, tr_fmt, tr_owned};
 use crate::levels::{
     ActiveLevel, BaseSite, Difficulty, LevelDefinition, LevelEntry, LevelSource, ObjectiveKind,
     SkirmishOptions, TechLevel, Weather, campaign, custom_levels, custom_levels_directory,
@@ -10,6 +11,7 @@ use crate::levels::{
 use crate::match_flow::GameState;
 use crate::replay::{ReplayPlayback, ReplaySummary, list_replays, load_replay, replay_directory};
 use crate::savegame::{QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_summary};
+use crate::settings::GameSettings;
 use crate::terrain::Landscape;
 use crate::ui::{ACCENT, FRAME, FRAME_BRIGHT, GOOD, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
 
@@ -60,6 +62,7 @@ pub enum MenuCommand {
     StartEditorBattle,
     SaveEditorLevel,
     WatchReplay,
+    CycleLanguage,
     ContinueQuickSave,
     Quit,
 }
@@ -106,43 +109,48 @@ fn cycle<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
 impl EditorField {
     fn label(self) -> &'static str {
         match self {
-            EditorField::Enemies => "Enemy commanders",
-            EditorField::Difficulty => "Difficulty",
-            EditorField::Credits => "Starting credits",
-            EditorField::Objective => "Objective",
-            EditorField::Tech => "Available units",
-            EditorField::MapVariant => "Map variant",
-            EditorField::PlayerSite => "Your base",
-            EditorField::FogOfWar => "Fog of war",
-            EditorField::Alliance => "Opponents",
-            EditorField::Landscape => "Landscape",
-            EditorField::Weather => "Weather",
+            EditorField::Enemies => tr("Enemy commanders"),
+            EditorField::Difficulty => tr("Difficulty"),
+            EditorField::Credits => tr("Starting credits"),
+            EditorField::Objective => tr("Objective"),
+            EditorField::Tech => tr("Available units"),
+            EditorField::MapVariant => tr("Map variant"),
+            EditorField::PlayerSite => tr("Your base"),
+            EditorField::FogOfWar => tr("Fog of war"),
+            EditorField::Alliance => tr("Opponents"),
+            EditorField::Landscape => tr("Landscape"),
+            EditorField::Weather => tr("Weather"),
         }
     }
 
     fn value(self, options: &SkirmishOptions) -> String {
         match self {
             EditorField::Enemies => options.enemies.to_string(),
-            EditorField::Difficulty => format!("{:?}", options.difficulty),
+            EditorField::Difficulty => tr_owned(&format!("{:?}", options.difficulty)),
             EditorField::Credits => format!("${}", options.credits),
             EditorField::Objective => match options.objective {
-                ObjectiveKind::Annihilate => "Destroy everything".into(),
-                ObjectiveKind::Decapitate => "Destroy Command Centers".into(),
-                ObjectiveKind::Survive => "Survive 10 minutes".into(),
-                ObjectiveKind::Economy => "Stockpile credits".into(),
+                ObjectiveKind::Annihilate => tr("Destroy everything").into(),
+                ObjectiveKind::Decapitate => tr("Destroy Command Centers").into(),
+                ObjectiveKind::Survive => tr("Survive 10 minutes").into(),
+                ObjectiveKind::Economy => tr("Stockpile credits").into(),
             },
             EditorField::Tech => options.tech.label().into(),
-            EditorField::MapVariant => format!("{} of {MAP_VARIANTS}", options.map_variant),
+            EditorField::MapVariant => tr_fmt("{} of {}", &[&options.map_variant, &MAP_VARIANTS]),
             EditorField::PlayerSite => site_name(options.player_site).into(),
-            EditorField::FogOfWar => if options.fog_of_war { "On" } else { "Off" }.into(),
-            EditorField::Alliance => if options.free_for_all {
-                "Free-for-all"
+            EditorField::FogOfWar => if options.fog_of_war {
+                tr("On")
             } else {
-                "Allied"
+                tr("Off")
             }
             .into(),
-            EditorField::Landscape => format!("{:?}", options.landscape),
-            EditorField::Weather => format!("{:?}", options.weather),
+            EditorField::Alliance => if options.free_for_all {
+                tr("Free-for-all")
+            } else {
+                tr("Allied")
+            }
+            .into(),
+            EditorField::Landscape => tr_owned(&format!("{:?}", options.landscape)),
+            EditorField::Weather => tr_owned(&format!("{:?}", options.weather)),
         }
     }
 
@@ -196,10 +204,10 @@ impl EditorField {
 
 fn site_name(site: BaseSite) -> &'static str {
     match site {
-        BaseSite::SouthWest => "South-west",
-        BaseSite::NorthEast => "North-east",
-        BaseSite::NorthWest => "North-west",
-        BaseSite::SouthEast => "South-east",
+        BaseSite::SouthWest => tr("South-west"),
+        BaseSite::NorthEast => tr("North-east"),
+        BaseSite::NorthWest => tr("North-west"),
+        BaseSite::SouthEast => tr("South-east"),
     }
 }
 
@@ -214,6 +222,7 @@ fn all_levels() -> Vec<LevelEntry> {
 }
 
 pub fn build_main_menu(
+    settings: Res<GameSettings>,
     mut commands: Commands,
     fonts: Res<UiFonts>,
     save_directory: Res<SaveDirectory>,
@@ -259,12 +268,12 @@ pub fn build_main_menu(
             ))
             .with_children(|column| {
                 column.spawn(fonts.heading("IRON TIDE", 46.0, ACCENT));
-                column.spawn(fonts.text("Coalition command", 18.0, Team::Player.ui_color()));
+                column.spawn(fonts.text(tr("Coalition command"), 18.0, Team::Player.ui_color()));
                 if let Some(summary) = has_quick_save {
                     spawn_command_button(
                         column,
                         &fonts,
-                        &format!("Continue  ({summary})"),
+                        &tr_fmt("Continue  ({})", &[&summary]),
                         MenuCommand::ContinueQuickSave,
                     );
                 }
@@ -276,7 +285,9 @@ pub fn build_main_menu(
                         ..default()
                     },
                 ));
-                spawn_command_button(column, &fonts, "Quit to desktop", MenuCommand::Quit);
+                let language = format!("{}: {}", tr("Language"), settings.language.native_name());
+                spawn_command_button(column, &fonts, &language, MenuCommand::CycleLanguage);
+                spawn_command_button(column, &fonts, tr("Quit to desktop"), MenuCommand::Quit);
             });
             root.spawn((
                 DetailPanel,
@@ -350,13 +361,13 @@ fn spawn_list_button(
 fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, menu: &MainMenu) {
     commands.entity(list).despawn_related::<Children>();
     commands.entity(list).with_children(|list| {
-        list.spawn(fonts.heading("CAMPAIGN", 15.0, TEXT_DIM));
+        list.spawn(fonts.heading(tr("CAMPAIGN"), 15.0, TEXT_DIM));
         for (index, entry) in menu.entries.iter().enumerate() {
             if index > 0
                 && matches!(entry.source, LevelSource::Custom(_))
                 && !matches!(menu.entries[index - 1].source, LevelSource::Custom(_))
             {
-                list.spawn(fonts.heading("CUSTOM LEVELS", 15.0, TEXT_DIM));
+                list.spawn(fonts.heading(tr("CUSTOM LEVELS"), 15.0, TEXT_DIM));
             }
             spawn_list_button(list, fonts, &entry.level.name, Selection::Level(index));
         }
@@ -366,15 +377,15 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
             .any(|entry| matches!(entry.source, LevelSource::Custom(_)))
         {
             list.spawn(fonts.text(
-                "No custom levels yet - make one in the battle editor.",
+                tr("No custom levels yet - make one in the battle editor."),
                 14.0,
                 TEXT_DIM,
             ));
         }
-        list.spawn(fonts.heading("QUICK BATTLE", 15.0, TEXT_DIM));
-        spawn_list_button(list, fonts, "Battle editor", Selection::Editor);
+        list.spawn(fonts.heading(tr("QUICK BATTLE"), 15.0, TEXT_DIM));
+        spawn_list_button(list, fonts, tr("Battle editor"), Selection::Editor);
         if !menu.replays.is_empty() {
-            list.spawn(fonts.heading("REPLAYS", 15.0, TEXT_DIM));
+            list.spawn(fonts.heading(tr("REPLAYS"), 15.0, TEXT_DIM));
         }
         for (index, replay) in menu.replays.iter().enumerate() {
             let label = format!("{}  ({})", replay.title, minutes(replay.recorded_secs));
@@ -388,38 +399,40 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
         (level.briefing.clone(), TEXT_MAIN),
         (String::new(), TEXT_DIM),
     ];
-    lines.push((format!("Objective: {}", level.objective.describe()), ACCENT));
     lines.push((
-        format!(
+        tr_fmt("Objective: {}", &[&level.objective.describe()]),
+        ACCENT,
+    ));
+    lines.push((
+        tr_fmt(
             "Your base: {}  -  ${}",
-            site_name(level.player.site),
-            level.player.credits
+            &[&site_name(level.player.site), &level.player.credits],
         ),
         Team::Player.ui_color(),
     ));
     for (team, enemy) in level.opponents() {
         lines.push((
             format!(
-                "{}: {}, {:?}, ${}",
-                team.name(),
+                "{}: {}, {}, ${}",
+                tr(team.name()),
                 site_name(enemy.force.site),
-                enemy.difficulty,
+                tr_owned(&format!("{:?}", enemy.difficulty)),
                 enemy.force.credits
             ),
             team.ui_color(),
         ));
     }
     let units = if level.available_units.is_empty() {
-        "every unit".to_string()
+        tr("every unit").to_string()
     } else {
         level
             .available_units
             .iter()
-            .map(|kind| kind.spec().name)
+            .map(|kind| tr(kind.spec().name))
             .collect::<Vec<_>>()
             .join(", ")
     };
-    lines.push((format!("Available: {units}"), TEXT_DIM));
+    lines.push((tr_fmt("Available: {}", &[&units]), TEXT_DIM));
     lines
 }
 
@@ -434,28 +447,29 @@ fn rebuild_details(commands: &mut Commands, panel: Entity, fonts: &UiFonts, menu
                 for (line, color) in describe_level(level) {
                     panel.spawn(fonts.text(line, 17.0, color));
                 }
-                spawn_command_button(panel, fonts, "START MISSION", MenuCommand::StartSelected);
+                spawn_command_button(panel, fonts, tr("START MISSION"), MenuCommand::StartSelected);
             }
             Selection::Replay(index) => {
                 let replay = &menu.replays[index];
                 panel.spawn(fonts.heading(&replay.title, 30.0, ACCENT));
                 panel.spawn(fonts.text(
-                    format!("{}  ·  {}", replay.outcome, minutes(replay.recorded_secs)),
+                    format!("{}  ·  {}", tr_owned(&replay.outcome), minutes(replay.recorded_secs)),
                     17.0,
                     TEXT_MAIN,
                 ));
                 panel.spawn(fonts.text(
-                    "Watch the whole battle again without the fog of war. Space pauses, + and - change \
-                     the speed, Esc returns here.",
+                    tr(
+                        "Watch the whole battle again without the fog of war. Space pauses, + and - change the speed, Esc returns here.",
+                    ),
                     15.0,
                     TEXT_DIM,
                 ));
-                spawn_command_button(panel, fonts, "WATCH REPLAY", MenuCommand::WatchReplay);
+                spawn_command_button(panel, fonts, tr("WATCH REPLAY"), MenuCommand::WatchReplay);
             }
             Selection::Editor => {
-                panel.spawn(fonts.heading("Battle editor", 30.0, ACCENT));
+                panel.spawn(fonts.heading(tr("Battle editor"), 30.0, ACCENT));
                 panel.spawn(fonts.text(
-                    "Left click: next value, right click: previous.",
+                    tr("Left click: next value, right click: previous."),
                     15.0,
                     TEXT_DIM,
                 ));
@@ -490,11 +504,11 @@ fn rebuild_details(commands: &mut Commands, panel: Entity, fonts: &UiFonts, menu
                     16.0,
                     TEXT_DIM,
                 ));
-                spawn_command_button(panel, fonts, "START BATTLE", MenuCommand::StartEditorBattle);
+                spawn_command_button(panel, fonts, tr("START BATTLE"), MenuCommand::StartEditorBattle);
                 spawn_command_button(
                     panel,
                     fonts,
-                    "SAVE AS CUSTOM LEVEL",
+                    tr("SAVE AS CUSTOM LEVEL"),
                     MenuCommand::SaveEditorLevel,
                 );
             }
@@ -544,6 +558,7 @@ fn run_command(
     mut menu: ResMut<MainMenu>,
     mut requests: ResMut<SaveRequests>,
     mut next_state: ResMut<NextState<GameState>>,
+    mut settings: ResMut<GameSettings>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let Ok(&command) = buttons.get(click.entity) else {
@@ -569,11 +584,11 @@ fn run_command(
             let level = menu.options.to_level();
             menu.message = Some(
                 match save_custom_level(&custom_levels_directory(), &level) {
-                    Ok(path) => format!(
+                    Ok(path) => tr_fmt(
                         "Saved as {} - it now appears under Custom levels.",
-                        path.display()
+                        &[&path.display()],
                     ),
-                    Err(error) => format!("Could not save the level: {error}"),
+                    Err(error) => tr_fmt("Could not save the level: {}", &[&error]),
                 },
             );
             menu.entries = all_levels();
@@ -590,10 +605,19 @@ fn run_command(
                     next_state.set(GameState::Replay);
                 }
                 Err(error) => {
-                    menu.message = Some(format!("Could not open the replay: {error}"));
+                    menu.message = Some(tr_fmt("Could not open the replay: {}", &[&error]));
                     menu.needs_rebuild = true;
                 }
             }
+        }
+        MenuCommand::CycleLanguage => {
+            let next = Language::ALL
+                .iter()
+                .position(|&language| language == settings.language)
+                .map_or(0, |index| (index + 1) % Language::ALL.len());
+            settings.language = Language::ALL[next];
+            set_language(settings.language);
+            next_state.set(GameState::MainMenu);
         }
         MenuCommand::ContinueQuickSave => requests.load = Some(QUICK_SAVE_SLOT),
         MenuCommand::Quit => {

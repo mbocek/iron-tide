@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::catalog::Team;
 use crate::components::{Building, Health};
 use crate::economy::Economies;
+use crate::i18n::tr;
 use crate::sound::{Sound, SoundCue};
 
 const MESSAGE_LIFETIME_SECS: f32 = 4.0;
@@ -64,7 +65,7 @@ pub fn watch_base(
         .map(|(health, _)| health.current)
         .sum();
     if base_health < watch.previous_health - 0.5 && watch.warning_cooldown <= 0.0 {
-        notifications.push("Our base is under attack!");
+        notifications.push(tr("Our base is under attack!"));
         cues.write(SoundCue::interface(Sound::BaseAlert));
         watch.warning_cooldown = ATTACK_WARNING_COOLDOWN_SECS;
     }
@@ -72,7 +73,7 @@ pub fn watch_base(
 
     let low_power = economies.of(Team::Player).has_low_power();
     if low_power && !watch.low_power {
-        notifications.push("Low power - production slowed");
+        notifications.push(tr("Low power - production slowed"));
     }
     watch.low_power = low_power;
 }

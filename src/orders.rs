@@ -5,6 +5,7 @@ use crate::catalog::{BuildingKind, Diplomacy, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
 use crate::engineers::{EngineerJob, EngineerTask, job_for};
+use crate::i18n::{tr, tr_fmt};
 use crate::map::{GameMap, cells_by_distance, world_to_cell};
 use crate::movement::order_move;
 use crate::production::Placement;
@@ -226,8 +227,8 @@ pub fn select_units(
         let count = own_units_inside(&selectable).len();
         let label = match count {
             0 => String::new(),
-            1 => "1 unit".to_string(),
-            n => format!("{n} units"),
+            1 => tr("1 unit").to_string(),
+            n => tr_fmt("{} units", &[&n]),
         };
         for mut text in &mut counts {
             if text.0 != label {

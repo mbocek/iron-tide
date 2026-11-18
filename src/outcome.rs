@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::catalog::{BuildingKind, Team};
 use crate::components::{Building, Unit};
 use crate::economy::Economies;
+use crate::i18n::tr_fmt;
 use crate::levels::{ActiveLevel, Objective};
 use crate::match_flow::MatchClock;
 
@@ -65,7 +66,10 @@ pub fn objective_status(level: &ActiveLevel, clock: &MatchClock, economies: &Eco
     let progress = match objective {
         Objective::Survive { minutes } => {
             let left = (minutes * 60.0 - clock.elapsed_secs).max(0.0) as u32;
-            format!("  -  {}:{:02} left", left / 60, left % 60)
+            tr_fmt(
+                "  -  {} left",
+                &[&format!("{}:{:02}", left / 60, left % 60)],
+            )
         }
         Objective::ReachCredits { credits } => {
             format!("  -  ${} / ${credits}", economies.of(Team::Player).credits)

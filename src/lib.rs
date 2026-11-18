@@ -21,6 +21,7 @@ pub mod fog_view;
 pub mod frame_pacing;
 pub mod graphics;
 pub mod headless;
+pub mod i18n;
 pub mod intel;
 pub mod levels;
 pub mod main_menu;
@@ -250,6 +251,11 @@ impl Plugin for GamePlugin {
             .init_gizmo_group::<overlay::HealthBarGizmos>()
             .add_systems(Last, frame_pacing::pace_frames)
             .add_systems(Update, graphics::fit_shadows_to_zoom)
+            .add_systems(Update, settings::apply_language)
+            .add_systems(
+                Update,
+                settings::persist_settings.run_if(in_state(match_flow::GameState::MainMenu)),
+            )
             .add_systems(
                 Update,
                 (animation::link_rotor_nodes, animation::spin_rotors)

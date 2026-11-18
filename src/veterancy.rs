@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::catalog::{Team, UnitKind};
 use crate::combat::{DamageDealt, DamageSource, Destroyed};
 use crate::components::{Health, Unit};
+use crate::i18n::{tr, tr_fmt};
 use crate::notifications::Notifications;
 use crate::sound::{Sound, SoundCue};
 use crate::structures::structure_value;
@@ -53,9 +54,9 @@ impl Rank {
 
     pub fn name(self) -> &'static str {
         match self {
-            Rank::Recruit => "Recruit",
-            Rank::Veteran => "Veteran",
-            Rank::Elite => "Elite",
+            Rank::Recruit => tr("Recruit"),
+            Rank::Veteran => tr("Veteran"),
+            Rank::Elite => tr("Elite"),
         }
     }
 }
@@ -138,10 +139,9 @@ pub fn promote_veterans(
         health.max = new_max;
         veterancy.rank = earned;
         if team == Team::Player {
-            notifications.push(format!(
+            notifications.push(tr_fmt(
                 "{} promoted to {}",
-                unit.0.spec().name,
-                earned.name()
+                &[&tr(unit.0.spec().name), &earned.name()],
             ));
             cues.write(SoundCue::interface(Sound::UnitPromoted));
         }

@@ -6,6 +6,7 @@ use bevy::prelude::*;
 
 use crate::camera::RtsCamera;
 use crate::fog_view::Shrouded;
+use crate::i18n::{tr_fmt, tr_owned};
 use crate::notifications::Notifications;
 use crate::settings::{GameSettings, QualityPreset, ShadowQuality};
 
@@ -37,7 +38,10 @@ pub fn cycle_quality_preset(
     if keys.just_pressed(KeyCode::F2) {
         let preset = next_preset(settings.preset);
         settings.apply_preset(preset);
-        notifications.push(format!("Graphics quality: {preset:?}"));
+        notifications.push(tr_fmt(
+            "Graphics quality: {}",
+            &[&tr_owned(&format!("{preset:?}"))],
+        ));
     }
 }
 

@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use crate::assets::ModelLibrary;
 use crate::catalog::{BuildingKind, Diplomacy, Team};
 use crate::components::{Building, Health, Mobile, Orders};
+use crate::i18n::{tr, tr_fmt};
 use crate::map::{CELL_SIZE, GameMap, footprint_center};
 use crate::movement::order_move;
 use crate::notifications::Notifications;
@@ -127,15 +128,16 @@ pub fn carry_out_engineer_tasks(
                     max: kind.spec().max_health,
                 });
                 if owner == Team::Player {
-                    notifications.push(format!("{} captured by the enemy", kind.spec().name));
+                    notifications
+                        .push(tr_fmt("{} captured by the enemy", &[&tr(kind.spec().name)]));
                     cues.write(SoundCue::interface(Sound::BaseAlert));
                 }
             }
         }
         if team == Team::Player {
             let message = match task.job {
-                EngineerJob::Capture => format!("{} captured", building.kind.spec().name),
-                EngineerJob::Repair => format!("{} repaired", building.kind.spec().name),
+                EngineerJob::Capture => tr_fmt("{} captured", &[&tr(building.kind.spec().name)]),
+                EngineerJob::Repair => tr_fmt("{} repaired", &[&tr(building.kind.spec().name)]),
             };
             notifications.push(message);
             let sound = match task.job {

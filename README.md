@@ -143,6 +143,13 @@ CPU, as Bevy skips static entities cheaply. The Low quality preset saves about 1
 schedules on one thread saves about 13 % per frame, because most systems are chained and the multi-threaded
 executor mostly paid for waking worker threads. The rest is Bevy's fixed cost per frame.
 
+## Languages
+
+The interface speaks English, Slovak and Czech: choose it with the *Language* button in the main menu or in
+the menu's *Gameplay* tab. Menus, the sidebar, notifications, the tutorial, the end screen and unit and
+structure names and descriptions are translated; mission names and briefings stay in English. Texts live in
+`src/i18n.rs` as one table of English, Slovak and Czech; a text missing there simply stays English.
+
 ## Sound and music
 
 All sound effects and music are original and synthesized by code (`tools/audio/generate_audio.py`,
@@ -289,6 +296,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `medical` | field medics healing infantry |
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
+| `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
 | `engineers` | engineers capturing enemy structures and repairing own ones |
 | `tutorial` | the step-by-step tutorial of levels with `"tutorial": true` |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |

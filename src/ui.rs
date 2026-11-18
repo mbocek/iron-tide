@@ -1,3 +1,4 @@
+use crate::i18n::{tr, tr_fmt};
 use crate::match_stats::{MatchStats, TeamTally};
 use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
 use crate::structure_tools::spawn_tool_buttons;
@@ -157,9 +158,9 @@ fn lane_items(lane: Lane) -> Vec<BuildItem> {
 
 fn lane_title(lane: Lane) -> &'static str {
     match lane {
-        Lane::Structures => "BASE",
-        Lane::Infantry => "INFANTRY",
-        Lane::Vehicles => "VEHICLES",
+        Lane::Structures => tr("BASE"),
+        Lane::Infantry => tr("INFANTRY"),
+        Lane::Vehicles => tr("VEHICLES"),
     }
 }
 
@@ -233,7 +234,7 @@ fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
         })
         .with_children(|header| {
             header.spawn(fonts.heading("IRON TIDE", 30.0, ACCENT));
-            header.spawn(fonts.heading("COALITION", 16.0, Team::Player.ui_color()));
+            header.spawn(fonts.heading(tr("COALITION"), 16.0, Team::Player.ui_color()));
             header
                 .spawn((
                     Node {
@@ -307,7 +308,10 @@ fn spawn_resources(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
                     ..default()
                 })
                 .with_children(|row| {
-                    row.spawn((PowerText, fonts.text("POWER 0 / 0", 14.0, TEXT_MAIN)));
+                    row.spawn((
+                        PowerText,
+                        fonts.text(tr_fmt("POWER {} / {}", &[&0, &0]), 14.0, TEXT_MAIN),
+                    ));
                     row.spawn((
                         Node {
                             flex_grow: 1.0,
@@ -554,7 +558,7 @@ fn spawn_notification_feed(commands: &mut Commands, fonts: &UiFonts) {
 
 fn spawn_controls_help(commands: &mut Commands, fonts: &UiFonts) {
     commands.spawn((
-        fonts.text("F1  controls", 15.0, TEXT_DIM),
+        fonts.text(tr("F1  controls"), 15.0, TEXT_DIM),
         TextShadow::default(),
         Pickable::IGNORE,
         Node {
@@ -565,35 +569,38 @@ fn spawn_controls_help(commands: &mut Commands, fonts: &UiFonts) {
         },
     ));
     let controls = [
-        ("Select", "left click / drag a box (Shift adds)"),
-        ("Orders", "right click: move, attack, harvest"),
-        ("Attack-move", "Ctrl + right click"),
-        ("Patrol", "Alt + right click"),
-        ("Queue orders", "Shift + right click"),
-        ("Rally point", "select barracks/factory, right click"),
+        (tr("Select"), tr("left click / drag a box (Shift adds)")),
+        (tr("Orders"), tr("right click: move, attack, harvest")),
+        (tr("Attack-move"), tr("Ctrl + right click")),
+        (tr("Patrol"), tr("Alt + right click")),
+        (tr("Queue orders"), tr("Shift + right click")),
         (
-            "Repair / sell",
-            "T / Y (or the buttons), then click a structure",
-        ),
-        ("Scroll", "WASD, arrows, screen edge, middle-drag"),
-        ("Fast scroll", "hold Shift"),
-        ("Minimap", "click or drag to jump"),
-        ("Zoom / rotate", "mouse wheel / Q, E (R resets)"),
-        ("Home", "Space or Home"),
-        ("Stop / deselect", "X / Esc"),
-        ("Groups", "Ctrl+1-9 save, 1-9 select, twice = jump"),
-        ("Add a group", "Shift+1-9"),
-        ("Graphics quality", "F2: Low / Medium / High"),
-        ("Performance", "F3 overlay: FPS, CPU, GPU"),
-        ("Save / load", "F5 quick save, F9 quick load"),
-        ("Menu & settings", "F10 or Esc"),
-        (
-            "Build menu",
-            "left click builds (Shift = 5x), right click cancels",
+            tr("Rally point"),
+            tr("select barracks/factory, right click"),
         ),
         (
-            "Queue bar",
-            "left click places a ready structure, right click cancels",
+            tr("Repair / sell"),
+            tr("T / Y (or the buttons), then click a structure"),
+        ),
+        (tr("Scroll"), tr("WASD, arrows, screen edge, middle-drag")),
+        (tr("Fast scroll"), tr("hold Shift")),
+        (tr("Minimap"), tr("click or drag to jump")),
+        (tr("Zoom / rotate"), tr("mouse wheel / Q, E (R resets)")),
+        (tr("Home"), tr("Space or Home")),
+        (tr("Stop / deselect"), "X / Esc"),
+        (tr("Groups"), tr("Ctrl+1-9 save, 1-9 select, twice = jump")),
+        (tr("Add a group"), "Shift+1-9"),
+        (tr("Graphics quality"), tr("F2: Low / Medium / High")),
+        (tr("Performance"), tr("F3 overlay: FPS, CPU, GPU")),
+        (tr("Save / load"), tr("F5 quick save, F9 quick load")),
+        (tr("Menu & settings"), tr("F10 or Esc")),
+        (
+            tr("Build menu"),
+            tr("left click builds (Shift = 5x), right click cancels"),
+        ),
+        (
+            tr("Queue bar"),
+            tr("left click places a ready structure, right click cancels"),
         ),
     ];
     commands
@@ -614,7 +621,7 @@ fn spawn_controls_help(commands: &mut Commands, fonts: &UiFonts) {
             Visibility::Hidden,
         ))
         .with_children(|panel| {
-            panel.spawn(fonts.heading("CONTROLS", 18.0, ACCENT));
+            panel.spawn(fonts.heading(tr("CONTROLS"), 18.0, ACCENT));
             for (action, keys) in controls {
                 panel
                     .spawn(Node {
@@ -682,12 +689,16 @@ fn spawn_outcome_overlay(commands: &mut Commands, fonts: &UiFonts) {
                     spawn_outcome_button(
                         buttons,
                         fonts,
-                        "WATCH REPLAY",
+                        tr("WATCH REPLAY"),
                         OutcomeAction::WatchReplay,
                     );
-                    spawn_outcome_button(buttons, fonts, "MAIN MENU", OutcomeAction::MainMenu);
+                    spawn_outcome_button(buttons, fonts, tr("MAIN MENU"), OutcomeAction::MainMenu);
                 });
-            overlay.spawn(fonts.text("F10 opens the menu to restart the mission.", 18.0, TEXT_DIM));
+            overlay.spawn(fonts.text(
+                tr("F10 opens the menu to restart the mission."),
+                18.0,
+                TEXT_DIM,
+            ));
         });
 }
 
@@ -744,7 +755,7 @@ fn run_outcome_action(
                     commands.insert_resource(ReplayPlayback::new(replay));
                     next_state.set(GameState::Replay);
                 }
-                None => notifications.push("The replay could not be found"),
+                None => notifications.push(tr("The replay could not be found")),
             }
         }
     }
@@ -763,37 +774,37 @@ fn outcome_rows(stats: &MatchStats, economies: &Economies) -> Vec<(&'static str,
     let amount = |value: f32| format!("{:.0}", value);
     vec![
         (
-            "Units trained",
+            tr("Units trained"),
             count(player.units_trained),
             count(opponents.units_trained),
         ),
         (
-            "Units lost",
+            tr("Units lost"),
             count(player.units_lost),
             count(opponents.units_lost),
         ),
         (
-            "Structures built",
+            tr("Structures built"),
             count(player.structures_built),
             count(opponents.structures_built),
         ),
         (
-            "Structures lost",
+            tr("Structures lost"),
             count(player.structures_lost),
             count(opponents.structures_lost),
         ),
         (
-            "Enemies destroyed",
+            tr("Enemies destroyed"),
             count(player.enemies_destroyed),
             count(opponents.enemies_destroyed),
         ),
         (
-            "Damage dealt",
+            tr("Damage dealt"),
             amount(player.damage_dealt),
             amount(opponents.damage_dealt),
         ),
         (
-            "Credits harvested",
+            tr("Credits harvested"),
             format!("${}", economies.of(Team::Player).harvested),
             format!("${opponents_harvested}"),
         ),
@@ -832,13 +843,14 @@ fn spawn_outcome_table(
     };
     let minutes = match_secs as u32 / 60;
     let seconds = match_secs as u32 % 60;
-    table.spawn(fonts.heading(format!("MATCH TIME  {minutes}:{seconds:02}"), 18.0, ACCENT));
+    let time = format!("{minutes}:{seconds:02}");
+    table.spawn(fonts.heading(tr_fmt("MATCH TIME  {}", &[&time]), 18.0, ACCENT));
     row(
         table,
         [
             (String::new(), TEXT_DIM),
-            ("You".into(), Team::Player.ui_color()),
-            ("Enemies".into(), Team::Crimson.ui_color()),
+            (tr("You").into(), Team::Player.ui_color()),
+            (tr("Enemies").into(), Team::Crimson.ui_color()),
         ],
     );
     for (label, player, opponents) in rows {
@@ -919,7 +931,7 @@ fn click_build_tile(
             Some(EnqueueRefusal::NotInMission.message())
         } else {
             item.missing_requirement(&owned)
-                .map(|missing| format!("Requires {}", missing.spec().name))
+                .map(|missing| tr_fmt("Requires {}", &[&tr(missing.spec().name)]))
         };
         match refusal {
             Some(message) => {
@@ -931,7 +943,7 @@ fn click_build_tile(
         return;
     }
     if let Some(missing) = item.missing_requirement(&owned) {
-        notifications.push(format!("Requires {}", missing.spec().name));
+        notifications.push(tr_fmt("Requires {}", &[&tr(missing.spec().name)]));
         return;
     }
     let batch = if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
@@ -1049,7 +1061,7 @@ pub fn refresh_build_tiles(
     }
     for (badge, mut text, mut color) in &mut badges {
         let (label, tint) = match state_of(badge.0) {
-            TileState::Ready => ("READY".to_string(), GOOD),
+            TileState::Ready => (tr("READY").to_string(), GOOD),
             TileState::Building { fraction, queued } if queued > 1 => (
                 format!("{}%  x{queued}", (fraction * 100.0) as u32),
                 TEXT_MAIN,
@@ -1058,8 +1070,8 @@ pub fn refresh_build_tiles(
                 (format!("{}%", (fraction * 100.0) as u32), TEXT_MAIN)
             }
             TileState::Queued(count) => (format!("x{count}"), TEXT_MAIN),
-            TileState::Locked => ("LOCKED".to_string(), TEXT_DIM),
-            TileState::NotInMission => ("N/A".to_string(), TEXT_DIM),
+            TileState::Locked => (tr("LOCKED").to_string(), TEXT_DIM),
+            TileState::NotInMission => (tr("N/A").to_string(), TEXT_DIM),
             TileState::Unaffordable | TileState::Available => (String::new(), TEXT_MAIN),
         };
         text.0 = label;
@@ -1120,7 +1132,10 @@ pub fn refresh_resources(
         GOOD
     };
     if let Ok((mut text, mut color)) = power_text.single_mut() {
-        text.0 = format!("POWER {} / {}", economy.power_demand, economy.power_supply);
+        text.0 = tr_fmt(
+            "POWER {} / {}",
+            &[&economy.power_demand, &economy.power_supply],
+        );
         color.0 = if economy.has_low_power() {
             DANGER
         } else {
@@ -1142,11 +1157,13 @@ pub fn refresh_resources(
 
 fn harvest_activity(state: HarvestState) -> &'static str {
     match state {
-        HarvestState::Holding => "idle",
-        HarvestState::SeekingField | HarvestState::TravellingToField(_) => "heading to crystals",
-        HarvestState::Mining { .. } => "mining",
-        HarvestState::ReturningToRefinery(_) => "returning",
-        HarvestState::Unloading { .. } => "unloading",
+        HarvestState::Holding => tr("idle"),
+        HarvestState::SeekingField | HarvestState::TravellingToField(_) => {
+            tr("heading to crystals")
+        }
+        HarvestState::Mining { .. } => tr("mining"),
+        HarvestState::ReturningToRefinery(_) => tr("returning"),
+        HarvestState::Unloading { .. } => tr("unloading"),
     }
 }
 
@@ -1159,11 +1176,11 @@ fn describe_item(
         BuildItem::Structure(kind) => {
             let spec = kind.spec();
             let power = if spec.power >= 0 {
-                format!("+{} power", spec.power)
+                tr_fmt("+{} power", &[&spec.power])
             } else {
-                format!("{} power", spec.power)
+                tr_fmt("{} power", &[&spec.power])
             };
-            (spec.role, spec.build_secs, power)
+            (tr(spec.role), spec.build_secs, power)
         }
         BuildItem::Unit(kind) => {
             let spec = kind.spec();
@@ -1178,12 +1195,15 @@ fn describe_item(
         "\nNot available in this mission".to_string()
     } else {
         item.missing_requirement(owned)
-            .map(|missing| format!("\nRequires {}", missing.spec().name))
+            .map(|missing| format!("\n{}", tr_fmt("Requires {}", &[&tr(missing.spec().name)])))
             .unwrap_or_default()
     };
     (
         format!("{}  ${}", item.name(), item.cost()),
-        format!("{role}\n{build_secs:.0}s build, {extra}{requirement}"),
+        tr_fmt(
+            "{}\n{}s build, {}{}",
+            &[&role, &format!("{build_secs:.0}"), &extra, &requirement],
+        ),
     )
 }
 
@@ -1234,25 +1254,28 @@ pub fn refresh_info_panel(
         match selection.as_slice() {
             [] => (
                 None,
-                "No selection".into(),
-                "Select units with a click or a drag box.".into(),
+                tr("No selection").into(),
+                tr("Select units with a click or a drag box.").into(),
                 None,
             ),
             [(unit, building, health, harvester)] => {
                 let name = unit
-                    .map(|u| u.0.spec().name)
-                    .or(building.map(|b| b.kind.spec().name))
+                    .map(|u| tr(u.0.spec().name))
+                    .or(building.map(|b| tr(b.kind.spec().name)))
                     .unwrap_or_default();
                 let path = unit
                     .map(|u| format!("icons/{}.png", u.0.spec().model_id))
                     .or(building.map(|b| format!("icons/{}.png", b.kind.spec().model_id)));
                 let hp = format!("{:.0} / {:.0} HP", health.current.max(0.0), health.max);
                 let details = match harvester {
-                    Some(harvester) => format!(
-                        "{hp}\nCargo {} / {}  ({})",
-                        harvester.cargo,
-                        HARVESTER_CAPACITY,
-                        harvest_activity(harvester.state)
+                    Some(harvester) => tr_fmt(
+                        "{}\nCargo {} / {}  ({})",
+                        &[
+                            &hp,
+                            &harvester.cargo,
+                            &HARVESTER_CAPACITY,
+                            &harvest_activity(harvester.state),
+                        ],
                     ),
                     None => hp,
                 };
@@ -1261,7 +1284,7 @@ pub fn refresh_info_panel(
             many => {
                 let mut counts: Vec<(&str, usize)> = Vec::new();
                 for (unit, ..) in many {
-                    let name = unit.map_or("Structure", |u| u.0.spec().name);
+                    let name = unit.map_or(tr("Structure"), |u| tr(u.0.spec().name));
                     match counts.iter_mut().find(|(n, _)| *n == name) {
                         Some((_, count)) => *count += 1,
                         None => counts.push((name, 1)),
@@ -1276,7 +1299,7 @@ pub fn refresh_info_panel(
                     many.iter().map(|(_, _, h, _)| h.fraction()).sum::<f32>() / many.len() as f32;
                 (
                     None,
-                    format!("{} units", many.len()),
+                    tr_fmt("{} units", &[&many.len()]),
                     summary,
                     Some(average),
                 )
@@ -1334,8 +1357,8 @@ pub fn show_outcome(
     }
     let banner = match *outcome {
         GameOutcome::Ongoing => None,
-        GameOutcome::Victory => Some(("VICTORY", Team::Player)),
-        GameOutcome::Defeat => Some(("DEFEAT", Team::Crimson)),
+        GameOutcome::Victory => Some((tr("VICTORY"), Team::Player)),
+        GameOutcome::Defeat => Some((tr("DEFEAT"), Team::Crimson)),
     };
     if let Some((message, team)) = banner
         && let Ok((mut text, mut color)) = title.single_mut()
@@ -1367,9 +1390,9 @@ pub fn refresh_objective(
     economies: Res<Economies>,
     mut lines: Query<&mut Text, With<ObjectiveText>>,
 ) {
-    let status = format!(
+    let status = tr_fmt(
         "OBJECTIVE: {}",
-        objective_status(&level, &clock, &economies)
+        &[&objective_status(&level, &clock, &economies)],
     );
     for mut text in &mut lines {
         if text.0 != status {
