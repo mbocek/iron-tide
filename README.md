@@ -275,9 +275,21 @@ pure Python plus ffmpeg), so there are no third-party licenses:
 python3 tools/audio/generate_audio.py --out assets/audio
 ```
 
-Battle sounds fade with distance from the camera and stay silent under the fog of war; repeated sounds
-are throttled so a firing squad stays readable. The menu has its own theme, matches alternate two battle
-themes, and the end of a match plays a victory or defeat sting. Repairs start with a ratchet, sales ring up
+Gunfire is built like the real thing (`tools/audio/acoustics.py`): the muzzle blast as an N-shaped pressure
+wave, a rifle bullet's supersonic crack, the bolt or breech, and the terrain answering with echoes 30 ms to
+1.4 s later, each duller than the one before. Explosions add the shock, the fireball and debris falling. Every
+weapon and blast also has a version heard from afar: no highs, a soft onset, mostly echo.
+
+Where a sound is on screen decides how it is heard: the middle of the view is loudest and centred, the edges
+are quieter and come from the left or right speaker, and off screen a sound fades by how far its kind
+carries (a rifle half a screen, a collapsing building nearly three). Sounds off screen play their distant
+version and arrive late, at the speed of sound; zooming out makes the battle quieter and distant too.
+Sounds under the fog of war stay silent, and repeated sounds are throttled so a firing squad stays readable.
+
+The menu has its own theme and matches alternate two battle themes. Each battle theme has a calm layer of
+the same length (pads, bass and arpeggio); it plays while nothing fights on screen, and the full mix with its
+drums and melody rises as the fighting in view grows and falls back slowly once it stops. The end of a match
+plays a victory or defeat sting. Repairs start with a ratchet, sales ring up
 coins, a captured structure sounds a radio fanfare and a promoted unit a short bugle call. Master, music and
 effects volume live in the menu's *Audio* tab.
 

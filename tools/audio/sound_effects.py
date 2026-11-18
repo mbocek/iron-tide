@@ -6,6 +6,9 @@ from dsp import (
     one_pole_lowpass, partials, reverb, samples, saw, scaled, segments, silence, sine,
     soft_clip, square, summed, white_noise,
 )
+from acoustics import (
+    debris, distant_version, explosion_blast, mechanism, muzzle_blast, outdoor_shot, supersonic_crack,
+)
 from instruments import chime_voice
 
 SFX_PEAK_DBFS = -1.5
@@ -53,51 +56,46 @@ def gunshot_layers(rng, length, crack_cutoff, crack_decay, body_hz, body_decay, 
 
 
 def rifle_shot(variant):
+    """Muzzle blast, the bullet's supersonic crack, the bolt, then the field answering back."""
     rng = random.Random(1000 + variant)
-    duration = 0.25
+    duration = 0.9
     length = samples(duration)
-    jitter = 1.0 + 0.12 * (variant - 1)
-    shot = gunshot_layers(
-        rng, length,
-        crack_cutoff=2600.0 * jitter, crack_decay=0.006,
-        body_hz=900.0 * jitter, body_decay=0.024 / jitter,
-        thump_hz=170.0 * jitter, thump_decay=0.035,
-        tail_decay=0.07 * (2.0 - jitter),
+    calibre = 0.9 + 0.12 * variant
+    shot = summed(
+        scaled(supersonic_crack(rng, length), 0.8),
+        muzzle_blast(rng, length, body_hz=180.0 * rng.uniform(0.9, 1.1), size=calibre),
+        scaled(mechanism(rng, length, 0.035, 2600.0), 0.25),
     )
-    return finished_effect(soft_clip(shot, 2.2), duration, reverb_seconds=0.5, reverb_wet=0.18)
+    return outdoor_shot(soft_clip(shot, 1.8), rng, duration, reflections=6, first=0.04, last=0.35,
+                        reflection_level=0.4, tail_seconds=1.0, tail_wet=0.16)
 
 
 def sniper_shot():
-    """A heavy rifle crack with a long echo rolling back from the far side of the battlefield."""
+    """A heavy rifle: a hard crack, a deep blast, and an echo rolling back from the far side of the battlefield."""
     rng = random.Random(1050)
-    duration = 1.2
+    duration = 1.8
     length = samples(duration)
-    shot = gunshot_layers(
-        rng, length,
-        crack_cutoff=2000.0, crack_decay=0.008,
-        body_hz=700.0, body_decay=0.035,
-        thump_hz=140.0, thump_decay=0.06,
-        tail_decay=0.12,
+    shot = summed(
+        supersonic_crack(rng, length),
+        muzzle_blast(rng, length, body_hz=130.0, size=1.8),
+        scaled(mechanism(rng, length, 0.5, 1900.0), 0.3),
     )
-    echo = one_pole_lowpass(decaying_noise(rng, samples(0.5), 0.12, "brown"), 1200.0)
-    mix_into(shot, echo, samples(0.35), 0.5)
-    return finished_effect(soft_clip(shot, 2.4), duration, reverb_seconds=1.4, reverb_wet=0.3, end_fade=0.12)
+    return outdoor_shot(soft_clip(shot, 2.0), rng, duration, reflections=8, first=0.06, last=0.9,
+                        reflection_cutoff=1600.0, reflection_level=0.55, tail_seconds=2.0, tail_wet=0.22)
 
 
-def machine_gun_shot():
-    rng = random.Random(1100)
-    duration = 0.15
+def machine_gun_shot(variant):
+    """A scout's machine gun: lighter and tighter than a rifle, so a burst stays distinct."""
+    rng = random.Random(1100 + variant)
+    duration = 0.6
     length = samples(duration)
-    shot = gunshot_layers(
-        rng, length,
-        crack_cutoff=3200.0, crack_decay=0.004,
-        body_hz=1350.0, body_decay=0.016,
-        thump_hz=230.0, thump_decay=0.02,
-        tail_decay=0.035,
+    shot = summed(
+        scaled(supersonic_crack(rng, length), 0.6),
+        muzzle_blast(rng, length, body_hz=230.0 * rng.uniform(0.92, 1.08), size=0.7),
+        scaled(mechanism(rng, length, 0.012, 3200.0), 0.3),
     )
-    bolt = partials([2830.0, 4170.0], [0.25, 0.15], [0.006, 0.004], length)
-    mix_into(shot, bolt, samples(0.002))
-    return finished_effect(soft_clip(shot, 2.0), duration, reverb_seconds=0.35, reverb_wet=0.12)
+    return outdoor_shot(soft_clip(shot, 1.8), rng, duration, reflections=4, first=0.03, last=0.22,
+                        reflection_level=0.3, tail_seconds=0.7, tail_wet=0.12)
 
 
 def flak_shot():
@@ -130,36 +128,45 @@ def cannon_blast(rng, length, boom_start_hz, boom_end_hz, boom_decay, noise_deca
     return soft_clip(summed(scaled(crack, crack_gain), scaled(boom, 1.1), scaled(blast, 2.6), scaled(rumble, 3.0)), 2.5)
 
 
-def cannon_shot():
-    rng = random.Random(1200)
-    duration = 0.9
-    blast = cannon_blast(rng, samples(duration), 115.0, 42.0, 0.26, 0.22)
-    return finished_effect(blast, duration, reverb_seconds=1.2, reverb_wet=0.25, end_fade=0.08)
+def cannon_shot(variant):
+    """A tank gun: a pressure wave you feel more than hear, the breech, and the valley throwing it back."""
+    rng = random.Random(1200 + variant)
+    duration = 1.6
+    length = samples(duration)
+    shot = summed(
+        muzzle_blast(rng, length, body_hz=85.0 * rng.uniform(0.9, 1.1), size=2.6),
+        scaled(cannon_blast(rng, length, 110.0, 40.0, 0.14, 0.09), 0.45),
+        scaled(mechanism(rng, length, 0.25, 900.0), 0.35),
+    )
+    return outdoor_shot(soft_clip(shot, 1.2), rng, duration, reflections=7, first=0.06, last=0.6,
+                        reflection_cutoff=1500.0, reflection_level=0.3, tail_seconds=1.6, tail_wet=0.12)
 
 
 def heavy_cannon_shot():
+    """The Bulwark's twin guns, a beat apart."""
     rng = random.Random(1300)
-    duration = 1.1
+    duration = 1.8
     length = samples(duration)
-    first = cannon_blast(rng, length, 95.0, 34.0, 0.32, 0.28)
-    second = cannon_blast(rng, length, 88.0, 32.0, 0.34, 0.3, crack_gain=0.7)
-    mix_into(first, second, samples(0.075), 0.85)
-    return finished_effect(first, duration, reverb_seconds=1.5, reverb_wet=0.28, end_fade=0.1)
+    first = summed(muzzle_blast(rng, length, body_hz=75.0, size=3.0),
+                   scaled(cannon_blast(rng, length, 95.0, 34.0, 0.16, 0.1), 0.45))
+    second = summed(muzzle_blast(rng, length, body_hz=72.0, size=2.8),
+                    scaled(cannon_blast(rng, length, 88.0, 32.0, 0.17, 0.11, crack_gain=0.6), 0.4))
+    mix_into(first, second, samples(0.085), 0.85)
+    return outdoor_shot(soft_clip(first, 1.2), rng, duration, reflections=7, first=0.07, last=0.65,
+                        reflection_cutoff=1400.0, reflection_level=0.3, tail_seconds=1.8, tail_wet=0.13)
 
 
 def howitzer_shot():
+    """Artillery: an enormous blast with a long, low roll of echoes across the hills."""
     rng = random.Random(1400)
-    duration = 1.6
+    duration = 2.6
     length = samples(duration)
-    crack = biquad(decaying_noise(rng, length, 0.015), "highpass", 1000.0)
-    boom = pitch_drop(72.0, 26.0, 0.12, 0.5, length)
-    rumble_cutoff = exponential_glide(2200.0, 110.0, length, 0.3)
-    rumble = one_pole_lowpass(one_pole_lowpass(decaying_noise(rng, length, 0.55), rumble_cutoff), rumble_cutoff)
-    sub_rumble = one_pole_lowpass(decaying_noise(rng, length, 0.7, "brown"), 160.0)
-    blast = soft_clip(summed(scaled(crack, 0.6), scaled(boom, 1.2), scaled(rumble, 3.0), scaled(sub_rumble, 4.0)), 2.2)
-    distant_echo = one_pole_lowpass(feedback_echoes(blast, samples(0.29), 0.3), 900.0)
-    mix_into(blast, distant_echo, 0, 0.35)
-    return finished_effect(blast, duration, reverb_seconds=2.2, reverb_wet=0.3, end_fade=0.25)
+    shot = summed(
+        muzzle_blast(rng, length, body_hz=55.0, size=3.5),
+        scaled(cannon_blast(rng, length, 72.0, 26.0, 0.25, 0.18), 0.55),
+    )
+    return outdoor_shot(soft_clip(shot, 1.2), rng, duration, reflections=9, first=0.09, last=1.4,
+                        reflection_cutoff=900.0, reflection_level=0.35, tail_seconds=2.4, tail_wet=0.15)
 
 
 def flame_burst():
@@ -246,16 +253,16 @@ def explosion_core(rng, length, boom_start_hz, boom_end_hz, brightness_decay, ru
 
 
 def explosion(variant):
+    """A shell bursting: the shock, the fireball, earth and stones falling, echoes from the surroundings."""
     rng = random.Random(1800 + variant)
-    duration = 1.3
+    duration = 2.0
     length = samples(duration)
-    if variant == 1:
-        blast = explosion_core(rng, length, 95.0, 35.0, 0.22, 0.45)
-    else:
-        blast = explosion_core(rng, length, 85.0, 32.0, 0.16, 0.5)
-        secondary = explosion_core(rng, length, 120.0, 50.0, 0.08, 0.2)
-        mix_into(blast, secondary, samples(0.06), 0.45)
-    return finished_effect(blast, duration, reverb_seconds=1.5, reverb_wet=0.25, end_fade=0.15)
+    blast = explosion_blast(rng, length, size=1.0 + 0.15 * variant)
+    if variant == 2:
+        mix_into(blast, explosion_blast(rng, length, size=0.8), samples(0.05), 0.4)
+    mix_into(blast, debris(rng, length, 18 + 6 * variant, 0.12, 1.2, 0.1))
+    return outdoor_shot(soft_clip(blast, 1.2), rng, duration, reflections=7, first=0.07, last=0.7,
+                        reflection_cutoff=1300.0, reflection_level=0.3, tail_seconds=1.8, tail_wet=0.12)
 
 
 def debris_shower(rng, length, count, start, end, gain):
@@ -275,14 +282,16 @@ def debris_shower(rng, length, count, start, end, gain):
 
 
 def large_explosion():
+    """A vehicle going up: a heavier blast, its ammunition cooking off a moment later, a long shower of wreckage."""
     rng = random.Random(1900)
-    duration = 2.2
+    duration = 3.0
     length = samples(duration)
-    blast = explosion_core(rng, length, 80.0, 28.0, 0.28, 0.9)
-    secondary = explosion_core(rng, length, 70.0, 30.0, 0.2, 0.7)
-    mix_into(blast, secondary, samples(0.11), 0.6)
-    mix_into(blast, debris_shower(rng, length, 34, 0.2, 1.8, 0.35))
-    return finished_effect(blast, duration, reverb_seconds=2.4, reverb_wet=0.3, end_fade=0.3)
+    blast = explosion_blast(rng, length, size=2.2)
+    mix_into(blast, explosion_blast(rng, length, size=1.4), samples(0.14), 0.45)
+    mix_into(blast, explosion_blast(rng, length, size=0.7), samples(0.45), 0.25)
+    mix_into(blast, debris(rng, length, 44, 0.2, 2.2, 0.12))
+    return outdoor_shot(soft_clip(blast, 1.2), rng, duration, reflections=8, first=0.09, last=1.0,
+                        reflection_cutoff=1100.0, reflection_level=0.32, tail_seconds=2.4, tail_wet=0.14)
 
 
 def building_collapse():
@@ -502,10 +511,13 @@ SOUND_EFFECTS = {
     "sfx/rifle_shot_1": lambda: rifle_shot(0),
     "sfx/rifle_shot_2": lambda: rifle_shot(1),
     "sfx/rifle_shot_3": lambda: rifle_shot(2),
-    "sfx/mg_shot": machine_gun_shot,
+    "sfx/rifle_shot_4": lambda: rifle_shot(3),
+    "sfx/mg_shot_1": lambda: machine_gun_shot(0),
+    "sfx/mg_shot_2": lambda: machine_gun_shot(1),
     "sfx/sniper_shot": sniper_shot,
     "sfx/flak_shot": flak_shot,
-    "sfx/cannon_shot": cannon_shot,
+    "sfx/cannon_shot_1": lambda: cannon_shot(0),
+    "sfx/cannon_shot_2": lambda: cannon_shot(1),
     "sfx/heavy_cannon_shot": heavy_cannon_shot,
     "sfx/howitzer_shot": howitzer_shot,
     "sfx/missile_launch": missile_launch,
@@ -514,6 +526,7 @@ SOUND_EFFECTS = {
     "sfx/impact_small_2": metal_impact,
     "sfx/explosion_1": lambda: explosion(1),
     "sfx/explosion_2": lambda: explosion(2),
+    "sfx/explosion_3": lambda: explosion(3),
     "sfx/explosion_large": large_explosion,
     "sfx/building_collapse": building_collapse,
     "sfx/ui_click": ui_click,
@@ -529,3 +542,13 @@ SOUND_EFFECTS = {
     "sfx/credits": credits_chime,
     "sfx/unit_acknowledge": unit_acknowledge,
 }
+
+# Every weapon and blast also has a version heard from far away; the game picks it for sounds off screen.
+HEARD_FROM_AFAR = [
+    "rifle_shot_1", "rifle_shot_2", "mg_shot_1", "sniper_shot", "flak_shot", "cannon_shot_1", "cannon_shot_2",
+    "heavy_cannon_shot", "howitzer_shot", "missile_launch", "flame_burst", "explosion_1", "explosion_2",
+    "explosion_3", "explosion_large", "building_collapse",
+]
+SOUND_EFFECTS.update({
+    f"sfx/{name}_far": distant_version(SOUND_EFFECTS[f"sfx/{name}"]) for name in HEARD_FROM_AFAR
+})

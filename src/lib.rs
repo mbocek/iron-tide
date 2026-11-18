@@ -24,6 +24,7 @@ pub mod fog_view;
 pub mod frame_pacing;
 pub mod graphics;
 pub mod headless;
+pub mod hearing;
 pub mod i18n;
 pub mod intel;
 pub mod interpolation;
@@ -299,6 +300,7 @@ impl Plugin for GamePlugin {
             .init_resource::<animation::AnimationLibrary>()
             .init_resource::<menu::MenuState>()
             .init_resource::<sound::MusicDirector>()
+            .init_resource::<sound::BattleFury>()
             .add_observer(sound::click_feedback)
             .add_systems(
                 OnEnter(match_flow::GameState::Playing),
@@ -472,6 +474,7 @@ impl Plugin for GamePlugin {
                     flat_scenery::load_flat_scenery_sources,
                     battlefield::create_battlefield_assets,
                     abilities::create_mine_look,
+                    sound::place_ears,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),

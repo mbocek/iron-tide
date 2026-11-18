@@ -71,6 +71,13 @@ pub fn focus_on_player_base(
     }
 }
 
+impl RtsCamera {
+    /// 0 fully zoomed in, 1 fully zoomed out.
+    pub fn zoom_fraction(&self) -> f32 {
+        ((self.distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)).clamp(0.0, 1.0)
+    }
+}
+
 pub fn setup_scene(mut commands: Commands) {
     let start_focus = Vec3::new(map_world_size() * 0.5, 0.0, map_world_size() * 0.5);
     commands.spawn((

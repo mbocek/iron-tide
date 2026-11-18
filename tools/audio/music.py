@@ -17,6 +17,9 @@ STEPS_PER_BEAT = 4
 STEP_ACCENTS = {"X": 1.0, "x": 0.72, "o": 0.38}
 ENCODER_FRAME_SAMPLES = 2048
 SUBSONIC_CUTOFF_HZ = 32.0
+# The quiet layer of a battle piece plays while nothing is fighting on screen; the game crossfades to the full mix.
+CALM_STEMS = ("pad", "bass", "arp")
+CALM_RMS_DBFS = -20.0
 
 
 def midi(name):
@@ -72,11 +75,14 @@ class Arrangement:
     def humanized(self, gain, spread=0.08):
         return gain * (1.0 + self.rng.uniform(-spread, spread))
 
-    def render(self, reverb_seconds, target_rms_dbfs):
+    def render(self, reverb_seconds, target_rms_dbfs, only=None):
+        """Mixes every stem, or with `only` just those stems, e.g. a quiet layer of the same piece."""
         span = self.length if self.looping else self.length + self.tail
         left, right = silence(span), silence(span)
         reverb_bus = silence(span)
-        for stem in self.stems.values():
+        for name, stem in self.stems.items():
+            if only is not None and name not in only:
+                continue
             signal = self._folded(stem.buffer) if self.looping else stem.buffer
             if stem.echo_level > 0.0:
                 echo_samples = self.offset(stem.echo_beats)
@@ -227,6 +233,14 @@ def place_arpeggio(arrangement, stem, first_bar, progression, voicings, gain, or
 
 
 def battle_one():
+    return battle_one_arrangement().render(reverb_seconds=1.8, target_rms_dbfs=-15.9)
+
+
+def battle_one_calm():
+    return battle_one_arrangement().render(reverb_seconds=1.8, target_rms_dbfs=CALM_RMS_DBFS, only=CALM_STEMS)
+
+
+def battle_one_arrangement():
     arrangement = Arrangement(tempo_bpm=128, total_beats=64 * 4, looping=True, seed=1101)
     rng = arrangement.rng
     arrangement.add_stem("kick", gain=0.5)
@@ -302,7 +316,7 @@ def battle_one():
                     place_pattern(arrangement, "hats", absolute_bar, "..............x.", open_hat, 0.8)
             if phrase_end and section in ("intro", "bridge", "bridge_high"):
                 place_pattern(arrangement, "toms", absolute_bar, "........X.x.XxXx", lambda: war_drum(rng.randrange(3), 105.0, 0.25), 0.9)
-    return arrangement.render(reverb_seconds=1.8, target_rms_dbfs=-15.9)
+    return arrangement
 
 
 BATTLE_TWO_VOICINGS = {
@@ -341,6 +355,14 @@ BATTLE_TWO_SECOND_MOTIF = [
 
 
 def battle_two():
+    return battle_two_arrangement().render(reverb_seconds=2.2, target_rms_dbfs=-15.6)
+
+
+def battle_two_calm():
+    return battle_two_arrangement().render(reverb_seconds=2.2, target_rms_dbfs=CALM_RMS_DBFS, only=CALM_STEMS)
+
+
+def battle_two_arrangement():
     arrangement = Arrangement(tempo_bpm=112, total_beats=56 * 4, looping=True, seed=2202)
     rng = arrangement.rng
     arrangement.add_stem("kick", gain=0.5)
@@ -420,7 +442,7 @@ def battle_two():
                     place_pattern(arrangement, "war_drums", absolute_bar, "X.....x.........", war_low, 0.8)
             if phrase_end and section in ("intro", "breakdown"):
                 place_pattern(arrangement, "war_drums", absolute_bar, "........XxXxXXXX", war_mid, 0.9)
-    return arrangement.render(reverb_seconds=2.2, target_rms_dbfs=-15.6)
+    return arrangement
 
 
 MENU_VOICINGS = {
@@ -567,7 +589,9 @@ def defeat_sting():
 MUSIC = {
     "music/menu_theme": menu_theme,
     "music/battle_1": battle_one,
+    "music/battle_1_calm": battle_one_calm,
     "music/battle_2": battle_two,
+    "music/battle_2_calm": battle_two_calm,
     "music/victory": victory_sting,
     "music/defeat": defeat_sting,
 }
