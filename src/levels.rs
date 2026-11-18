@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::i18n::{tr, tr_fmt};
-use crate::map::BASE_SITES;
+use crate::map::{MapSize, base_sites};
 use crate::season::Season;
 use crate::settings::game_data_directory;
 use crate::terrain::Landscape;
@@ -37,7 +37,7 @@ impl BaseSite {
     ];
 
     pub fn origin(self) -> IVec2 {
-        BASE_SITES[match self {
+        base_sites()[match self {
             BaseSite::SouthWest => 0,
             BaseSite::NorthEast => 1,
             BaseSite::NorthWest => 2,
@@ -196,6 +196,7 @@ pub struct LevelDefinition {
     pub landscape: Landscape,
     pub weather: Weather,
     pub season: Season,
+    pub map_size: MapSize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -222,6 +223,7 @@ impl Default for LevelDefinition {
             landscape: Landscape::River,
             weather: Weather::Clear,
             season: Season::Summer,
+            map_size: MapSize::Standard,
         }
     }
 }
@@ -406,6 +408,7 @@ pub struct SkirmishOptions {
     pub landscape: Landscape,
     pub weather: Weather,
     pub season: Season,
+    pub map_size: MapSize,
 }
 
 impl Default for SkirmishOptions {
@@ -423,6 +426,7 @@ impl Default for SkirmishOptions {
             landscape: Landscape::River,
             weather: Weather::Clear,
             season: Season::Summer,
+            map_size: MapSize::Standard,
         }
     }
 }
@@ -470,6 +474,7 @@ impl SkirmishOptions {
             landscape: self.landscape,
             weather: self.weather,
             season: self.season,
+            map_size: self.map_size,
         }
     }
 }

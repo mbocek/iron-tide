@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::catalog::Team;
 use crate::components::{Building, Unit};
-use crate::map::{CELL_SIZE, GameMap, MAP_CELLS, world_to_cell};
+use crate::map::{CELL_SIZE, GameMap, map_cells, world_to_cell};
 
 const UPDATE_INTERVAL_SECS: f32 = 0.2;
 
@@ -37,7 +37,7 @@ impl FogOfWar {
         };
         Self {
             enabled,
-            cells: vec![state; (MAP_CELLS * MAP_CELLS) as usize],
+            cells: vec![state; (map_cells() * map_cells()) as usize],
             revision: 1,
         }
     }
@@ -47,12 +47,12 @@ impl FogOfWar {
     }
 
     fn index(cell: IVec2) -> Option<usize> {
-        GameMap::in_bounds(cell).then(|| (cell.y * MAP_CELLS + cell.x) as usize)
+        GameMap::in_bounds(cell).then(|| (cell.y * map_cells() + cell.x) as usize)
     }
 
     /// Ground outside the playable map shares the sight of the nearest map edge, so the fog runs on past it.
     pub fn sight_at(&self, cell: IVec2) -> CellSight {
-        let nearest_map_cell = cell.clamp(IVec2::ZERO, IVec2::splat(MAP_CELLS - 1));
+        let nearest_map_cell = cell.clamp(IVec2::ZERO, IVec2::splat(map_cells() - 1));
         Self::index(nearest_map_cell).map_or(CellSight::Explored, |i| self.cells[i])
     }
 

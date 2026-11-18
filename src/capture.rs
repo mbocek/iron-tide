@@ -9,7 +9,7 @@ use bevy::window::{CursorOptions, PrimaryWindow};
 use crate::camera::RtsCamera;
 use crate::catalog::Team;
 use crate::components::{Selected, Unit};
-use crate::levels::{ActiveLevel, campaign};
+use crate::levels::{ActiveLevel, campaign, custom_levels, custom_levels_directory};
 use crate::map::cell_center;
 use crate::match_flow::GameState;
 use crate::menu::MenuState;
@@ -246,7 +246,8 @@ fn discard_keyboard(mut keys: ResMut<ButtonInput<KeyCode>>) {
     keys.reset_all();
 }
 
-/// `IRON_TIDE_CAPTURE_MISSION=2` starts the second campaign mission instead of waiting in the main menu.
+/// `IRON_TIDE_CAPTURE_MISSION=2` starts the second campaign mission instead of waiting in the main menu;
+/// numbers past the campaign continue with the custom levels.
 /// `IRON_TIDE_CAPTURE_REPLAY=1` watches the newest replay instead of playing.
 fn start_requested_mission(mut commands: Commands, mut next_state: ResMut<NextState<GameState>>) {
     let newest_replay = std::env::var_os(CAPTURE_REPLAY_VAR)
@@ -265,7 +266,13 @@ fn start_requested_mission(mut commands: Commands, mut next_state: ResMut<NextSt
         next_state.set(GameState::Playing);
         return;
     };
-    if let Some(mission) = campaign().into_iter().nth(number.saturating_sub(1)) {
+    let campaign_then_custom = campaign()
+        .into_iter()
+        .chain(custom_levels(&custom_levels_directory()));
+    if let Some(mission) = campaign_then_custom
+        .into_iter()
+        .nth(number.saturating_sub(1))
+    {
         commands.insert_resource(ActiveLevel(mission.level));
     }
     next_state.set(GameState::Playing);

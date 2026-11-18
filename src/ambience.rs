@@ -11,7 +11,7 @@ use crate::catalog::ArmorClass;
 use crate::components::{Armor, BodyRadius, HarvestState, Harvester, Mobile};
 use crate::effects::{EffectAssets, spawn_sparkle};
 use crate::fog::{CellSight, FogOfWar};
-use crate::map::{CRYSTAL_FIELDS, GameMap, cell_center, cells_by_distance, world_to_cell};
+use crate::map::{GameMap, cell_center, cells_by_distance, crystal_fields, world_to_cell};
 use crate::settings::GameSettings;
 
 const WIND_DIRECTION: Vec3 = Vec3::new(0.8, 0.0, 0.6);
@@ -49,7 +49,7 @@ pub struct CrystalGlow {
 }
 
 fn field_crystal(map: &GameMap, field_index: usize) -> u32 {
-    let field = &CRYSTAL_FIELDS[field_index];
+    let field = &crystal_fields()[field_index];
     cells_by_distance(field.center, field.radius.ceil() as i32)
         .map(|cell| map.crystal_at(cell))
         .sum()
@@ -76,7 +76,7 @@ pub fn sway_vegetation(
 }
 
 pub fn light_crystal_fields(mut commands: Commands, map: Res<GameMap>) {
-    for (field_index, field) in CRYSTAL_FIELDS.iter().enumerate() {
+    for (field_index, field) in crystal_fields().iter().enumerate() {
         commands.spawn((
             CrystalGlow {
                 field_index,
@@ -106,7 +106,7 @@ pub fn pulse_crystal_glow(
     for (glow, mut light) in &mut glows {
         let remaining = field_crystal(&map, glow.field_index) as f32 / glow.initial_crystal as f32;
         let pulse = 0.8 + 0.2 * (t * CRYSTAL_GLOW_PULSE_SPEED + glow.phase).sin();
-        let field_center = cell_center(CRYSTAL_FIELDS[glow.field_index].center);
+        let field_center = cell_center(crystal_fields()[glow.field_index].center);
         let known = if fog.is_explored(field_center) {
             1.0
         } else {
@@ -195,7 +195,7 @@ pub fn emit_crystal_sparkles(
     *pending += CRYSTAL_SPARKLES_PER_SEC * dt;
     while *pending >= 1.0 {
         *pending -= 1.0;
-        let field = &CRYSTAL_FIELDS[rng.random_range(0..CRYSTAL_FIELDS.len())];
+        let field = &crystal_fields()[rng.random_range(0..crystal_fields().len())];
         let reach = field.radius.ceil() as i32;
         let cell = field.center
             + IVec2::new(

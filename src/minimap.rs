@@ -11,12 +11,14 @@ use crate::components::{Building, Unit};
 use crate::fog::{CellSight, FogOfWar};
 use crate::fog_view::Discovered;
 use crate::levels::ActiveLevel;
-use crate::map::{CELL_SIZE, GameMap, MAP_CELLS, MAP_WORLD_SIZE, footprint_cells};
+use crate::map::{CELL_SIZE, GameMap, footprint_cells, map_cells, map_world_size};
 use crate::terrain::GroundLayers;
 use crate::ui::SIDEBAR_WIDTH;
 
 const PIXELS_PER_CELL: i32 = 3;
-const RESOLUTION: u32 = (MAP_CELLS * PIXELS_PER_CELL) as u32;
+fn resolution() -> u32 {
+    (map_cells() * PIXELS_PER_CELL) as u32
+}
 const REFRESH_SECS: f32 = 0.2;
 const WATER: [u8; 3] = [38, 78, 104];
 const OBSTACLE: [u8; 3] = [34, 62, 30];
@@ -40,9 +42,9 @@ pub fn create_minimap(
     let landscape = level.0.landscape;
     let ground = GroundLayers::new(landscape);
     let grass = level.0.season.minimap_grass();
-    let mut terrain = Vec::with_capacity((RESOLUTION * RESOLUTION * 4) as usize);
-    for py in 0..RESOLUTION {
-        for px in 0..RESOLUTION {
+    let mut terrain = Vec::with_capacity((resolution() * resolution() * 4) as usize);
+    for py in 0..resolution() {
+        for px in 0..resolution() {
             let world =
                 (Vec2::new(px as f32, py as f32) + 0.5) * (CELL_SIZE / PIXELS_PER_CELL as f32);
             let cell = (world / CELL_SIZE).floor().as_ivec2();
@@ -60,8 +62,8 @@ pub fn create_minimap(
     }
     let mut image = Image::new(
         Extent3d {
-            width: RESOLUTION,
-            height: RESOLUTION,
+            width: resolution(),
+            height: resolution(),
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -85,10 +87,10 @@ impl Canvas<'_> {
     fn put(&mut self, pixel: IVec2, rgb: [u8; 3]) {
         let inside = pixel.x >= 0
             && pixel.y >= 0
-            && pixel.x < RESOLUTION as i32
-            && pixel.y < RESOLUTION as i32;
+            && pixel.x < resolution() as i32
+            && pixel.y < resolution() as i32;
         if inside {
-            let at = ((pixel.y as u32 * RESOLUTION + pixel.x as u32) * 4) as usize;
+            let at = ((pixel.y as u32 * resolution() + pixel.x as u32) * 4) as usize;
             self.pixels[at..at + 3].copy_from_slice(&rgb);
         }
     }
@@ -129,8 +131,8 @@ fn team_rgb(team: Team) -> [u8; 3] {
 fn darken_by_fog(pixels: &mut [u8], fog: &FogOfWar) {
     for (index, texel) in pixels.as_chunks_mut::<4>().0.iter_mut().enumerate() {
         let pixel = IVec2::new(
-            index as i32 % RESOLUTION as i32,
-            index as i32 / RESOLUTION as i32,
+            index as i32 % resolution() as i32,
+            index as i32 / resolution() as i32,
         );
         let factor = match fog.sight_at(pixel / PIXELS_PER_CELL) {
             CellSight::Unexplored => 0.0,
@@ -170,8 +172,8 @@ pub fn redraw_minimap(
     darken_by_fog(pixels, &fog);
     let mut canvas = Canvas { pixels };
 
-    for cell_y in 0..MAP_CELLS {
-        for cell_x in 0..MAP_CELLS {
+    for cell_y in 0..map_cells() {
+        for cell_x in 0..map_cells() {
             let cell = IVec2::new(cell_x, cell_y);
             if map.crystal_at(cell) > 0 && fog.sight_at(cell) != CellSight::Unexplored {
                 canvas.fill(cell * PIXELS_PER_CELL + 1, IVec2::ONE, CRYSTAL);
@@ -213,7 +215,7 @@ pub fn redraw_minimap(
         .map(|&screen| {
             let ray = camera.viewport_to_world(camera_transform, screen).ok()?;
             let hit = ray_hit_on_terrain(ray, level.0.landscape)
-                .clamp(Vec3::ZERO, Vec3::splat(MAP_WORLD_SIZE).with_y(f32::MAX));
+                .clamp(Vec3::ZERO, Vec3::splat(map_world_size()).with_y(f32::MAX));
             Some(to_minimap(hit))
         })
         .collect();
@@ -244,7 +246,7 @@ pub fn jump_camera_on_drag(
 fn jump_camera_to(hit: &HitData, cameras: &mut Query<&mut RtsCamera>) {
     let Some(position) = hit.position else { return };
     let normalized = (position.truncate() + Vec2::splat(0.5)).clamp(Vec2::ZERO, Vec2::ONE);
-    let target = normalized * MAP_WORLD_SIZE;
+    let target = normalized * map_world_size();
     for mut camera in cameras.iter_mut() {
         camera.focus.x = target.x;
         camera.focus.z = target.y;

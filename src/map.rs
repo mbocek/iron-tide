@@ -1,7 +1,10 @@
+use std::sync::atomic::{AtomicI32, Ordering};
+
 use bevy::prelude::*;
 use pathfinding::prelude::astar;
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
+use serde::{Deserialize, Serialize};
 
 use crate::animation::AnimatedModel;
 use crate::assets::ModelLibrary;
@@ -16,21 +19,107 @@ use crate::terrain::{
 use crate::terrain_material::{TerrainSurface, WaterMaterial, WaterSurface, water_material};
 
 pub const CELL_SIZE: f32 = 2.0;
-pub const MAP_CELLS: i32 = 64;
-pub const MAP_WORLD_SIZE: f32 = MAP_CELLS as f32 * CELL_SIZE;
+/// The map every landscape, road and crystal field is authored for; bigger maps spread them out.
+pub const STANDARD_MAP_CELLS: i32 = 64;
+/// Base sites and crystal fields closer than this to a standard base site keep their offset from it.
+const BASE_SURROUNDINGS_CELLS: f32 = 12.0;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum MapSize {
+    #[default]
+    Standard,
+    Large,
+    Huge,
+}
+
+impl MapSize {
+    pub const ALL: [MapSize; 3] = [MapSize::Standard, MapSize::Large, MapSize::Huge];
+
+    pub fn cells(self) -> i32 {
+        match self {
+            MapSize::Standard => STANDARD_MAP_CELLS,
+            MapSize::Large => 96,
+            MapSize::Huge => 128,
+        }
+    }
+}
+
+/// The size of the map being played. Cell maths runs everywhere, so it is global; a process plays one
+/// match at a time, and tests of other sizes live in their own test binary.
+static ACTIVE_MAP_CELLS: AtomicI32 = AtomicI32::new(STANDARD_MAP_CELLS);
+
+pub fn set_map_size(size: MapSize) {
+    ACTIVE_MAP_CELLS.store(size.cells(), Ordering::Relaxed);
+}
+
+pub fn map_cells() -> i32 {
+    ACTIVE_MAP_CELLS.load(Ordering::Relaxed)
+}
+
+pub fn map_world_size() -> f32 {
+    map_cells() as f32 * CELL_SIZE
+}
+
+/// How much farther apart things are than on the standard map.
+pub fn map_spread() -> f32 {
+    (map_cells() - 1) as f32 / (STANDARD_MAP_CELLS - 1) as f32
+}
+
 /// Command Center origins of the four corner base sites; levels decide who starts where.
-pub const BASE_SITES: [IVec2; 4] = [
-    IVec2::new(6, 52),
-    IVec2::new(54, 8),
-    IVec2::new(6, 8),
-    IVec2::new(54, 52),
-];
-pub const PLAYER_BASE_CELL: IVec2 = BASE_SITES[0];
+pub fn base_sites() -> [IVec2; 4] {
+    let far = map_cells();
+    [
+        IVec2::new(6, far - 12),
+        IVec2::new(far - 10, 8),
+        IVec2::new(6, 8),
+        IVec2::new(far - 10, far - 12),
+    ]
+}
+
+pub fn player_base_cell() -> IVec2 {
+    base_sites()[0]
+}
+
+pub fn enemy_base_cell() -> IVec2 {
+    base_sites()[1]
+}
+
+fn standard_base_sites() -> [IVec2; 4] {
+    let far = STANDARD_MAP_CELLS;
+    [
+        IVec2::new(6, far - 12),
+        IVec2::new(far - 10, 8),
+        IVec2::new(6, 8),
+        IVec2::new(far - 10, far - 12),
+    ]
+}
+
+/// Moves a point in cell units, authored for the standard map, onto the map being played: near a base it
+/// keeps its offset from that base, elsewhere it spreads out from the centre. Mirror twins stay twins.
+pub fn relocate(standard: Vec2) -> Vec2 {
+    let base_middle = |site: IVec2| site.as_vec2() + Vec2::splat(1.5);
+    let nearest_base = standard_base_sites()
+        .into_iter()
+        .zip(base_sites())
+        .map(|(old, new)| (base_middle(old), base_middle(new)))
+        .min_by(|a, b| a.0.distance(standard).total_cmp(&b.0.distance(standard)));
+    if let Some((old, new)) = nearest_base
+        && old.distance(standard) < BASE_SURROUNDINGS_CELLS
+    {
+        return new + (standard - old);
+    }
+    let old_middle = Vec2::splat((STANDARD_MAP_CELLS - 1) as f32 / 2.0);
+    let new_middle = Vec2::splat((map_cells() - 1) as f32 / 2.0);
+    new_middle + (standard - old_middle) * map_spread()
+}
+
 /// A cell and its mirror image always add up to this, so the map plays the same from opposite corners.
-const MIRROR_SUM: i32 = 62;
+fn mirror_sum() -> i32 {
+    map_cells() - 2
+}
 
 pub fn opposite_cell(cell: IVec2) -> IVec2 {
-    IVec2::splat(MIRROR_SUM) - cell
+    IVec2::splat(mirror_sum()) - cell
 }
 
 /// Where a structure of `footprint` starting at `origin` lands when the map is mirrored.
@@ -43,7 +132,6 @@ pub fn in_far_half(origin: IVec2, footprint: IVec2) -> bool {
     let opposite = opposite_origin(origin, footprint);
     origin.x + origin.y > opposite.x + opposite.y
 }
-pub const ENEMY_BASE_CELL: IVec2 = BASE_SITES[1];
 
 const CRYSTAL_VARIANTS: [&str; 3] = ["crystal_a", "crystal_b", "crystal_c"];
 const RIVER_BLOCKING_DEPTH: f32 = 0.25;
@@ -65,7 +153,7 @@ pub struct CrystalVisual {
 
 impl GameMap {
     fn empty() -> Self {
-        let cells = (MAP_CELLS * MAP_CELLS) as usize;
+        let cells = (map_cells() * map_cells()) as usize;
         Self {
             terrain_blocked: vec![false; cells],
             building: vec![None; cells],
@@ -80,8 +168,9 @@ impl GameMap {
     }
 
     pub(crate) fn index(cell: IVec2) -> Option<usize> {
-        let inside = cell.x >= 0 && cell.y >= 0 && cell.x < MAP_CELLS && cell.y < MAP_CELLS;
-        inside.then(|| (cell.y * MAP_CELLS + cell.x) as usize)
+        let size = map_cells();
+        let inside = cell.x >= 0 && cell.y >= 0 && cell.x < size && cell.y < size;
+        inside.then(|| (cell.y * size + cell.x) as usize)
     }
 
     pub fn in_bounds(cell: IVec2) -> bool {
@@ -139,13 +228,13 @@ impl GameMap {
     }
 
     pub fn nearest_passable(&self, from: IVec2) -> Option<IVec2> {
-        cells_by_distance(from, MAP_CELLS).find(|&cell| self.is_passable(cell))
+        cells_by_distance(from, map_cells()).find(|&cell| self.is_passable(cell))
     }
 
     /// Routes starting in the far half are planned in mirror image, so tie-breaks between equally short
     /// routes favour neither corner.
     pub fn find_path(&self, start: IVec2, goal: IVec2) -> Option<Vec<IVec2>> {
-        let starts_in_far_half = start.x + start.y > MIRROR_SUM;
+        let starts_in_far_half = start.x + start.y > mirror_sum();
         if !starts_in_far_half {
             return self.find_path_in_frame(start, goal, |cell| cell);
         }
@@ -165,7 +254,7 @@ impl GameMap {
         let goal = if passable(goal) {
             goal
         } else {
-            cells_by_distance(goal, MAP_CELLS).find(|&cell| passable(cell))?
+            cells_by_distance(goal, map_cells()).find(|&cell| passable(cell))?
         };
         let (path, _cost) = astar(
             &start,
@@ -258,8 +347,8 @@ pub struct CrystalField {
     pub radius: f32,
 }
 
-/// In mirrored pairs: every even entry is followed by its opposite.
-pub const CRYSTAL_FIELDS: [CrystalField; 6] = [
+/// On the standard map, in mirrored pairs: every even entry is followed by its opposite.
+const STANDARD_CRYSTAL_FIELDS: [CrystalField; 6] = [
     CrystalField {
         center: IVec2::new(15, 46),
         radius: 3.6,
@@ -286,15 +375,28 @@ pub const CRYSTAL_FIELDS: [CrystalField; 6] = [
     },
 ];
 
+/// The crystal fields placed on the map being played, still in mirrored pairs.
+pub fn crystal_fields() -> Vec<CrystalField> {
+    STANDARD_CRYSTAL_FIELDS
+        .iter()
+        .map(|field| CrystalField {
+            center: relocate(field.center.as_vec2() + Vec2::splat(0.5))
+                .floor()
+                .as_ivec2(),
+            radius: field.radius,
+        })
+        .collect()
+}
+
 pub fn near_base(cell: IVec2) -> bool {
     let base_clearance = 9.0;
-    BASE_SITES
+    base_sites()
         .iter()
         .any(|base| (cell - (*base + IVec2::ONE)).as_vec2().length() < base_clearance)
 }
 
 pub fn near_crystal_field(cell: IVec2) -> bool {
-    CRYSTAL_FIELDS
+    crystal_fields()
         .iter()
         .any(|field| (cell - field.center).as_vec2().length() < field.radius + 2.0)
 }
@@ -310,11 +412,12 @@ pub fn generate_map(mut commands: Commands, models: Res<ModelLibrary>, level: Re
 }
 
 fn block_water(map: &mut GameMap, landscape: Landscape) {
-    for row in 0..MAP_CELLS {
-        for column in 0..MAP_CELLS {
+    let size = map_cells();
+    for row in 0..size {
+        for column in 0..size {
             let depth = landscape.water_depth(column as f32 + 0.5, row as f32 + 0.5);
             if depth > RIVER_BLOCKING_DEPTH {
-                map.terrain_blocked[(row * MAP_CELLS + column) as usize] = true;
+                map.terrain_blocked[(row * size + column) as usize] = true;
             }
         }
     }
@@ -355,7 +458,7 @@ pub fn spawn_terrain_visuals(
         Transform::IDENTITY,
     ));
 
-    let water_span = MAP_WORLD_SIZE + 2.0 * (OUTLANDS_WIDTH + FAR_RING_WIDTH);
+    let water_span = map_world_size() + 2.0 * (OUTLANDS_WIDTH + FAR_RING_WIDTH);
     let water_mesh = Plane3d::default()
         .mesh()
         .size(water_span, water_span)
@@ -366,7 +469,7 @@ pub fn spawn_terrain_visuals(
         WaterSurface,
         Mesh3d(meshes.add(water_mesh)),
         MeshMaterial3d(water_materials.add(water_material(&mut images, fog.0.clone()))),
-        Transform::from_xyz(MAP_WORLD_SIZE * 0.5, WATER_LEVEL, MAP_WORLD_SIZE * 0.5),
+        Transform::from_xyz(map_world_size() * 0.5, WATER_LEVEL, map_world_size() * 0.5),
     ));
 }
 
@@ -376,7 +479,7 @@ fn seed_crystal_fields(
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
-    for field in CRYSTAL_FIELDS.iter().step_by(2) {
+    for field in crystal_fields().iter().step_by(2) {
         let reach = field.radius.ceil() as i32;
         for cell in cells_by_distance(field.center, reach) {
             let distance = (cell - field.center).as_vec2().length();
@@ -421,7 +524,7 @@ pub fn spawn_crystal_visual(
 }
 
 pub fn cell_of_index(index: usize) -> IVec2 {
-    IVec2::new(index as i32 % MAP_CELLS, index as i32 / MAP_CELLS)
+    IVec2::new(index as i32 % map_cells(), index as i32 / map_cells())
 }
 
 pub fn crystal_scale(amount: u32) -> f32 {
@@ -449,7 +552,7 @@ mod tests {
     fn bases_are_connected_and_the_river_is_crossed_only_at_fords() {
         let map = map_with_river();
         let path = map
-            .find_path(PLAYER_BASE_CELL, ENEMY_BASE_CELL)
+            .find_path(player_base_cell(), enemy_base_cell())
             .expect("bases must be connected");
         assert!(path.iter().all(|&cell| map.is_passable(cell)));
         for cell in &path {
@@ -465,19 +568,19 @@ mod tests {
     fn opposite_base_sites_mirror_each_other() {
         let command_center = IVec2::splat(3);
         assert_eq!(
-            opposite_origin(BASE_SITES[0], command_center),
-            BASE_SITES[1]
+            opposite_origin(base_sites()[0], command_center),
+            base_sites()[1]
         );
         assert_eq!(
-            opposite_origin(BASE_SITES[2], command_center),
-            BASE_SITES[3]
+            opposite_origin(base_sites()[2], command_center),
+            base_sites()[3]
         );
     }
 
     #[test]
     fn the_river_and_crystal_fields_are_point_symmetric() {
         let map = map_with_river();
-        for cell in (0..MAP_CELLS).flat_map(|y| (0..MAP_CELLS).map(move |x| IVec2::new(x, y))) {
+        for cell in (0..map_cells()).flat_map(|y| (0..map_cells()).map(move |x| IVec2::new(x, y))) {
             let mirror = opposite_cell(cell);
             if GameMap::in_bounds(mirror) {
                 assert_eq!(
@@ -487,7 +590,7 @@ mod tests {
                 );
             }
         }
-        for pair in CRYSTAL_FIELDS.chunks(2) {
+        for pair in crystal_fields().chunks(2) {
             assert_eq!(opposite_cell(pair[0].center), pair[1].center);
             assert_eq!(pair[0].radius, pair[1].radius);
         }
@@ -499,15 +602,17 @@ mod tests {
             let mut map = GameMap::empty();
             block_water(&mut map, landscape);
             for (from, to) in [
-                (BASE_SITES[0], BASE_SITES[1]),
-                (BASE_SITES[2], BASE_SITES[3]),
+                (base_sites()[0], base_sites()[1]),
+                (base_sites()[2], base_sites()[3]),
             ] {
                 assert!(
                     map.find_path(from, to).is_some(),
                     "{landscape:?}: {from} cut off from {to}"
                 );
             }
-            for cell in (0..MAP_CELLS).flat_map(|y| (0..MAP_CELLS).map(move |x| IVec2::new(x, y))) {
+            for cell in
+                (0..map_cells()).flat_map(|y| (0..map_cells()).map(move |x| IVec2::new(x, y)))
+            {
                 let mirror = opposite_cell(cell);
                 if GameMap::in_bounds(mirror) {
                     assert_eq!(
@@ -530,7 +635,7 @@ mod tests {
             !map.is_passable(middle + IVec2::new(4, 4)),
             "no water beside the causeway"
         );
-        for field in &CRYSTAL_FIELDS {
+        for field in &crystal_fields() {
             assert!(
                 map.is_passable(field.center),
                 "crystals under water at {}",
@@ -616,7 +721,11 @@ mod tests {
 
     #[test]
     fn world_and_cell_coordinates_round_trip() {
-        for cell in [IVec2::ZERO, IVec2::new(17, 42), IVec2::splat(MAP_CELLS - 1)] {
+        for cell in [
+            IVec2::ZERO,
+            IVec2::new(17, 42),
+            IVec2::splat(map_cells() - 1),
+        ] {
             assert_eq!(world_to_cell(cell_center(cell)), cell);
             assert_eq!(cell_of_index(GameMap::index(cell).unwrap()), cell);
         }

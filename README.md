@@ -231,13 +231,20 @@ A level file is plain JSON; omitted fields take defaults:
   "free_for_all": false,
   "landscape": "River",
   "weather": "Clear",
-  "season": "Summer"
+  "season": "Summer",
+  "map_size": "Standard"
 }
 ```
 
 Landscapes: `River` (a winding river with three fords), `Lake` (a long lake between the bases with one
 causeway across its middle) and `Plains` (open ground without water); all of them are point-symmetric.
 Weather: `Clear` or `Rain` (falling rain, a dimmer sun and sky).
+Map sizes: `Standard` (64 × 64 cells, every campaign mission), `Large` (96 × 96) and `Huge` (128 × 128), also
+in the battle editor. Landscapes, roads and crystal fields are authored for the standard map: on bigger maps
+the bases stay in the corners, crystal fields and road bends near a base keep their distance from it, and
+everything else spreads out from the centre (the fords move apart, the lake grows longer), while the river
+keeps its width. Forests, rocks and meadows grow with the area, so a Huge map has about 2.5 times as much
+scenery and costs more to draw. The map size is a process-wide setting chosen when a match starts.
 Seasons: `Summer`, `Autumn` (birches turn yellow, broadleaf trees orange, shrubs red, grass straw; pines stay
 green; a warmer sun) or `Winter` (snow on open flat ground and on top of rocks, trees and logs, frosted
 leaves, a colder sun, and rain falls as snow). Each scenery model's colours are turned once per season when
@@ -318,7 +325,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | Module | Responsibility |
 | --- | --- |
 | `catalog` | unit and building statistics, weapons, armor |
-| `map` | 64×64 cell grid, terrain with a river and fords, crystals, A* pathfinding |
+| `map` | the cell grid (64, 96 or 128 cells a side), terrain with a river and fords, crystals, A* pathfinding |
 | `spawn` | spawning units and buildings from the glTF models |
 | `movement` | path following, unit separation |
 | `combat` | target acquisition, chasing, turrets, projectiles, damage |
@@ -352,7 +359,8 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `outcome`, `match_stats` | mission objectives, victory and defeat; the tally shown at the end of a match |
 | `replay` | recording matches, storing and listing replays, watching them |
 | `battlefield` | scorch marks, vehicle wrecks and rain |
-| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay, `_SELECT_ALL=1` selects every own unit, `_ZOOM=150` sets the camera distance, `_MENU=keys` opens that menu page) |
+| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay, `_SELECT_ALL=1` selects every own unit, `_ZOOM=150` sets the camera distance, `_MENU=keys` opens that menu page; `_MISSION` numbers past the campaign
+continue with the custom levels) |
 
 ## Model contract (Blender → game)
 

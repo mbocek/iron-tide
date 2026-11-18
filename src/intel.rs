@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use crate::catalog::{Diplomacy, Team};
 use crate::components::{Building, Unit};
 use crate::fog::{FogOfWar, Sight};
-use crate::map::{BASE_SITES, cell_center};
+use crate::map::{base_sites, cell_center};
 
 const UPDATE_INTERVAL_SECS: f32 = 0.2;
 
@@ -61,7 +61,7 @@ impl Intel {
         from: Vec3,
     ) -> Option<Vec3> {
         let vision = self.vision(viewer, player_fog);
-        let sites: Vec<Vec3> = BASE_SITES
+        let sites: Vec<Vec3> = base_sites()
             .iter()
             .map(|&site| cell_center(site + IVec2::ONE))
             .collect();

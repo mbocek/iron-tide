@@ -789,6 +789,15 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ),
     ("Helipad", "Heliport", "Heliport"),
     ("Season", "Ročné obdobie", "Roční období"),
+    ("Map size", "Veľkosť mapy", "Velikost mapy"),
+    (
+        "{} ({} x {} cells)",
+        "{} ({} x {} polí)",
+        "{} ({} x {} polí)",
+    ),
+    ("Standard", "Štandardná", "Standardní"),
+    ("Large", "Veľká", "Velká"),
+    ("Huge", "Obrovská", "Obrovská"),
     (
         "Check for updates",
         "Hľadať aktualizácie",

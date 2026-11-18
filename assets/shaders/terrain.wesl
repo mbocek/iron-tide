@@ -11,6 +11,7 @@ struct TerrainSettings {
     macro_variation: f32,
     water_level: f32,
     snow_cover: f32,
+    map_world_size: f32,
 };
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> terrain: TerrainSettings;
@@ -25,8 +26,6 @@ const LAYER_COUNT: u32 = 5u;
 const ANTI_TILE_ROTATION: mat2x2<f32> = mat2x2<f32>(0.8, -0.6, 0.6, 0.8);
 const ANTI_TILE_SCALE: f32 = 0.37;
 const HEIGHT_BLEND_SHARPNESS: f32 = 0.25;
-// Same as MAP_WORLD_SIZE in src/map.rs.
-const MAP_WORLD_SIZE: f32 = 128.0;
 // The fog texture stores perceived brightness; lighting is linear, so it is raised to the display gamma.
 const FOG_GAMMA: f32 = 2.2;
 const CLOUD_DRIFT: vec2<f32> = vec2<f32>(1.6, 0.9);
@@ -167,7 +166,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     out.color = apply_pbr_lighting(pbr_input);
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 
-    let map_uv = world_xz / MAP_WORLD_SIZE;
+    let map_uv = world_xz / terrain.map_world_size;
     // The sampler clamps to the edge, so ground beyond the map takes the fog of the nearest edge.
     let fog = textureSampleLevel(fog_texture, fog_sampler, map_uv, 0.0).r;
     out.color = vec4<f32>(out.color.rgb * pow(fog, FOG_GAMMA), out.color.a);

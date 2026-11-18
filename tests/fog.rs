@@ -8,7 +8,7 @@ use iron_tide::components::{Building, Health};
 use iron_tide::fog::{CellSight, FogOfWar};
 use iron_tide::intel::Intel;
 use iron_tide::levels::LevelDefinition;
-use iron_tide::map::BASE_SITES;
+use iron_tide::map::base_sites;
 use iron_tide::savegame::SaveRequests;
 
 const OPEN_FIELD: IVec2 = IVec2::new(30, 45);
@@ -29,8 +29,11 @@ fn sight_at(battle: &mut Battle, cell: IVec2) -> CellSight {
 fn the_enemy_base_starts_hidden_and_the_own_base_visible() {
     let mut battle = Battle::standard();
     battle.run_for(0.5);
-    assert_eq!(sight_at(&mut battle, BASE_SITES[0]), CellSight::Visible);
-    assert_eq!(sight_at(&mut battle, BASE_SITES[1]), CellSight::Unexplored);
+    assert_eq!(sight_at(&mut battle, base_sites()[0]), CellSight::Visible);
+    assert_eq!(
+        sight_at(&mut battle, base_sites()[1]),
+        CellSight::Unexplored
+    );
     for enemy in battle.units(Team::Crimson, None) {
         assert!(
             !seen_by_player(&mut battle, enemy),
@@ -163,7 +166,7 @@ fn levels_can_switch_the_fog_off() {
         ..Default::default()
     });
     battle.run_for(0.5);
-    assert_eq!(sight_at(&mut battle, BASE_SITES[1]), CellSight::Visible);
+    assert_eq!(sight_at(&mut battle, base_sites()[1]), CellSight::Visible);
     for enemy in battle.units(Team::Crimson, None) {
         assert!(seen_by_player(&mut battle, enemy));
     }

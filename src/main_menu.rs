@@ -8,6 +8,7 @@ use crate::levels::{
     SkirmishOptions, TechLevel, Weather, campaign, custom_levels, custom_levels_directory,
     save_custom_level,
 };
+use crate::map::MapSize;
 use crate::match_flow::GameState;
 use crate::replay::{ReplayPlayback, ReplaySummary, list_replays, load_replay, replay_directory};
 use crate::savegame::{QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_summary};
@@ -86,9 +87,10 @@ pub enum EditorField {
     Landscape,
     Weather,
     Season,
+    MapSize,
 }
 
-const EDITOR_FIELDS: [EditorField; 12] = [
+const EDITOR_FIELDS: [EditorField; 13] = [
     EditorField::Enemies,
     EditorField::Difficulty,
     EditorField::Credits,
@@ -101,6 +103,7 @@ const EDITOR_FIELDS: [EditorField; 12] = [
     EditorField::Landscape,
     EditorField::Weather,
     EditorField::Season,
+    EditorField::MapSize,
 ];
 
 fn cycle<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
@@ -128,6 +131,7 @@ impl EditorField {
             EditorField::Landscape => tr("Landscape"),
             EditorField::Weather => tr("Weather"),
             EditorField::Season => tr("Season"),
+            EditorField::MapSize => tr("Map size"),
         }
     }
 
@@ -160,6 +164,14 @@ impl EditorField {
             EditorField::Landscape => tr_owned(&format!("{:?}", options.landscape)),
             EditorField::Weather => tr_owned(&format!("{:?}", options.weather)),
             EditorField::Season => tr_owned(&format!("{:?}", options.season)),
+            EditorField::MapSize => tr_fmt(
+                "{} ({} x {} cells)",
+                &[
+                    &tr_owned(&format!("{:?}", options.map_size)),
+                    &options.map_size.cells(),
+                    &options.map_size.cells(),
+                ],
+            ),
         }
     }
 
@@ -209,6 +221,9 @@ impl EditorField {
             }
             EditorField::Season => {
                 options.season = cycle(&Season::ALL, options.season, forward);
+            }
+            EditorField::MapSize => {
+                options.map_size = cycle(&MapSize::ALL, options.map_size, forward);
             }
         }
     }

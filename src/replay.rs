@@ -287,7 +287,8 @@ impl ReplayRecorder {
 }
 
 /// Replays show everything; the fog of war belongs to the match.
-pub fn clear_the_fog(mut commands: Commands) {
+pub fn clear_the_fog(mut commands: Commands, level: Res<ActiveLevel>) {
+    crate::map::set_map_size(level.0.map_size);
     commands.insert_resource(crate::fog::FogOfWar::new(false));
 }
 

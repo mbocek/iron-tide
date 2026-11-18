@@ -6,12 +6,22 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::catalog::Team;
 use crate::components::{Building, Unit};
 use crate::fog::{CellSight, FogOfWar};
-use crate::map::{CrystalVisual, MAP_CELLS, footprint_cells};
+use crate::map::{CrystalVisual, footprint_cells, map_cells};
 use crate::scenery::Scenery;
 
 const TEXELS_PER_CELL: i32 = 4;
 const BLUR_RADIUS: i32 = 3;
-const RESOLUTION: u32 = (MAP_CELLS * TEXELS_PER_CELL) as u32;
+fn resolution() -> u32 {
+    (map_cells() * TEXELS_PER_CELL) as u32
+}
+
+fn texture_extent() -> Extent3d {
+    Extent3d {
+        width: resolution(),
+        height: resolution(),
+        depth_or_array_layers: 1,
+    }
+}
 const UNEXPLORED_SHADE: u8 = 0;
 /// Explored ground stays readable but clearly darker than what units can currently see.
 const EXPLORED_SHADE: u8 = 184;
@@ -31,11 +41,7 @@ pub struct Discovered;
 
 pub fn create_fog_texture(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let mut image = Image::new_fill(
-        Extent3d {
-            width: RESOLUTION,
-            height: RESOLUTION,
-            depth_or_array_layers: 1,
-        },
+        texture_extent(),
         TextureDimension::D2,
         &[VISIBLE_SHADE, VISIBLE_SHADE, VISIBLE_SHADE, 255],
         TextureFormat::Rgba8Unorm,
@@ -61,7 +67,7 @@ fn shade(sight: CellSight) -> u8 {
 
 /// Softens the blocky cell grid with a separable box blur so the fog edge reads as a gradient.
 fn blurred_shades(fog: &FogOfWar) -> Vec<u8> {
-    let size = RESOLUTION as i32;
+    let size = resolution() as i32;
     let at = |values: &[u32], x: i32, y: i32| {
         values[(y.clamp(0, size - 1) * size + x.clamp(0, size - 1)) as usize]
     };
@@ -99,6 +105,9 @@ pub fn paint_fog_texture(
     let Some(mut image) = images.get_mut(&texture.0) else {
         return;
     };
+    if image.texture_descriptor.size != texture_extent() {
+        image.resize(texture_extent());
+    }
     let Some(pixels) = image.data.as_mut() else {
         return;
     };

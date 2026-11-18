@@ -12,6 +12,7 @@ use bevy::shader::ShaderRef;
 
 use crate::fog_view::FogTexture;
 use crate::levels::ActiveLevel;
+use crate::map::map_world_size;
 use crate::season::Season;
 
 /// Order must match the layer indices in `assets/shaders/terrain.wesl` and the weights in `terrain::layer_weights`.
@@ -69,6 +70,8 @@ mod uniforms {
         pub macro_variation: f32,
         pub water_level: f32,
         pub snow_cover: f32,
+        /// The fog texture spans the playable map, whose size depends on the level.
+        pub map_world_size: f32,
     }
 }
 
@@ -167,6 +170,7 @@ pub fn assemble_terrain_material(
                 macro_variation: 0.26,
                 water_level: crate::terrain::WATER_LEVEL,
                 snow_cover: Season::Summer.snow_cover(),
+                map_world_size: map_world_size(),
             },
             albedo_roughness: images.add(mipmapped_array(
                 &albedo_layers,
@@ -180,8 +184,8 @@ pub fn assemble_terrain_material(
     commands.remove_resource::<TerrainTextureSources>();
 }
 
-/// The ground material is shared by every match, so it takes on the season of the level being played.
-pub fn season_the_terrain(
+/// The ground material is shared by every match, so it takes on the season and size of the level played.
+pub fn fit_terrain_to_level(
     level: Option<Res<ActiveLevel>>,
     handle: Option<Res<TerrainMaterialHandle>>,
     mut materials: ResMut<Assets<TerrainMaterial>>,
@@ -194,12 +198,17 @@ pub fn season_the_terrain(
         return;
     };
     let settings = material.extension.settings;
-    if settings.grass_tint == season.grass_tint() && settings.snow_cover == season.snow_cover() {
+    let fitted = settings.grass_tint == season.grass_tint()
+        && settings.snow_cover == season.snow_cover()
+        && settings.map_world_size == map_world_size();
+    if fitted {
         return;
     }
     if let Some(mut material) = materials.get_mut(&handle.0) {
-        material.extension.settings.grass_tint = season.grass_tint();
-        material.extension.settings.snow_cover = season.snow_cover();
+        let settings = &mut material.extension.settings;
+        settings.grass_tint = season.grass_tint();
+        settings.snow_cover = season.snow_cover();
+        settings.map_world_size = map_world_size();
     }
 }
 
@@ -387,6 +396,9 @@ pub struct FoggedWater {
     #[texture(100)]
     #[sampler(101)]
     pub fog: Handle<Image>,
+    /// The fog texture spans the playable map, whose size depends on the level.
+    #[uniform(102)]
+    pub map_world_size: f32,
 }
 
 impl MaterialExtension for FoggedWater {
@@ -405,7 +417,10 @@ pub fn water_material(images: &mut Assets<Image>, fog: Handle<Image>) -> WaterMa
             normal_map_texture: Some(images.add(water_normal_map())),
             ..default()
         },
-        extension: FoggedWater { fog },
+        extension: FoggedWater {
+            fog,
+            map_world_size: map_world_size(),
+        },
     }
 }
 
@@ -419,7 +434,7 @@ pub fn animate_water(
         return;
     };
     let repeats =
-        (crate::map::MAP_WORLD_SIZE + 2.0 * crate::terrain::OUTLANDS_WIDTH) / WATER_TILE_METERS;
+        (crate::map::map_world_size() + 2.0 * crate::terrain::OUTLANDS_WIDTH) / WATER_TILE_METERS;
     let offset = WATER_FLOW * time.elapsed_secs();
     material.base.uv_transform =
         bevy::math::Affine2::from_scale_angle_translation(Vec2::splat(repeats), 0.0, offset);

@@ -10,8 +10,8 @@ use crate::assets::ModelLibrary;
 use crate::components::Building;
 use crate::graphics::FineDecor;
 use crate::map::{
-    CELL_SIZE, GameMap, MAP_CELLS, MAP_WORLD_SIZE, cell_center, near_base, near_crystal_field,
-    opposite_cell,
+    CELL_SIZE, GameMap, cell_center, map_cells, map_spread, map_world_size, near_base,
+    near_crystal_field, opposite_cell,
 };
 use crate::terrain::{GroundLayers, Landscape, OUTLANDS_WIDTH};
 
@@ -37,6 +37,16 @@ const SHORE_SAMPLES: usize = 40_000;
 const OUTLAND_TREE_ATTEMPTS: usize = 1100;
 const OUTLAND_BOULDER_COUNT: usize = 90;
 const MAX_MEADOW_DIRT: f32 = 0.35;
+
+/// Counts are authored for the standard map; a bigger map gets as much per square meter.
+fn by_area(standard_count: usize) -> usize {
+    (standard_count as f32 * map_spread() * map_spread()).round() as usize
+}
+
+/// The outlands ring around the map grows with its edge, not its area.
+fn by_border(standard_count: usize) -> usize {
+    (standard_count as f32 * map_spread()).round() as usize
+}
 
 /// Any static piece of landscape: trees, rocks and decoration.
 #[derive(Component)]
@@ -98,10 +108,10 @@ fn plant_forests(
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
-    for _ in 0..FOREST_PAIRS {
+    for _ in 0..by_area(FOREST_PAIRS) {
         let center = IVec2::new(
-            rng.random_range(2..MAP_CELLS - 2),
-            rng.random_range(2..MAP_CELLS - 2),
+            rng.random_range(2..map_cells() - 2),
+            rng.random_range(2..map_cells() - 2),
         );
         let species: &[&str] = match rng.random_range(0..3) {
             0 => &CONIFER_FOREST,
@@ -161,10 +171,10 @@ fn place_rocks(
     map: &mut GameMap,
     rng: &mut StdRng,
 ) {
-    for _ in 0..ROCK_PAIRS {
+    for _ in 0..by_area(ROCK_PAIRS) {
         let cell = IVec2::new(
-            rng.random_range(0..MAP_CELLS),
-            rng.random_range(0..MAP_CELLS),
+            rng.random_range(0..map_cells()),
+            rng.random_range(0..map_cells()),
         );
         let model = pick(rng, &ROCKS);
         block_with_prop(commands, models, landscape, map, rng, cell, model, 0.6..1.3);
@@ -179,11 +189,11 @@ fn dress_meadows(
     rng: &mut StdRng,
     ground: &GroundLayers,
 ) {
-    for _ in 0..MEADOW_ATTEMPTS {
+    for _ in 0..by_area(MEADOW_ATTEMPTS) {
         let position = Vec3::new(
-            rng.random_range(0.0..MAP_WORLD_SIZE),
+            rng.random_range(0.0..map_world_size()),
             0.0,
-            rng.random_range(0.0..MAP_WORLD_SIZE),
+            rng.random_range(0.0..map_world_size()),
         );
         let weights = ground.weights(position.xz(), 0.0);
         let grassy =
@@ -229,10 +239,10 @@ fn line_shores(
     map: &GameMap,
     rng: &mut StdRng,
 ) {
-    let span = -OUTLANDS_WIDTH / CELL_SIZE..MAP_CELLS as f32 + OUTLANDS_WIDTH / CELL_SIZE;
+    let span = -OUTLANDS_WIDTH / CELL_SIZE..map_cells() as f32 + OUTLANDS_WIDTH / CELL_SIZE;
     let mut planted = 0;
-    for _ in 0..SHORE_SAMPLES {
-        if planted == SHORE_REEDS {
+    for _ in 0..by_area(SHORE_SAMPLES) {
+        if planted == by_area(SHORE_REEDS) {
             break;
         }
         let (column, row) = (
@@ -267,20 +277,20 @@ fn cover_mountains(
     landscape: Landscape,
     rng: &mut StdRng,
 ) {
-    let span = -OUTLANDS_WIDTH..MAP_WORLD_SIZE + OUTLANDS_WIDTH;
+    let span = -OUTLANDS_WIDTH..map_world_size() + OUTLANDS_WIDTH;
     let random_outland_point = |rng: &mut StdRng| loop {
         let position = Vec3::new(
             rng.random_range(span.clone()),
             0.0,
             rng.random_range(span.clone()),
         );
-        let inside = (0.0..MAP_WORLD_SIZE).contains(&position.x)
-            && (0.0..MAP_WORLD_SIZE).contains(&position.z);
+        let inside = (0.0..map_world_size()).contains(&position.x)
+            && (0.0..map_world_size()).contains(&position.z);
         if !inside {
             return position;
         }
     };
-    for _ in 0..OUTLAND_TREE_ATTEMPTS {
+    for _ in 0..by_border(OUTLAND_TREE_ATTEMPTS) {
         let position = random_outland_point(rng);
         let height = landscape.height(position.x, position.z);
         let too_steep = landscape.normal(position.x, position.z).y < 0.8;
@@ -305,7 +315,7 @@ fn cover_mountains(
             false,
         );
     }
-    for _ in 0..OUTLAND_BOULDER_COUNT {
+    for _ in 0..by_border(OUTLAND_BOULDER_COUNT) {
         let position = random_outland_point(rng);
         place_decor(
             commands,

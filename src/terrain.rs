@@ -4,7 +4,7 @@ use bevy::render::mesh::{Indices, PrimitiveTopology};
 
 use serde::{Deserialize, Serialize};
 
-use crate::map::{BASE_SITES, CELL_SIZE, MAP_CELLS, MAP_WORLD_SIZE};
+use crate::map::{CELL_SIZE, base_sites, map_cells, map_spread, map_world_size, relocate};
 
 pub const WATER_LEVEL: f32 = -0.45;
 /// How far the mountains surrounding the playable area reach beyond the map edge.
@@ -16,9 +16,10 @@ const FAR_MESH_SPACING: f32 = 2.0;
 pub const FAR_RING_WIDTH: f32 = 110.0;
 const RIVER_DEPTH: f32 = 1.5;
 const RIVER_HALF_WIDTH_CELLS: f32 = 1.7;
-const RIVER_FORD_COLUMNS: [(f32, f32); 3] = [(9.0, 14.0), (29.0, 34.0), (49.0, 54.0)];
+/// Where the river can be crossed on the standard map; bigger maps spread the fords apart.
+const STANDARD_FORD_COLUMNS: [(f32, f32); 3] = [(9.0, 14.0), (29.0, 34.0), (49.0, 54.0)];
 /// The river winds point-symmetrically around the map centre, like everything else that blocks units.
-const MAP_CENTER_CELLS: f32 = 31.5;
+const STANDARD_MAP_CENTER_CELLS: f32 = 31.5;
 const ROLLING_HILLS_HEIGHT: f32 = 1.1;
 const MOUNTAIN_HEIGHT: f32 = 16.0;
 const MOUNTAIN_RISE_DISTANCE: f32 = 26.0;
@@ -67,20 +68,31 @@ fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
+fn map_center_cells() -> f32 {
+    (map_cells() - 1) as f32 / 2.0
+}
+
 pub fn river_centerline(column: f32) -> f32 {
-    let offset = column - MAP_CENTER_CELLS;
-    MAP_CENTER_CELLS + 5.0 * (offset * 0.13).sin() + 2.0 * (offset * 0.31).sin()
+    let offset = column - map_center_cells();
+    map_center_cells() + 5.0 * (offset * 0.13).sin() + 2.0 * (offset * 0.31).sin()
+}
+
+/// The middle column of a ford authored at `standard_column` on the standard map.
+fn ford_column(standard_column: f32) -> f32 {
+    map_center_cells() + (standard_column - STANDARD_MAP_CENTER_CELLS) * map_spread()
 }
 
 fn is_ford(column: f32) -> bool {
-    RIVER_FORD_COLUMNS
-        .iter()
-        .any(|&(start, end)| column >= start && column <= end)
+    STANDARD_FORD_COLUMNS.iter().any(|&(start, end)| {
+        let middle = ford_column((start + end) / 2.0);
+        let half_width = (end - start) / 2.0;
+        (column - middle).abs() <= half_width
+    })
 }
 
 /// Depth of the riverbed below the surrounding ground at a point in cell units; zero away from the river.
 pub fn river_depth(column: f32, row: f32) -> f32 {
-    let inside_map = (0.0..MAP_CELLS as f32).contains(&column);
+    let inside_map = (0.0..map_cells() as f32).contains(&column);
     if inside_map && is_ford(column) {
         return 0.0;
     }
@@ -95,13 +107,13 @@ fn distance_to_river_cells(column: f32, row: f32) -> f32 {
 
 fn distance_outside_map(position: Vec2) -> f32 {
     let outside = (Vec2::ZERO - position)
-        .max(position - Vec2::splat(MAP_WORLD_SIZE))
+        .max(position - Vec2::splat(map_world_size()))
         .max(Vec2::ZERO);
     outside.length()
 }
 
 fn distance_to_bases_cells(column: f32, row: f32) -> f32 {
-    BASE_SITES
+    base_sites()
         .iter()
         .map(|base| (Vec2::new(column, row) - base.as_vec2() - Vec2::splat(1.5)).length())
         .fold(f32::MAX, f32::min)
@@ -137,7 +149,7 @@ pub fn approximate_ground(position: Vec3) -> Vec3 {
 
 /// Where the lake sits: `along` runs from the north-west to the south-east site, `across` from base to base.
 fn lake_coordinates(column: f32, row: f32) -> (f32, f32) {
-    let offset = Vec2::new(column, row) - Vec2::splat(MAP_CENTER_CELLS);
+    let offset = Vec2::new(column, row) - Vec2::splat(map_center_cells());
     let along = (offset.x + offset.y) * std::f32::consts::FRAC_1_SQRT_2;
     let across = (offset.x - offset.y) * std::f32::consts::FRAC_1_SQRT_2;
     (along, across)
@@ -146,7 +158,8 @@ fn lake_coordinates(column: f32, row: f32) -> (f32, f32) {
 /// 0 at the lake's middle, 1 on its shore.
 fn lake_ellipse(column: f32, row: f32) -> f32 {
     let (along, across) = lake_coordinates(column, row);
-    ((along / LAKE_LENGTH_CELLS).powi(2) + (across / LAKE_WIDTH_CELLS).powi(2)).sqrt()
+    let length = LAKE_LENGTH_CELLS * map_spread();
+    ((along / length).powi(2) + (across / LAKE_WIDTH_CELLS).powi(2)).sqrt()
 }
 
 /// The shape of the battlefield. Every landscape is point-symmetric around the map centre.
@@ -239,7 +252,7 @@ impl Landscape {
 }
 
 fn base_gates() -> ([Vec2; 4], impl Fn(Vec2) -> Vec2, impl Fn(Vec2) -> Vec2) {
-    let sites = BASE_SITES.map(|site| site.as_vec2() + Vec2::splat(1.5));
+    let sites = base_sites().map(|site| site.as_vec2() + Vec2::splat(1.5));
     let west_gate = |site: Vec2| site + Vec2::new(3.0, 0.0);
     let east_gate = |site: Vec2| site + Vec2::new(-3.0, 0.0);
     (sites, west_gate, east_gate)
@@ -249,39 +262,43 @@ fn in_world(points: &[Vec2]) -> Vec<Vec2> {
     points.iter().map(|p| *p * CELL_SIZE).collect()
 }
 
+/// Roads are authored on the standard map: their bends are relocated, their fords follow the spread river.
 fn river_roads() -> Vec<Vec<Vec2>> {
-    let ford = |column: f32| Vec2::new(column, river_centerline(column) + 0.5);
+    let ford = |standard_column: f32| {
+        let column = ford_column(standard_column);
+        Vec2::new(column, river_centerline(column) + 0.5)
+    };
     let ([south_west, north_east, north_west, south_east], west_gate, east_gate) = base_gates();
     vec![
         in_world(&[
             west_gate(south_west),
-            Vec2::new(12.0, 44.0),
+            relocate(Vec2::new(12.0, 44.0)),
             ford(11.5),
-            Vec2::new(14.0, 20.0),
+            relocate(Vec2::new(14.0, 20.0)),
             west_gate(north_west),
         ]),
         in_world(&[
             west_gate(north_west),
-            Vec2::new(30.0, 11.0),
+            relocate(Vec2::new(30.0, 11.0)),
             east_gate(north_east),
         ]),
         in_world(&[
             west_gate(south_west),
-            Vec2::new(28.0, 46.0),
+            relocate(Vec2::new(28.0, 46.0)),
             ford(31.5),
-            Vec2::new(40.0, 18.0),
+            relocate(Vec2::new(40.0, 18.0)),
             east_gate(north_east),
         ]),
         in_world(&[
             west_gate(south_west),
-            Vec2::new(32.0, 53.0),
+            relocate(Vec2::new(32.0, 53.0)),
             east_gate(south_east),
         ]),
         in_world(&[
             east_gate(south_east),
-            Vec2::new(54.0, 44.0),
+            relocate(Vec2::new(54.0, 44.0)),
             ford(51.5),
-            Vec2::new(55.0, 20.0),
+            relocate(Vec2::new(55.0, 20.0)),
             east_gate(north_east),
         ]),
     ]
@@ -290,27 +307,27 @@ fn river_roads() -> Vec<Vec<Vec2>> {
 /// One road straight across the middle (over the causeway where there is a lake) and two along the edges.
 fn open_roads() -> Vec<Vec<Vec2>> {
     let ([south_west, north_east, north_west, south_east], west_gate, east_gate) = base_gates();
-    let middle = Vec2::splat(MAP_CENTER_CELLS + 0.5);
+    let middle = Vec2::splat(map_center_cells() + 0.5);
     vec![
         in_world(&[west_gate(south_west), middle, east_gate(north_east)]),
         in_world(&[
             west_gate(north_west),
-            Vec2::new(30.0, 11.0),
+            relocate(Vec2::new(30.0, 11.0)),
             east_gate(north_east),
         ]),
         in_world(&[
             west_gate(south_west),
-            Vec2::new(32.0, 53.0),
+            relocate(Vec2::new(32.0, 53.0)),
             east_gate(south_east),
         ]),
         in_world(&[
             west_gate(south_west),
-            Vec2::new(10.0, 30.0),
+            relocate(Vec2::new(10.0, 30.0)),
             west_gate(north_west),
         ]),
         in_world(&[
             east_gate(south_east),
-            Vec2::new(53.0, 32.0),
+            relocate(Vec2::new(53.0, 32.0)),
             east_gate(north_east),
         ]),
     ]
@@ -424,7 +441,7 @@ fn layer_weights(
 /// Builds the visible ground including the mountain rim, with layer weights stored as vertex colors.
 pub fn build_terrain_mesh(landscape: Landscape, crystal_soil: impl Fn(IVec2) -> bool) -> Mesh {
     let start = -OUTLANDS_WIDTH;
-    let span = MAP_WORLD_SIZE + 2.0 * OUTLANDS_WIDTH;
+    let span = map_world_size() + 2.0 * OUTLANDS_WIDTH;
     build_terrain_grid(landscape, start, span, MESH_SPACING, None, crystal_soil)
 }
 
@@ -432,9 +449,9 @@ pub fn build_terrain_mesh(landscape: Landscape, crystal_soil: impl Fn(IVec2) -> 
 /// out the area the detailed mesh already covers.
 pub fn build_far_terrain_mesh(landscape: Landscape) -> Mesh {
     let start = -OUTLANDS_WIDTH - FAR_RING_WIDTH;
-    let span = MAP_WORLD_SIZE + 2.0 * (OUTLANDS_WIDTH + FAR_RING_WIDTH);
+    let span = map_world_size() + 2.0 * (OUTLANDS_WIDTH + FAR_RING_WIDTH);
     let covered =
-        -OUTLANDS_WIDTH + FAR_MESH_SPACING..MAP_WORLD_SIZE + OUTLANDS_WIDTH - FAR_MESH_SPACING;
+        -OUTLANDS_WIDTH + FAR_MESH_SPACING..map_world_size() + OUTLANDS_WIDTH - FAR_MESH_SPACING;
     build_terrain_grid(
         landscape,
         start,
@@ -532,9 +549,9 @@ mod tests {
     fn playable_ground_is_gentle_and_finite() {
         let step = CELL_SIZE * 1.5;
         let mut x = 0.0;
-        while x < MAP_WORLD_SIZE {
+        while x < map_world_size() {
             let mut z = 0.0;
-            while z < MAP_WORLD_SIZE {
+            while z < map_world_size() {
                 let height = Landscape::River.height(x, z);
                 assert!(height.is_finite());
                 assert!(
@@ -549,7 +566,7 @@ mod tests {
 
     #[test]
     fn bases_sit_on_flat_ground() {
-        for base in BASE_SITES {
+        for base in base_sites() {
             let center = (base.as_vec2() + Vec2::splat(1.5)) * CELL_SIZE;
             for offset in [Vec2::ZERO, Vec2::new(4.0, 0.0), Vec2::new(0.0, -4.0)] {
                 let point = center + offset;
@@ -562,7 +579,7 @@ mod tests {
 
     #[test]
     fn mountains_rise_around_the_map() {
-        let outside = Landscape::River.height(-OUTLANDS_WIDTH * 0.8, MAP_WORLD_SIZE * 0.2);
+        let outside = Landscape::River.height(-OUTLANDS_WIDTH * 0.8, map_world_size() * 0.2);
         assert!(outside > 4.0, "rim only {outside} m high");
     }
 

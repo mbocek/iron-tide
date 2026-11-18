@@ -14,7 +14,7 @@ use bevy::window::PrimaryWindow;
 use crate::catalog::BuildingKind;
 use crate::key_bindings::{Action, KeyBindings};
 use crate::levels::ActiveLevel;
-use crate::map::{MAP_WORLD_SIZE, footprint_center};
+use crate::map::{footprint_center, map_world_size};
 use crate::match_flow::Persistent;
 use crate::settings::GameSettings;
 use crate::terrain::Landscape;
@@ -67,7 +67,7 @@ pub fn focus_on_player_base(level: Res<ActiveLevel>, mut cameras: Query<&mut Rts
 }
 
 pub fn setup_scene(mut commands: Commands) {
-    let start_focus = Vec3::new(MAP_WORLD_SIZE * 0.5, 0.0, MAP_WORLD_SIZE * 0.5);
+    let start_focus = Vec3::new(map_world_size() * 0.5, 0.0, map_world_size() * 0.5);
     commands.spawn((
         Persistent,
         Camera3d::default(),
@@ -242,11 +242,11 @@ pub fn control_camera(
     camera.focus.x = camera
         .focus
         .x
-        .clamp(-FOCUS_MARGIN, MAP_WORLD_SIZE + FOCUS_MARGIN);
+        .clamp(-FOCUS_MARGIN, map_world_size() + FOCUS_MARGIN);
     camera.focus.z = camera
         .focus
         .z
-        .clamp(-FOCUS_MARGIN, MAP_WORLD_SIZE + FOCUS_MARGIN);
+        .clamp(-FOCUS_MARGIN, map_world_size() + FOCUS_MARGIN);
     let ground_under_focus = level
         .0
         .landscape
