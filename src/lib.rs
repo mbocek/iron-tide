@@ -509,6 +509,11 @@ impl Plugin for GamePlugin {
                         .run_if(in_state(match_flow::GameState::Playing)),
                 ),
             )
+            .add_systems(
+                Update,
+                (ui::highlight_outcome_buttons, ui::refresh_build_tooltip)
+                    .in_set(FramePhase::Presentation),
+            )
             .init_resource::<updates::Updates>()
             .init_resource::<lobby::NetLobby>()
             .init_resource::<network_hud::BattleChat>()

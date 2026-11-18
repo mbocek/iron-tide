@@ -173,7 +173,6 @@
   "DEFEAT": "PORÁŽKA",
   "WATCH REPLAY": "POZRIEŤ ZÁZNAM",
   "MAIN MENU": "HLAVNÉ MENU",
-  "F10 opens the menu to restart the mission.": "F10 otvorí menu, kde môžete misiu zopakovať.",
   "MATCH TIME  {}": "ČAS BITKY  {}",
   "You": "Vy",
   "Enemies": "Nepriatelia",
@@ -463,5 +462,10 @@
   "Map": "Mapa",
   "Units": "Jednotky",
   "{}, {}, {}, {} x {} cells": "{}, {}, {}, {} x {} polí",
-  "WON": "VYHRANÁ"
+  "WON": "VYHRANÁ",
+  "Time": "Čas",
+  "Units trained / lost": "Jednotky vycvičené / stratené",
+  "Structures built / lost": "Budovy postavené / stratené",
+  "NEXT MISSION": "ĎALŠIA MISIA",
+  "PLAY AGAIN": "HRAŤ ZNOVA"
 }

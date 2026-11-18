@@ -5,9 +5,15 @@ use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 
 use crate::components::Selected;
+use crate::economy::Economies;
 use crate::i18n::{Language, tr, tr_fmt, tr_owned};
 use crate::key_bindings::{Action, is_bindable};
+use crate::levels::ActiveLevel;
 use crate::match_flow::GameState;
+use crate::match_flow::MatchClock;
+use crate::match_stats::MatchStats;
+use crate::outcome::objective_status;
+use crate::player_commands::LocalTeam;
 use crate::production::Placement;
 use crate::savegame::{
     NAMED_SLOTS, QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_label, slot_summary,
@@ -23,6 +29,9 @@ const VALUE_BUTTON_WIDTH: f32 = 190.0;
 const KEY_BUTTON_WIDTH: f32 = 110.0;
 const BUTTON_IDLE: Color = Color::srgb(0.13, 0.15, 0.17);
 const BUTTON_HOVERED: Color = Color::srgb(0.19, 0.22, 0.25);
+const PRIMARY: Color = Color::srgb(0.62, 0.45, 0.10);
+const PRIMARY_HOVERED: Color = Color::srgb(0.76, 0.56, 0.14);
+const ACTION_WIDTH: f32 = 220.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 enum MenuPage {
@@ -621,6 +630,74 @@ fn run_action(
     }
 }
 
+/// What the pause menu tells about the battle in progress.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct BattleSummary<'w> {
+    local: Res<'w, LocalTeam>,
+    level: Res<'w, ActiveLevel>,
+    clock: Res<'w, MatchClock>,
+    economies: Res<'w, Economies>,
+    stats: Res<'w, MatchStats>,
+}
+
+fn spawn_battle_card(row: &mut ChildSpawnerCommands, fonts: &UiFonts, battle: &BattleSummary) {
+    let tally = battle.stats.of(battle.local.0);
+    let elapsed = battle.clock.elapsed_secs as u32;
+    let facts = [
+        (
+            tr("Objective"),
+            objective_status(
+                &battle.level,
+                &battle.clock,
+                &battle.economies,
+                battle.local.0,
+            ),
+        ),
+        (tr("Time"), format!("{}:{:02}", elapsed / 60, elapsed % 60)),
+        (tr("Enemies destroyed"), tally.enemies_destroyed.to_string()),
+        (
+            tr("Units trained / lost"),
+            format!("{} / {}", tally.units_trained, tally.units_lost),
+        ),
+        (
+            tr("Structures built / lost"),
+            format!("{} / {}", tally.structures_built, tally.structures_lost),
+        ),
+    ];
+    row.spawn((
+        Node {
+            flex_direction: FlexDirection::Column,
+            flex_grow: 1.0,
+            padding: UiRect::all(Val::Px(12.0)),
+            row_gap: Val::Px(6.0),
+            border: UiRect::left(Val::Px(3.0)),
+            ..default()
+        },
+        BackgroundColor(BUTTON_IDLE),
+        BorderColor::all(ACCENT),
+    ))
+    .with_children(|card| {
+        card.spawn(fonts.heading(tr_owned(&battle.level.0.name), 20.0, ACCENT));
+        for (label, value) in facts {
+            card.spawn(Node {
+                column_gap: Val::Px(10.0),
+                ..default()
+            })
+            .with_children(|line| {
+                line.spawn((
+                    fonts.heading(label, 13.0, TEXT_DIM),
+                    Node {
+                        width: Val::Px(150.0),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ));
+                line.spawn(fonts.text(value, 15.0, TEXT_MAIN));
+            });
+        }
+    });
+}
+
 fn spawn_button(
     parent: &mut ChildSpawnerCommands,
     fonts: &UiFonts,
@@ -784,6 +861,7 @@ pub fn rebuild_menu_page(
     fonts: Option<Res<UiFonts>>,
     settings: Res<GameSettings>,
     save_directory: Res<SaveDirectory>,
+    battle: BattleSummary,
     contents: Query<Entity, With<MenuContent>>,
 ) {
     if !menu.needs_rebuild {
@@ -809,16 +887,37 @@ pub fn rebuild_menu_page(
                 16.0,
                 TEXT_DIM,
             ));
-            let actions = [
-                (tr("Resume"), MenuAction::Resume),
-                (tr("Restart mission"), MenuAction::Restart),
-                (tr("Back to main menu"), MenuAction::MainMenu),
-                (tr("Quit to desktop"), MenuAction::Quit),
-            ];
-            for (label, action) in actions {
-                let button = spawn_button(content, &fonts, label, 240.0);
-                content.commands().entity(button).insert(ActionButton(action)).observe(run_action);
-            }
+            content
+                .spawn(Node {
+                    column_gap: Val::Px(20.0),
+                    margin: UiRect::top(Val::Px(6.0)),
+                    ..default()
+                })
+                .with_children(|row| {
+                    row.spawn(Node {
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(8.0),
+                        ..default()
+                    })
+                    .with_children(|column| {
+                        let resume = spawn_button(column, &fonts, tr("Resume"), ACTION_WIDTH);
+                        column
+                            .commands()
+                            .entity(resume)
+                            .insert((ActionButton(MenuAction::Resume), BackgroundColor(PRIMARY)))
+                            .observe(run_action);
+                        let actions = [
+                            (tr("Restart mission"), MenuAction::Restart),
+                            (tr("Back to main menu"), MenuAction::MainMenu),
+                            (tr("Quit to desktop"), MenuAction::Quit),
+                        ];
+                        for (label, action) in actions {
+                            let button = spawn_button(column, &fonts, label, ACTION_WIDTH);
+                            column.commands().entity(button).insert(ActionButton(action)).observe(run_action);
+                        }
+                    });
+                    spawn_battle_card(row, &fonts, &battle);
+                });
         }
         MenuPage::Graphics => {
             for setting in GRAPHICS_SETTINGS {
@@ -871,7 +970,7 @@ pub fn refresh_menu(
     mut key_values: Query<(&KeyValue, &mut Text), Without<SettingValue>>,
     mut tabs: Query<(&MenuTab, &mut BorderColor, &mut BackgroundColor, &Hovered)>,
     mut buttons: Query<
-        (&Hovered, &mut BackgroundColor),
+        (&Hovered, &mut BackgroundColor, Option<&ActionButton>),
         (
             Without<MenuTab>,
             Or<(With<SettingButton>, With<ActionButton>, With<KeyButton>)>,
@@ -906,12 +1005,14 @@ pub fn refresh_menu(
             BUTTON_IDLE
         };
     }
-    for (hovered, mut background) in &mut buttons {
-        background.0 = if hovered.get() {
-            BUTTON_HOVERED
-        } else {
-            BUTTON_IDLE
-        };
+    for (hovered, mut background, action) in &mut buttons {
+        let primary = action.is_some_and(|action| action.0 == MenuAction::Resume);
+        background.set_if_neq(BackgroundColor(match (primary, hovered.get()) {
+            (true, true) => PRIMARY_HOVERED,
+            (true, false) => PRIMARY,
+            (false, true) => BUTTON_HOVERED,
+            (false, false) => BUTTON_IDLE,
+        }));
     }
 }
 

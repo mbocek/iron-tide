@@ -16,10 +16,11 @@ use crate::catalog::{BuildingKind, Faction, HARVESTER_CAPACITY, Team, UnitKind};
 use crate::components::*;
 use crate::control_groups::spawn_group_bar;
 use crate::economy::Economies;
-use crate::levels::ActiveLevel;
+use crate::levels::{ActiveLevel, LevelDefinition, campaign};
 use crate::match_flow::{GameState, MatchClock};
 use crate::menu::{MenuState, open_menu_from_button, spawn_menu};
 use crate::minimap::{Minimap, jump_camera_on_drag, jump_camera_on_press};
+use crate::network::NetSession;
 use crate::network_hud::{spawn_chat_line, spawn_network_hud};
 use crate::notifications::Notifications;
 use crate::outcome::{GameOutcome, objective_status};
@@ -47,11 +48,13 @@ pub(crate) const ACCENT: Color = Color::srgb(0.96, 0.74, 0.26);
 pub(crate) const GOOD: Color = Color::srgb(0.35, 0.86, 0.42);
 const WARNING: Color = Color::srgb(0.95, 0.78, 0.22);
 const DANGER: Color = Color::srgb(1.0, 0.33, 0.28);
+const PRIMARY_BUTTON: Color = Color::srgb(0.62, 0.45, 0.10);
 const TILE_WIDTH: f32 = 88.0;
 const TILE_HEIGHT: f32 = 76.0;
 const TILE_ICON_SIZE: f32 = 42.0;
 const MINIMAP_SIZE: f32 = 236.0;
 const POWER_BAR_SCALE: i32 = 400;
+const TOOLTIP_WIDTH: f32 = 300.0;
 const SHIFT_CLICK_BATCH: u32 = 5;
 
 #[derive(Resource)]
@@ -249,6 +252,7 @@ pub fn build_interface(
         });
 
     spawn_notification_feed(&mut commands, fonts);
+    spawn_build_tooltip(&mut commands, fonts);
     spawn_queue_bar(&mut commands, fonts);
     spawn_group_bar(&mut commands, fonts);
     spawn_performance_overlay(&mut commands, fonts);
@@ -591,6 +595,87 @@ fn spawn_info_panel(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
         });
 }
 
+#[derive(Component)]
+pub struct BuildTooltip;
+
+#[derive(Component)]
+pub struct BuildTooltipTitle;
+
+#[derive(Component)]
+pub struct BuildTooltipBody;
+
+fn spawn_build_tooltip(commands: &mut Commands, fonts: &UiFonts) {
+    commands
+        .spawn((
+            BuildTooltip,
+            Node {
+                position_type: PositionType::Absolute,
+                right: Val::Px(SIDEBAR_WIDTH + 8.0),
+                width: Val::Px(TOOLTIP_WIDTH),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(4.0),
+                padding: UiRect::all(Val::Px(10.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                display: Display::None,
+                ..default()
+            },
+            BackgroundColor(PANEL.with_alpha(0.95)),
+            BorderColor::all(FRAME_BRIGHT),
+            Pickable::IGNORE,
+            GlobalZIndex(10),
+        ))
+        .with_children(|tooltip| {
+            tooltip.spawn((
+                BuildTooltipTitle,
+                fonts.heading("", 18.0, ACCENT),
+                Pickable::IGNORE,
+            ));
+            tooltip.spawn((
+                BuildTooltipBody,
+                fonts.text("", 15.0, TEXT_MAIN),
+                Pickable::IGNORE,
+            ));
+        });
+}
+
+/// A build tile under the pointer is described in a box beside the sidebar, level with the pointer.
+pub fn refresh_build_tooltip(
+    local: Res<LocalTeam>,
+    cursor: Res<crate::camera::Cursor>,
+    production: Res<Production>,
+    buildings: Query<(&Building, &Team)>,
+    hovered_tiles: Query<(&Hovered, &BuildTile)>,
+    mut tooltips: Query<&mut Node, With<BuildTooltip>>,
+    mut title: Query<&mut Text, (With<BuildTooltipTitle>, Without<BuildTooltipBody>)>,
+    mut body: Query<&mut Text, (With<BuildTooltipBody>, Without<BuildTooltipTitle>)>,
+) {
+    let Ok(mut node) = tooltips.single_mut() else {
+        return;
+    };
+    let hovered = hovered_tiles
+        .iter()
+        .find(|(hovered, _)| hovered.get())
+        .map(|(_, tile)| tile.0);
+    let (Some(item), Some(screen)) = (hovered, cursor.screen) else {
+        set_field(&mut node, |node| &mut node.display, Display::None);
+        return;
+    };
+    let owned = owned_building_kinds(&buildings, local.0);
+    let (heading, details) = describe_item(item, &owned, &production, local.0);
+    if let Ok(mut title) = title.single_mut() {
+        title.set_if_neq(Text(heading));
+    }
+    if let Ok(mut body) = body.single_mut() {
+        body.set_if_neq(Text(details));
+    }
+    set_field(&mut node, |node| &mut node.display, Display::Flex);
+    set_field(
+        &mut node,
+        |node| &mut node.top,
+        Val::Px((screen.y - 30.0).max(8.0)),
+    );
+}
+
 fn spawn_roster_chip(
     row: &mut ChildSpawnerCommands,
     fonts: &UiFonts,
@@ -852,6 +937,11 @@ fn spawn_outcome_overlay(commands: &mut Commands, fonts: &UiFonts) {
                 TextShadow::default(),
             ));
             overlay.spawn((
+                OutcomeSubtitle,
+                fonts.heading("", 22.0, TEXT_MAIN),
+                TextShadow::default(),
+            ));
+            overlay.spawn((
                 OutcomeStats,
                 Node {
                     flex_direction: FlexDirection::Column,
@@ -864,39 +954,70 @@ fn spawn_outcome_overlay(commands: &mut Commands, fonts: &UiFonts) {
                 BackgroundColor(PANEL.with_alpha(0.9)),
                 BorderColor::all(FRAME_BRIGHT),
             ));
-            overlay
-                .spawn(Node {
+            overlay.spawn((
+                OutcomeButtons,
+                Node {
                     column_gap: Val::Px(12.0),
                     ..default()
-                })
-                .with_children(|buttons| {
-                    spawn_outcome_button(
-                        buttons,
-                        fonts,
-                        tr("WATCH REPLAY"),
-                        OutcomeAction::WatchReplay,
-                    );
-                    spawn_outcome_button(buttons, fonts, tr("MAIN MENU"), OutcomeAction::MainMenu);
-                });
-            overlay.spawn(fonts.text(
-                tr("F10 opens the menu to restart the mission."),
-                18.0,
-                TEXT_DIM,
+                },
             ));
         });
 }
 
 #[derive(Component, Clone, Copy)]
 pub enum OutcomeAction {
+    /// The campaign mission at this index comes next.
+    NextMission(usize),
+    Restart,
     WatchReplay,
     MainMenu,
+}
+
+impl OutcomeAction {
+    fn label(self) -> &'static str {
+        match self {
+            OutcomeAction::NextMission(_) => tr("NEXT MISSION"),
+            OutcomeAction::Restart => tr("PLAY AGAIN"),
+            OutcomeAction::WatchReplay => tr("WATCH REPLAY"),
+            OutcomeAction::MainMenu => tr("MAIN MENU"),
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct OutcomeSubtitle;
+
+#[derive(Component)]
+pub struct OutcomeButtons;
+
+/// What the player can do once the battle is decided; a network battle cannot be replayed on the spot.
+fn outcome_actions(
+    outcome: GameOutcome,
+    level: &LevelDefinition,
+    networked: bool,
+) -> Vec<OutcomeAction> {
+    let mut actions = Vec::new();
+    let missions = campaign();
+    let next_mission = missions
+        .iter()
+        .position(|entry| entry.level.name == level.name)
+        .map(|index| index + 1)
+        .filter(|&next| next < missions.len());
+    if let (GameOutcome::Victory, Some(next), false) = (outcome, next_mission, networked) {
+        actions.push(OutcomeAction::NextMission(next));
+    }
+    if !networked {
+        actions.push(OutcomeAction::Restart);
+    }
+    actions.extend([OutcomeAction::WatchReplay, OutcomeAction::MainMenu]);
+    actions
 }
 
 fn spawn_outcome_button(
     parent: &mut ChildSpawnerCommands,
     fonts: &UiFonts,
-    label: &str,
     action: OutcomeAction,
+    primary: bool,
 ) {
     parent
         .spawn((
@@ -907,13 +1028,25 @@ fn spawn_outcome_button(
                 border: UiRect::all(Val::Px(1.0)),
                 ..default()
             },
-            BackgroundColor(TILE),
+            BackgroundColor(if primary { PRIMARY_BUTTON } else { TILE }),
             BorderColor::all(FRAME_BRIGHT),
         ))
         .with_children(|button| {
-            button.spawn(fonts.heading(label, 18.0, TEXT_MAIN));
+            button.spawn(fonts.heading(action.label(), 18.0, TEXT_MAIN));
         })
         .observe(run_outcome_action);
+}
+
+pub fn highlight_outcome_buttons(
+    mut buttons: Query<(&Hovered, &mut BorderColor), With<OutcomeAction>>,
+) {
+    for (hovered, mut border) in &mut buttons {
+        border.set_if_neq(BorderColor::all(if hovered.get() {
+            ACCENT
+        } else {
+            FRAME_BRIGHT
+        }));
+    }
 }
 
 fn run_outcome_action(
@@ -927,6 +1060,13 @@ fn run_outcome_action(
         return;
     };
     match action {
+        OutcomeAction::NextMission(index) => {
+            if let Some(next) = campaign().into_iter().nth(index) {
+                commands.insert_resource(ActiveLevel(next.level));
+                next_state.set(GameState::Restarting);
+            }
+        }
+        OutcomeAction::Restart => next_state.set(GameState::Restarting),
         OutcomeAction::MainMenu => next_state.set(GameState::MainMenu),
         OutcomeAction::WatchReplay => {
             let newest = list_replays(&replay_directory())
@@ -1442,11 +1582,7 @@ pub fn refresh_info_panel(
     fonts: Res<UiFonts>,
     mut shown_roster: Local<Vec<(UnitKind, usize)>>,
     rosters: Query<Entity, With<InfoRoster>>,
-    local: Res<LocalTeam>,
     asset_server: Res<AssetServer>,
-    production: Res<Production>,
-    buildings: Query<(&Building, &Team)>,
-    hovered_tiles: Query<(&Hovered, &BuildTile)>,
     selected: Query<
         (
             Option<&Unit>,
@@ -1475,65 +1611,55 @@ pub fn refresh_info_panel(
     else {
         return;
     };
-    let owned = owned_building_kinds(&buildings, local.0);
-    let hovered = hovered_tiles
-        .iter()
-        .find(|(hovered, _)| hovered.get())
-        .map(|(_, tile)| tile.0);
     let selection: Vec<_> = selected.iter().collect();
     let mut roster: Vec<(UnitKind, usize)> = Vec::new();
 
-    let (shown_icon, heading, details, health) = if let Some(item) = hovered {
-        let (heading, details) = describe_item(item, &owned, &production, local.0);
-        (Some(icon_path(item)), heading, details, None)
-    } else {
-        match selection.as_slice() {
-            [] => (
-                None,
-                tr("No selection").into(),
-                tr("Select units with a click or a drag box.").into(),
-                None,
-            ),
-            [(unit, building, health, harvester)] => {
-                let name = unit
-                    .map(|u| tr(u.0.spec().name))
-                    .or(building.map(|b| tr(b.kind.spec().name)))
-                    .unwrap_or_default();
-                let path = unit
-                    .map(|u| format!("icons/{}.png", u.0.spec().model_id))
-                    .or(building.map(|b| format!("icons/{}.png", b.kind.spec().model_id)));
-                let hp = format!("{:.0} / {:.0} HP", health.current.max(0.0), health.max);
-                let details = match harvester {
-                    Some(harvester) => tr_fmt(
-                        "{}\nCargo {} / {}  ({})",
-                        &[
-                            &hp,
-                            &harvester.cargo,
-                            &HARVESTER_CAPACITY,
-                            &harvest_activity(harvester.state),
-                        ],
-                    ),
-                    None => hp,
-                };
-                (path, name.to_string(), details, Some(health.fraction()))
-            }
-            many => {
-                for kind in many.iter().filter_map(|(unit, ..)| unit.map(|unit| unit.0)) {
-                    match roster.iter_mut().find(|(listed, _)| *listed == kind) {
-                        Some((_, count)) => *count += 1,
-                        None => roster.push((kind, 1)),
-                    }
+    let (shown_icon, heading, details, health) = match selection.as_slice() {
+        [] => (
+            None,
+            tr("No selection").into(),
+            tr("Select units with a click or a drag box.").into(),
+            None,
+        ),
+        [(unit, building, health, harvester)] => {
+            let name = unit
+                .map(|u| tr(u.0.spec().name))
+                .or(building.map(|b| tr(b.kind.spec().name)))
+                .unwrap_or_default();
+            let path = unit
+                .map(|u| format!("icons/{}.png", u.0.spec().model_id))
+                .or(building.map(|b| format!("icons/{}.png", b.kind.spec().model_id)));
+            let hp = format!("{:.0} / {:.0} HP", health.current.max(0.0), health.max);
+            let details = match harvester {
+                Some(harvester) => tr_fmt(
+                    "{}\nCargo {} / {}  ({})",
+                    &[
+                        &hp,
+                        &harvester.cargo,
+                        &HARVESTER_CAPACITY,
+                        &harvest_activity(harvester.state),
+                    ],
+                ),
+                None => hp,
+            };
+            (path, name.to_string(), details, Some(health.fraction()))
+        }
+        many => {
+            for kind in many.iter().filter_map(|(unit, ..)| unit.map(|unit| unit.0)) {
+                match roster.iter_mut().find(|(listed, _)| *listed == kind) {
+                    Some((_, count)) => *count += 1,
+                    None => roster.push((kind, 1)),
                 }
-                roster.sort_by_key(|(kind, _)| UnitKind::ALL.iter().position(|k| k == kind));
-                let average =
-                    many.iter().map(|(_, _, h, _)| h.fraction()).sum::<f32>() / many.len() as f32;
-                (
-                    None,
-                    tr_fmt("{} units", &[&many.len()]),
-                    String::new(),
-                    Some(average),
-                )
             }
+            roster.sort_by_key(|(kind, _)| UnitKind::ALL.iter().position(|k| k == kind));
+            let average =
+                many.iter().map(|(_, _, h, _)| h.fraction()).sum::<f32>() / many.len() as f32;
+            (
+                None,
+                tr_fmt("{} units", &[&many.len()]),
+                String::new(),
+                Some(average),
+            )
         }
     };
 
@@ -1608,7 +1734,11 @@ pub fn show_outcome(
     economies: Res<Economies>,
     clock: Res<MatchClock>,
     mut overlay: Query<&mut Visibility, With<OutcomeOverlay>>,
-    mut title: Query<(&mut Text, &mut TextColor), With<OutcomeTitle>>,
+    mut title: Query<(&mut Text, &mut TextColor), (With<OutcomeTitle>, Without<OutcomeSubtitle>)>,
+    mut subtitle: Query<&mut Text, (With<OutcomeSubtitle>, Without<OutcomeTitle>)>,
+    level: Res<ActiveLevel>,
+    session: Option<Res<NetSession>>,
+    button_rows: Query<Entity, With<OutcomeButtons>>,
     tables: Query<Entity, With<OutcomeStats>>,
 ) {
     if !outcome.is_changed() {
@@ -1630,6 +1760,20 @@ pub fn show_outcome(
     {
         text.0 = message.into();
         color.0 = team.ui_color();
+    }
+    if banner.is_some() {
+        if let Ok(mut subtitle) = subtitle.single_mut() {
+            subtitle.0 = tr_owned(&level.0.name);
+        }
+        if let Ok(row) = button_rows.single() {
+            let actions = outcome_actions(*outcome, &level.0, session.is_some());
+            commands.entity(row).despawn_related::<Children>();
+            commands.entity(row).with_children(|row| {
+                for (index, action) in actions.into_iter().enumerate() {
+                    spawn_outcome_button(row, &fonts, action, index == 0);
+                }
+            });
+        }
     }
     if banner.is_some()
         && let Ok(table) = tables.single()

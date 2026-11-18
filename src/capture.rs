@@ -36,6 +36,8 @@ const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
 /// `IRON_TIDE_CAPTURE_EDITOR=paint` also drags each brush across the ground beside the player's base, and
 /// `IRON_TIDE_CAPTURE_EDITOR=level` shows the level settings page.
 const CAPTURE_EDITOR_VAR: &str = "IRON_TIDE_CAPTURE_EDITOR";
+/// `IRON_TIDE_CAPTURE_OUTCOME=victory` (or `defeat`) ends the battle that way after two seconds.
+const CAPTURE_OUTCOME_VAR: &str = "IRON_TIDE_CAPTURE_OUTCOME";
 /// `IRON_TIDE_CAPTURE_LANGUAGE=Slovak` (or `Czech`, `English`) shows the interface in that language.
 const CAPTURE_LANGUAGE_VAR: &str = "IRON_TIDE_CAPTURE_LANGUAGE";
 /// `IRON_TIDE_CAPTURE_RANDOM=42` plays the random battle rolled from that seed with default options, without
@@ -112,7 +114,12 @@ impl Plugin for CapturePlugin {
         )
         .add_systems(
             Update,
-            (select_all_own_units, zoom_camera, open_requested_menu_page)
+            (
+                select_all_own_units,
+                zoom_camera,
+                open_requested_menu_page,
+                decide_requested_outcome,
+            )
                 .run_if(in_state(GameState::Playing)),
         );
         if let Some(cell) = std::env::var(CAPTURE_FOCUS_VAR)
@@ -306,6 +313,21 @@ fn use_requested_language(mut settings: ResMut<crate::settings::GameSettings>) {
     });
     if let Some(language) = requested {
         settings.language = language;
+    }
+}
+
+fn decide_requested_outcome(
+    clock: Res<crate::match_flow::MatchClock>,
+    mut outcome: ResMut<crate::outcome::GameOutcome>,
+) {
+    use crate::outcome::GameOutcome;
+    let wanted = match std::env::var(CAPTURE_OUTCOME_VAR).as_deref() {
+        Ok("victory") => GameOutcome::Victory,
+        Ok("defeat") => GameOutcome::Defeat,
+        _ => return,
+    };
+    if clock.elapsed_secs > 2.0 && *outcome == GameOutcome::Ongoing {
+        *outcome = wanted;
     }
 }
 
