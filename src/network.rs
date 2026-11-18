@@ -18,34 +18,41 @@ use crate::player_commands::{
     CommandQueue, LocalTeam, PlayerCommand, ScheduledCommand, SimulationTick,
 };
 
-/// Commands wait this many ticks (200 ms) before they run, so they reach the other machine in time.
+/// Commands wait this many ticks (200 ms) before they run, so they reach every other machine in time.
 pub const NETWORK_COMMAND_DELAY_TICKS: u64 = 4;
 const CHECKSUM_EVERY_TICKS: u64 = 20;
 const LARGEST_MESSAGE_BYTES: usize = 1 << 20;
 const PING_INTERVAL: Duration = Duration::from_secs(1);
 const PINGS_REMEMBERED: u64 = 10;
 const ROUND_TRIP_SMOOTHING: f32 = 0.3;
+const LONGEST_CHAT_LINE: usize = 120;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 enum Message {
-    /// What a player ordered for one tick, possibly nothing.
+    /// What one team's player ordered for one tick, possibly nothing.
     Turn {
+        team: Team,
         tick: u64,
         commands: Vec<PlayerCommand>,
     },
-    /// The fingerprint of the battle after a tick, sent as soon as it is known so a drift is noticed even
-    /// when the machine that finds it first stops at once.
+    /// The fingerprint of one machine's battle after a tick, sent as soon as it is known so a drift is
+    /// noticed even when the machine that finds it first stops at once.
     Checksum {
+        team: Team,
         tick: u64,
         sum: u64,
     },
-    /// The host's choice of battle, sent once the guest has connected.
+    /// The host's battle, the team this guest will play, and every team people play.
     Offer {
         version: String,
         level: Box<LevelDefinition>,
+        your_team: Team,
+        players: Vec<Team>,
     },
     /// The guest accepts the offered battle.
     Ready,
+    /// The host starts the countdown to the battle.
+    Go,
     /// Asks the other machine to answer at once, to measure the round trip.
     Ping {
         nonce: u64,
@@ -53,21 +60,29 @@ enum Message {
     Pong {
         nonce: u64,
     },
-    /// A line the other player typed, in the lobby or during the battle.
+    /// A line a player typed, in the lobby or during the battle.
     Chat {
+        team: Team,
         text: String,
     },
-    /// The host starts the countdown to the battle.
-    Go,
 }
 
-/// What happened in the lobby since the last look.
+/// The battle a guest was offered.
+#[derive(Clone, PartialEq, Debug)]
+pub struct Offer {
+    pub level: LevelDefinition,
+    pub your_team: Team,
+    pub players: Vec<Team>,
+}
+
+/// What happened in the lobby on one connection since the last look.
 #[derive(Clone, PartialEq, Debug)]
 pub enum LobbyNews {
     /// The host's battle; `Err` carries the host's version when it differs from this one.
-    Offered(Result<LevelDefinition, String>),
+    Offered(Result<Box<Offer>, String>),
     GuestReady,
     Go,
+    Chat(Team, String),
     Left,
 }
 
@@ -76,53 +91,29 @@ enum Arrival {
     ConnectionLost,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum SessionState {
-    InStep,
-    /// The two machines computed different battles at this tick; play cannot continue.
-    Desynced(u64),
-    Disconnected,
-}
-
-/// A match against a player on another machine: both run the whole simulation and exchange only commands.
-#[derive(Resource)]
-pub struct NetSession {
+/// One connection to another machine, read on its own thread.
+pub struct Link {
     writer: Mutex<TcpStream>,
     inbox: Mutex<Receiver<Arrival>>,
-    /// Messages that arrived while the guest was still waiting for the battle to start.
+    /// Battle messages that arrived while the lobby was still being set up.
     early: Vec<Arrival>,
-    remote_team: Team,
-    remote_turns: BTreeSet<u64>,
-    local_checksums: BTreeMap<u64, u64>,
-    remote_checksums: BTreeMap<u64, u64>,
-    pub state: SessionState,
-    reported: Option<SessionState>,
-    pings_in_flight: BTreeMap<u64, Instant>,
-    incoming_chat: Vec<String>,
-    next_ping: u64,
-    last_ping_sent: Option<Instant>,
-    round_trip: Option<Duration>,
 }
 
-impl NetSession {
-    /// Plays against `remote_team`, commanded from the other end of an established connection.
-    pub fn over(stream: TcpStream, remote_team: Team) -> std::io::Result<Self> {
+impl Link {
+    pub fn new(stream: TcpStream) -> std::io::Result<Self> {
         stream.set_nodelay(true)?;
         let reader = stream.try_clone()?;
         let (sender, receiver) = channel();
         std::thread::spawn(move || {
             let mut reader = BufReader::new(reader);
             loop {
-                match read_message(&mut reader) {
-                    Some(message) => {
-                        if sender.send(Arrival::Message(message)).is_err() {
-                            return;
-                        }
-                    }
-                    None => {
-                        let _ = sender.send(Arrival::ConnectionLost);
-                        return;
-                    }
+                let arrival = match read_message(&mut reader) {
+                    Some(message) => Arrival::Message(message),
+                    None => Arrival::ConnectionLost,
+                };
+                let lost = matches!(arrival, Arrival::ConnectionLost);
+                if sender.send(arrival).is_err() || lost {
+                    return;
                 }
             }
         });
@@ -130,7 +121,147 @@ impl NetSession {
             writer: Mutex::new(stream),
             inbox: Mutex::new(receiver),
             early: Vec::new(),
-            remote_team,
+        })
+    }
+
+    /// Returns whether the message left; a failure means the connection is gone.
+    fn send(&self, message: &Message) -> bool {
+        let Ok(bytes) = serde_json::to_vec(message) else {
+            return true;
+        };
+        self.writer.lock().is_ok_and(|mut stream| {
+            stream
+                .write_all(&(bytes.len() as u32).to_be_bytes())
+                .and_then(|_| stream.write_all(&bytes))
+                .is_ok()
+        })
+    }
+
+    fn drain(&mut self) -> Vec<Arrival> {
+        let mut arrivals = std::mem::take(&mut self.early);
+        if let Ok(inbox) = self.inbox.lock() {
+            arrivals.extend(inbox.try_iter());
+        }
+        arrivals
+    }
+
+    /// Shows a guest the host's battle.
+    pub fn offer(&self, level: &LevelDefinition, your_team: Team, players: &[Team]) {
+        self.send(&Message::Offer {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            level: Box::new(level.clone()),
+            your_team,
+            players: players.to_vec(),
+        });
+    }
+
+    pub fn accept_offer(&self) {
+        self.send(&Message::Ready);
+    }
+
+    pub fn go(&self) {
+        self.send(&Message::Go);
+    }
+
+    /// Sends a chat line in `team`'s name; it is cleaned first, and `None` when nothing printable is left.
+    pub fn say(&self, team: Team, text: &str) -> Option<String> {
+        let text = chat_line(text)?;
+        self.send(&Message::Chat {
+            team,
+            text: text.clone(),
+        });
+        Some(text)
+    }
+
+    /// Passes a chat line from one guest on to another.
+    pub fn relay_chat(&self, team: Team, text: &str) {
+        self.send(&Message::Chat {
+            team,
+            text: text.to_string(),
+        });
+    }
+
+    /// Lobby messages since the last call; battle messages that arrive early are kept for the battle.
+    pub fn lobby_news(&mut self) -> Vec<LobbyNews> {
+        let mut news = Vec::new();
+        for arrival in self.drain() {
+            match arrival {
+                Arrival::Message(Message::Offer {
+                    version,
+                    level,
+                    your_team,
+                    players,
+                }) => news.push(LobbyNews::Offered(
+                    if version == env!("CARGO_PKG_VERSION") {
+                        Ok(Box::new(Offer {
+                            level: *level,
+                            your_team,
+                            players,
+                        }))
+                    } else {
+                        Err(version)
+                    },
+                )),
+                Arrival::Message(Message::Ready) => news.push(LobbyNews::GuestReady),
+                Arrival::Message(Message::Go) => news.push(LobbyNews::Go),
+                Arrival::Message(Message::Ping { nonce }) => {
+                    self.send(&Message::Pong { nonce });
+                }
+                Arrival::Message(Message::Chat { team, text }) => {
+                    news.extend(chat_line(&text).map(|text| LobbyNews::Chat(team, text)));
+                }
+                Arrival::ConnectionLost => news.push(LobbyNews::Left),
+                battle => self.early.push(battle),
+            }
+        }
+        news
+    }
+}
+
+/// The reading thread holds its own handle on the connection, so leaving must close it outright for the
+/// other machine to notice.
+impl Drop for Link {
+    fn drop(&mut self) {
+        if let Ok(stream) = self.writer.lock() {
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SessionState {
+    InStep,
+    /// The machines computed different battles at this tick; play cannot continue.
+    Desynced(u64),
+    Disconnected,
+}
+
+/// A battle with players on other machines: every machine runs the whole simulation and they exchange only
+/// commands. A guest has one link, to the host; the host has one per guest and passes messages between them.
+#[derive(Resource)]
+pub struct NetSession {
+    links: Vec<Link>,
+    relays: bool,
+    remote_teams: Vec<Team>,
+    remote_turns: BTreeSet<(u64, usize)>,
+    local_checksums: BTreeMap<u64, u64>,
+    remote_checksums: BTreeMap<(u64, usize), u64>,
+    pub state: SessionState,
+    reported: Option<SessionState>,
+    pings_in_flight: BTreeMap<u64, Instant>,
+    incoming_chat: Vec<(Team, String)>,
+    next_ping: u64,
+    last_ping_sent: Option<Instant>,
+    round_trip: Option<Duration>,
+}
+
+impl NetSession {
+    /// `relays` is true for the host, which passes each guest's messages on to the other guests.
+    pub fn new(links: Vec<Link>, remote_teams: Vec<Team>, relays: bool) -> Self {
+        Self {
+            links,
+            relays,
+            remote_teams,
             remote_turns: BTreeSet::new(),
             local_checksums: BTreeMap::new(),
             remote_checksums: BTreeMap::new(),
@@ -141,37 +272,38 @@ impl NetSession {
             next_ping: 0,
             last_ping_sent: None,
             round_trip: None,
-        })
-    }
-
-    pub fn remote_team(&self) -> Team {
-        self.remote_team
-    }
-
-    /// Sends a chat line; it is trimmed to a sensible length and stripped of control characters.
-    pub fn say(&mut self, text: &str) -> Option<String> {
-        let line = chat_line(text)?;
-        self.send(&Message::Chat { text: line.clone() });
-        Some(line)
-    }
-
-    /// Chat lines the other player sent since the last call.
-    pub fn take_chat(&mut self) -> Vec<String> {
-        let mut lines = std::mem::take(&mut self.incoming_chat);
-        if let Ok(inbox) = self.inbox.lock() {
-            self.early.extend(inbox.try_iter());
         }
-        let early = std::mem::take(&mut self.early);
-        for arrival in early {
-            match arrival {
-                Arrival::Message(Message::Chat { text }) => lines.extend(chat_line(&text)),
-                other => self.early.push(other),
-            }
-        }
-        lines
     }
 
-    /// The smoothed time a message takes to the other machine and back; `None` until first measured.
+    /// A battle against one other machine over `stream`.
+    pub fn with_one_player(stream: TcpStream, remote_team: Team) -> std::io::Result<Self> {
+        Ok(Self::new(
+            vec![Link::new(stream)?],
+            vec![remote_team],
+            false,
+        ))
+    }
+
+    pub fn remote_teams(&self) -> &[Team] {
+        &self.remote_teams
+    }
+
+    /// Sends a chat line in `team`'s name to every other player; returns the cleaned line.
+    pub fn say(&mut self, team: Team, text: &str) -> Option<String> {
+        let text = chat_line(text)?;
+        self.broadcast(&Message::Chat {
+            team,
+            text: text.clone(),
+        });
+        Some(text)
+    }
+
+    /// Chat lines other players sent since the last call, with the team that sent each.
+    pub fn take_chat(&mut self) -> Vec<(Team, String)> {
+        std::mem::take(&mut self.incoming_chat)
+    }
+
+    /// The smoothed time a message takes to another machine and back; `None` until first measured.
     pub fn round_trip(&self) -> Option<Duration> {
         self.round_trip
     }
@@ -190,11 +322,11 @@ impl NetSession {
         self.pings_in_flight.insert(nonce, now);
         self.pings_in_flight
             .retain(|&sent, _| sent + PINGS_REMEMBERED > nonce);
-        self.send(&Message::Ping { nonce });
+        self.broadcast(&Message::Ping { nonce });
     }
 
     fn answered(&mut self, nonce: u64) {
-        let Some(sent) = self.pings_in_flight.remove(&nonce) else {
+        let Some(&sent) = self.pings_in_flight.get(&nonce) else {
             return;
         };
         let measured = sent.elapsed();
@@ -207,107 +339,96 @@ impl NetSession {
         });
     }
 
-    /// Shows the guest the host's battle.
-    pub fn offer(&mut self, level: &LevelDefinition) {
-        self.send(&Message::Offer {
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            level: Box::new(level.clone()),
-        });
+    /// Whether every other player's commands for `tick` have arrived; the first ticks need none.
+    fn has_turns_for(&self, tick: u64) -> bool {
+        tick < NETWORK_COMMAND_DELAY_TICKS
+            || self
+                .remote_teams
+                .iter()
+                .all(|team| self.remote_turns.contains(&(tick, team.index())))
     }
 
-    pub fn accept_offer(&mut self) {
-        self.send(&Message::Ready);
+    fn broadcast(&mut self, message: &Message) {
+        self.send_except(message, None);
     }
 
-    pub fn go(&mut self) {
-        self.send(&Message::Go);
-    }
-
-    /// Lobby messages since the last call; battle messages that arrive early are kept for the battle.
-    pub fn lobby_news(&mut self) -> Vec<LobbyNews> {
-        let mut news = Vec::new();
-        for arrival in self.drain_inbox() {
-            match arrival {
-                Arrival::Message(Message::Offer { version, level }) => {
-                    news.push(LobbyNews::Offered(
-                        if version == env!("CARGO_PKG_VERSION") {
-                            Ok(*level)
-                        } else {
-                            Err(version)
-                        },
-                    ));
-                }
-                Arrival::Message(Message::Ready) => news.push(LobbyNews::GuestReady),
-                Arrival::Message(Message::Go) => news.push(LobbyNews::Go),
-                Arrival::Message(Message::Ping { nonce }) => self.send(&Message::Pong { nonce }),
-                Arrival::Message(Message::Chat { text }) => {
-                    self.incoming_chat.extend(chat_line(&text))
-                }
-                Arrival::ConnectionLost => {
-                    self.state = SessionState::Disconnected;
-                    news.push(LobbyNews::Left);
-                }
-                battle => self.early.push(battle),
+    fn send_except(&mut self, message: &Message, skipped: Option<usize>) {
+        let mut lost = false;
+        for (index, link) in self.links.iter().enumerate() {
+            if Some(index) != skipped {
+                lost |= !link.send(message);
             }
         }
-        news
-    }
-
-    fn drain_inbox(&mut self) -> Vec<Arrival> {
-        let mut arrivals = std::mem::take(&mut self.early);
-        if let Ok(inbox) = self.inbox.lock() {
-            arrivals.extend(inbox.try_iter());
-        }
-        arrivals
-    }
-
-    /// Whether the other player's commands for `tick` have arrived; the first ticks need none.
-    fn has_turn_for(&self, tick: u64) -> bool {
-        tick < NETWORK_COMMAND_DELAY_TICKS || self.remote_turns.contains(&tick)
-    }
-
-    fn send(&mut self, message: &Message) {
-        let Ok(bytes) = serde_json::to_vec(message) else {
-            return;
-        };
-        let sent = self.writer.lock().map_err(|_| ()).and_then(|mut stream| {
-            stream
-                .write_all(&(bytes.len() as u32).to_be_bytes())
-                .and_then(|_| stream.write_all(&bytes))
-                .map_err(|_| ())
-        });
-        if sent.is_err() {
+        if lost {
             self.state = SessionState::Disconnected;
         }
     }
 
-    /// Once both fingerprints of a tick are known they are compared and forgotten.
-    fn compare_checksums(&mut self, tick: u64) {
+    /// Once both fingerprints of a tick are known they are compared; the remote one is then forgotten.
+    fn compare_checksums(&mut self, tick: u64, team: usize) {
         let (Some(&local), Some(&remote)) = (
             self.local_checksums.get(&tick),
-            self.remote_checksums.get(&tick),
+            self.remote_checksums.get(&(tick, team)),
         ) else {
             return;
         };
-        self.local_checksums.remove(&tick);
-        self.remote_checksums.remove(&tick);
+        self.remote_checksums.remove(&(tick, team));
         if local != remote && self.state == SessionState::InStep {
             self.state = SessionState::Desynced(tick);
         }
     }
-}
 
-/// The reading thread holds its own handle on the connection, so leaving must close it outright for the
-/// other player to notice.
-impl Drop for NetSession {
-    fn drop(&mut self) {
-        if let Ok(stream) = self.writer.lock() {
-            let _ = stream.shutdown(std::net::Shutdown::Both);
+    /// Reads every link; the host passes what a guest says about the battle on to the other guests.
+    fn receive(&mut self, queue: &mut CommandQueue) {
+        for index in 0..self.links.len() {
+            for arrival in self.links[index].drain() {
+                let message = match arrival {
+                    Arrival::Message(message) => message,
+                    Arrival::ConnectionLost => {
+                        self.state = SessionState::Disconnected;
+                        continue;
+                    }
+                };
+                let shared = matches!(
+                    message,
+                    Message::Turn { .. } | Message::Checksum { .. } | Message::Chat { .. }
+                );
+                if self.relays && shared {
+                    self.send_except(&message, Some(index));
+                }
+                match message {
+                    Message::Turn {
+                        team,
+                        tick,
+                        commands,
+                    } => {
+                        for command in commands {
+                            queue.schedule(ScheduledCommand {
+                                tick,
+                                team,
+                                command,
+                            });
+                        }
+                        self.remote_turns.insert((tick, team.index()));
+                    }
+                    Message::Checksum { team, tick, sum } => {
+                        self.remote_checksums.insert((tick, team.index()), sum);
+                        self.compare_checksums(tick, team.index());
+                    }
+                    Message::Chat { team, text } => {
+                        self.incoming_chat
+                            .extend(chat_line(&text).map(|text| (team, text)));
+                    }
+                    Message::Ping { nonce } => {
+                        self.links[index].send(&Message::Pong { nonce });
+                    }
+                    Message::Pong { nonce } => self.answered(nonce),
+                    Message::Offer { .. } | Message::Ready | Message::Go => {}
+                }
+            }
         }
     }
 }
-
-const LONGEST_CHAT_LINE: usize = 120;
 
 /// What may be shown of a chat line: printable characters, trimmed, at most `LONGEST_CHAT_LINE` of them.
 fn chat_line(text: &str) -> Option<String> {
@@ -332,40 +453,16 @@ fn read_message(reader: &mut impl Read) -> Option<Message> {
     serde_json::from_slice(&bytes).ok()
 }
 
-/// The simulation may take its next step only once the other player's commands for it are known.
+/// The simulation may take its next step only once every other player's commands for it are known.
 pub fn simulation_may_advance(session: Option<Res<NetSession>>, tick: Res<SimulationTick>) -> bool {
-    session
-        .is_none_or(|session| session.state == SessionState::InStep && session.has_turn_for(tick.0))
+    session.is_none_or(|session| {
+        session.state == SessionState::InStep && session.has_turns_for(tick.0)
+    })
 }
 
 pub fn receive_turns(session: Option<ResMut<NetSession>>, mut queue: ResMut<CommandQueue>) {
-    let Some(mut session) = session else { return };
-    let arrivals = session.drain_inbox();
-    let remote_team = session.remote_team;
-    for arrival in arrivals {
-        match arrival {
-            Arrival::Message(Message::Turn { tick, commands }) => {
-                for command in commands {
-                    queue.schedule(ScheduledCommand {
-                        tick,
-                        team: remote_team,
-                        command,
-                    });
-                }
-                session.remote_turns.insert(tick);
-            }
-            Arrival::Message(Message::Checksum { tick, sum }) => {
-                session.remote_checksums.insert(tick, sum);
-                session.compare_checksums(tick);
-            }
-            Arrival::Message(Message::Ping { nonce }) => session.send(&Message::Pong { nonce }),
-            Arrival::Message(Message::Pong { nonce }) => session.answered(nonce),
-            Arrival::Message(Message::Chat { text }) => {
-                session.incoming_chat.extend(chat_line(&text))
-            }
-            Arrival::Message(Message::Offer { .. } | Message::Ready | Message::Go) => {}
-            Arrival::ConnectionLost => session.state = SessionState::Disconnected,
-        }
+    if let Some(mut session) = session {
+        session.receive(&mut queue);
     }
 }
 
@@ -387,11 +484,14 @@ pub fn send_turn(
     let Some(mut session) = session else { return };
     let turn = tick.0 + NETWORK_COMMAND_DELAY_TICKS;
     let message = Message::Turn {
+        team: local.0,
         tick: turn,
         commands: queue.scheduled_for(turn, local.0),
     };
-    session.send(&message);
-    session.remote_turns.retain(|&received| received >= tick.0);
+    session.broadcast(&message);
+    session
+        .remote_turns
+        .retain(|&(received, _)| received >= tick.0);
 }
 
 pub fn fingerprint_tick(world: &mut World) {
@@ -400,10 +500,21 @@ pub fn fingerprint_tick(world: &mut World) {
         return;
     }
     let sum = simulation_checksum(world);
+    let team = world.resource::<LocalTeam>().0;
     let mut session = world.resource_mut::<NetSession>();
     session.local_checksums.insert(tick, sum);
-    session.send(&Message::Checksum { tick, sum });
-    session.compare_checksums(tick);
+    session
+        .local_checksums
+        .retain(|&checked, _| checked + CHECKSUM_EVERY_TICKS * 30 > tick);
+    session.broadcast(&Message::Checksum { team, tick, sum });
+    let teams: Vec<usize> = session
+        .remote_teams
+        .iter()
+        .map(|team| team.index())
+        .collect();
+    for team in teams {
+        session.compare_checksums(tick, team);
+    }
 }
 
 /// Tells the player once why the battle stopped.
@@ -416,24 +527,23 @@ pub fn report_session_trouble(
         return;
     }
     notifications.push(match session.state {
-        SessionState::Disconnected => tr("The other player has left the battle").to_string(),
+        SessionState::Disconnected => tr("Another player has left the battle").to_string(),
         SessionState::Desynced(tick) => {
-            tr_fmt("Out of step with the other player at tick {}", &[&tick])
+            tr_fmt("Out of step with the other players at tick {}", &[&tick])
         }
         SessionState::InStep => return,
     });
     session.reported = Some(session.state);
 }
 
-/// Teams played by people on either machine get no computer commander.
+/// Teams played by people on any machine get no computer commander.
 pub fn retire_commanders_of_players(
     session: Option<Res<NetSession>>,
     local: Res<LocalTeam>,
     mut commanders: ResMut<AiCommanders>,
 ) {
     let Some(session) = session else { return };
-    let humans = [local.0, session.remote_team];
-    commanders
-        .0
-        .retain(|commander| !humans.contains(&commander.team));
+    commanders.0.retain(|commander| {
+        commander.team != local.0 && !session.remote_teams.contains(&commander.team)
+    });
 }

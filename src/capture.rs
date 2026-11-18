@@ -30,7 +30,8 @@ const CAPTURE_REPLAY_VAR: &str = "IRON_TIDE_CAPTURE_REPLAY";
 const CAPTURE_SELECT_ALL_VAR: &str = "IRON_TIDE_CAPTURE_SELECT_ALL";
 const CAPTURE_ZOOM_VAR: &str = "IRON_TIDE_CAPTURE_ZOOM";
 const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
-/// `IRON_TIDE_CAPTURE_HOST=1` hosts a network battle and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1` joins one.
+/// `IRON_TIDE_CAPTURE_HOST=2` hosts a network battle for that many players and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`
+/// joins one.
 const CAPTURE_HOST_VAR: &str = "IRON_TIDE_CAPTURE_HOST";
 const CAPTURE_JOIN_VAR: &str = "IRON_TIDE_CAPTURE_JOIN";
 const LOAD_AFTER_SECS: f32 = 1.5;
@@ -277,7 +278,11 @@ fn start_requested_mission(
     mut lobby: ResMut<NetLobby>,
 ) {
     if std::env::var_os(CAPTURE_HOST_VAR).is_some() {
-        lobby.host(network_level(&SkirmishOptions::default()));
+        let players = std::env::var(CAPTURE_HOST_VAR)
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(2);
+        lobby.host(network_level(&SkirmishOptions::default(), players), players);
         return;
     }
     if let Ok(address) = std::env::var(CAPTURE_JOIN_VAR) {

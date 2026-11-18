@@ -2,6 +2,7 @@ use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 
+use crate::catalog::Alliance;
 use crate::catalog::Team;
 use crate::i18n::{Language, set_language, tr, tr_fmt, tr_owned};
 use crate::levels::{
@@ -9,7 +10,7 @@ use crate::levels::{
     SkirmishOptions, TechLevel, Weather, campaign, custom_levels, custom_levels_directory,
     save_custom_level,
 };
-use crate::lobby::{NetLobby, network_level};
+use crate::lobby::{MOST_PLAYERS, NetLobby, network_level};
 use crate::map::MapSize;
 use crate::match_flow::GameState;
 use crate::replay::{ReplayPlayback, ReplaySummary, list_replays, load_replay, replay_directory};
@@ -104,9 +105,10 @@ pub enum EditorField {
     Weather,
     Season,
     MapSize,
+    NetworkPlayers,
 }
 
-const EDITOR_FIELDS: [EditorField; 13] = [
+const EDITOR_FIELDS: [EditorField; 14] = [
     EditorField::Enemies,
     EditorField::Difficulty,
     EditorField::Credits,
@@ -120,6 +122,7 @@ const EDITOR_FIELDS: [EditorField; 13] = [
     EditorField::Weather,
     EditorField::Season,
     EditorField::MapSize,
+    EditorField::NetworkPlayers,
 ];
 
 fn cycle<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
@@ -148,6 +151,7 @@ impl EditorField {
             EditorField::Weather => tr("Weather"),
             EditorField::Season => tr("Season"),
             EditorField::MapSize => tr("Map size"),
+            EditorField::NetworkPlayers => tr("Network players"),
         }
     }
 
@@ -171,10 +175,10 @@ impl EditorField {
                 tr("Off")
             }
             .into(),
-            EditorField::Alliance => if options.free_for_all {
-                tr("Free-for-all")
-            } else {
-                tr("Allied")
+            EditorField::Alliance => match options.alliance {
+                Alliance::CoalitionAgainstSyndicate => tr("Allied"),
+                Alliance::FreeForAll => tr("Free-for-all"),
+                Alliance::TwoAgainstTwo => tr("Two against two"),
             }
             .into(),
             EditorField::Landscape => tr_owned(&format!("{:?}", options.landscape)),
@@ -188,6 +192,7 @@ impl EditorField {
                     &options.map_size.cells(),
                 ],
             ),
+            EditorField::NetworkPlayers => options.network_players.to_string(),
         }
     }
 
@@ -228,7 +233,9 @@ impl EditorField {
                 options.player_site = cycle(&BaseSite::ALL, options.player_site, forward)
             }
             EditorField::FogOfWar => options.fog_of_war = !options.fog_of_war,
-            EditorField::Alliance => options.free_for_all = !options.free_for_all,
+            EditorField::Alliance => {
+                options.alliance = cycle(&Alliance::ALL, options.alliance, forward);
+            }
             EditorField::Landscape => {
                 options.landscape = cycle(&Landscape::ALL, options.landscape, forward);
             }
@@ -240,6 +247,10 @@ impl EditorField {
             }
             EditorField::MapSize => {
                 options.map_size = cycle(&MapSize::ALL, options.map_size, forward);
+            }
+            EditorField::NetworkPlayers => {
+                let counts: Vec<usize> = (2..=MOST_PLAYERS).collect();
+                options.network_players = cycle(&counts, options.network_players, forward);
             }
         }
     }
@@ -703,11 +714,12 @@ fn spawn_address_row(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, join_add
 
 fn spawn_chat(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, lobby: &NetLobby) {
     for line in lobby.chat() {
-        let (who, color) = if line.mine {
-            (tr("You"), Team::Player.ui_color())
+        let who = if line.mine {
+            tr("You")
         } else {
-            (tr("Other player"), ACCENT)
+            tr(line.team.name())
         };
+        let color = line.team.ui_color();
         panel.spawn(fonts.text(format!("{who}: {}", line.text), 15.0, color));
     }
     let label = tr("Message (Enter sends)");
@@ -915,7 +927,10 @@ fn run_command(
         }
         MenuCommand::ContinueQuickSave => requests.load = Some(QUICK_SAVE_SLOT),
         MenuCommand::DownloadUpdate => download_update(&mut updates),
-        MenuCommand::HostNetworkBattle => lobby.host(network_level(&menu.options)),
+        MenuCommand::HostNetworkBattle => {
+            let players = menu.options.network_players;
+            lobby.host(network_level(&menu.options, players), players);
+        }
         MenuCommand::JoinNetworkBattle => lobby.join(&settings.join_address),
         MenuCommand::AcceptNetworkOffer => lobby.accept_offer(),
         MenuCommand::CancelNetworkBattle => lobby.cancel(),

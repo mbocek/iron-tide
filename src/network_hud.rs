@@ -1,9 +1,10 @@
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 
-use crate::i18n::tr_fmt;
+use crate::i18n::{tr, tr_fmt};
 use crate::network::{NetSession, SessionState};
 use crate::notifications::Notifications;
+use crate::player_commands::LocalTeam;
 use crate::player_commands::SimulationTick;
 use crate::ui::{ACCENT, SIDEBAR_WIDTH, TEXT_DIM, UiFonts, set_field};
 
@@ -119,6 +120,7 @@ pub fn spawn_chat_line(commands: &mut Commands, fonts: &UiFonts) {
 /// Enter opens the chat line, Enter again sends it and Esc drops it. While it is open the keyboard types
 /// instead of commanding, so every other system sees no keys pressed.
 pub fn type_battle_chat(
+    local: Res<LocalTeam>,
     session: Option<ResMut<NetSession>>,
     mut chat: ResMut<BattleChat>,
     mut keys: ResMut<ButtonInput<KeyCode>>,
@@ -142,7 +144,7 @@ pub fn type_battle_chat(
     for key in typed.read().filter(|key| key.state.is_pressed()) {
         match &key.logical_key {
             Key::Enter => {
-                if let Some(sent) = session.say(draft) {
+                if let Some(sent) = session.say(local.0, draft) {
                     notifications.push(tr_fmt("You: {}", &[&sent]));
                 }
                 finished = true;
@@ -169,8 +171,8 @@ pub fn show_chat(
     mut lines: Query<(&mut Text, &mut Node), With<ChatDraftLine>>,
 ) {
     if let Some(mut session) = session {
-        for text in session.take_chat() {
-            notifications.push(tr_fmt("Other player: {}", &[&text]));
+        for (team, text) in session.take_chat() {
+            notifications.push(tr_fmt("{}: {}", &[&tr(team.name()), &text]));
         }
     }
     for (mut text, mut node) in &mut lines {

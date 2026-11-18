@@ -4,12 +4,13 @@ use std::net::{TcpListener, TcpStream};
 
 use bevy::prelude::*;
 use common::Battle;
+use iron_tide::catalog::Alliance;
 use iron_tide::catalog::{Team, UnitKind};
 use iron_tide::determinism::simulation_checksum;
 use iron_tide::economy::Economies;
-use iron_tide::levels::LevelDefinition;
+use iron_tide::levels::{BaseSite, EnemySetup, ForceSetup, LevelDefinition};
 use iron_tide::lobby::NetLobby;
-use iron_tide::network::{NetSession, SessionState};
+use iron_tide::network::{Link, NetSession, SessionState};
 use iron_tide::player_commands::{GroundOrder, PlayerCommand};
 
 const TICKS_TO_PLAY: u64 = 1200;
@@ -170,7 +171,7 @@ fn lobby_pair() -> (NetLobby, NetLobby, LevelDefinition) {
         ..LevelDefinition::default()
     };
     let mut host = NetLobby::default();
-    host.host_on(listener, level.clone());
+    host.host_on(listener, level.clone(), 2);
     let mut guest = NetLobby::default();
     guest.join(&address);
     (host, guest, level)
@@ -236,7 +237,7 @@ fn when_the_guest_leaves_the_host_waits_for_another() {
     guest.cancel();
     settle(&mut host, &mut guest, &mut clock, |host, _| {
         host.status(0.0)
-            .is_some_and(|status| status.contains("Waiting for the other player"))
+            .is_some_and(|status| status.contains("Players 1 of 2"))
     });
     assert!(host.is_busy());
 }
@@ -258,4 +259,121 @@ fn players_can_talk_in_the_lobby() {
     assert_eq!(heard.text, "hello  there");
     assert!(guest.chat()[0].mine);
     assert!(guest.draft.is_empty());
+}
+
+fn four_connected_battles() -> Vec<(Battle, Team)> {
+    let level = LevelDefinition {
+        alliance: Alliance::FreeForAll,
+        enemies: vec![EnemySetup::default(); 3]
+            .into_iter()
+            .zip([
+                BaseSite::NorthEast,
+                BaseSite::NorthWest,
+                BaseSite::SouthEast,
+            ])
+            .map(|(enemy, site)| EnemySetup {
+                force: ForceSetup {
+                    site,
+                    ..enemy.force
+                },
+                ..enemy
+            })
+            .collect(),
+        ..LevelDefinition::default()
+    };
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let guests = [Team::Crimson, Team::Amber, Team::Violet];
+    let mut host_links = Vec::new();
+    let mut battles = Vec::new();
+    for &team in &guests {
+        let guest_end = TcpStream::connect(address).unwrap();
+        let (host_end, _) = listener.accept().unwrap();
+        host_links.push(Link::new(host_end).unwrap());
+        let others = Team::ALL
+            .into_iter()
+            .filter(|&other| other != team)
+            .collect();
+        let session = NetSession::new(vec![Link::new(guest_end).unwrap()], others, false);
+        let mut battle = Battle::on_level(level.clone());
+        battle.join_session(session, team);
+        battles.push((battle, team));
+    }
+    let mut host = Battle::on_level(level);
+    host.join_session(
+        NetSession::new(host_links, guests.to_vec(), true),
+        Team::Player,
+    );
+    battles.insert(0, (host, Team::Player));
+    battles
+}
+
+#[test]
+fn four_machines_play_one_free_for_all() {
+    let mut battles = four_connected_battles();
+    let goal = IVec2::new(32, 32);
+    let mut rounds = 0;
+    while battles.iter_mut().any(|(battle, _)| battle.tick() < 900) {
+        for (battle, team) in &mut battles {
+            if battle.tick() == 60 && !battle.units(*team, Some(UnitKind::Tank)).is_empty() {
+                attack_with_tanks(battle, *team, goal);
+            }
+            if battle.tick() < 900 {
+                battle.run_for(LIMIT_SECS);
+            }
+            assert_eq!(battle.session_state(), Some(SessionState::InStep));
+        }
+        rounds += 1;
+        assert!(rounds < 20_000, "the battles stopped advancing");
+    }
+    let sums: Vec<u64> = battles
+        .iter_mut()
+        .map(|(battle, _)| {
+            while battle.tick() < 900 {
+                battle.run_for(LIMIT_SECS);
+            }
+            simulation_checksum(battle.world())
+        })
+        .collect();
+    assert!(sums.windows(2).all(|pair| pair[0] == pair[1]), "{sums:x?}");
+}
+
+#[test]
+fn three_players_take_their_seats_and_start_together() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let mut host = NetLobby::default();
+    host.host_on(listener, LevelDefinition::default(), 3);
+    let mut guests = [NetLobby::default(), NetLobby::default()];
+    for guest in &mut guests {
+        guest.join(&address);
+    }
+    let mut clock = 0.0;
+    let mut started = Vec::new();
+    for _ in 0..3000 {
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        clock += 0.002;
+        for guest in &mut guests {
+            if guest.can_accept_offer() {
+                guest.accept_offer();
+            }
+        }
+        started.extend(host.advance(clock).map(|start| start.local_team));
+        for guest in &mut guests {
+            started.extend(guest.advance(clock).map(|start| start.local_team));
+        }
+        if started.len() == 3 {
+            break;
+        }
+        let counting_down = std::iter::once(&host).chain(&guests).any(|lobby| {
+            lobby
+                .status(clock)
+                .is_some_and(|status| status.contains("begins"))
+        });
+        if counting_down {
+            clock += 0.5;
+        }
+    }
+    started.sort_by_key(|team| team.index());
+    assert_eq!(started, vec![Team::Player, Team::Crimson, Team::Amber]);
 }

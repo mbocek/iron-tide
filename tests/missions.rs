@@ -2,7 +2,7 @@ mod common;
 
 use bevy::prelude::*;
 use common::Battle;
-use iron_tide::catalog::{BuildingKind, Team, UnitKind};
+use iron_tide::catalog::{Alliance, BuildingKind, Diplomacy, Team, UnitKind};
 use iron_tide::components::*;
 use iron_tide::engineers::{EngineerJob, EngineerTask};
 use iron_tide::levels::{
@@ -92,10 +92,38 @@ fn three_enemy_commanders_each_build_a_base() {
 }
 
 #[test]
-fn enemies_are_allied_against_the_player() {
-    assert!(Team::Crimson.is_hostile_to(Team::Player));
-    assert!(Team::Player.is_hostile_to(Team::Violet));
-    assert!(!Team::Crimson.is_hostile_to(Team::Amber));
+fn alliances_decide_who_fights_whom() {
+    let against_syndicate = Diplomacy::default();
+    assert!(against_syndicate.hostile(Team::Crimson, Team::Player));
+    assert!(against_syndicate.hostile(Team::Player, Team::Violet));
+    assert!(!against_syndicate.hostile(Team::Crimson, Team::Amber));
+    let pairs = Diplomacy {
+        alliance: Alliance::TwoAgainstTwo,
+    };
+    assert!(!pairs.hostile(Team::Player, Team::Amber));
+    assert!(!pairs.hostile(Team::Crimson, Team::Violet));
+    assert!(pairs.hostile(Team::Amber, Team::Violet));
+    let everyone = Diplomacy {
+        alliance: Alliance::FreeForAll,
+    };
+    assert!(everyone.hostile(Team::Crimson, Team::Amber));
+    assert!(!everyone.hostile(Team::Violet, Team::Violet));
+}
+
+#[test]
+fn a_two_against_two_battle_takes_every_corner_and_ends() {
+    let options = SkirmishOptions {
+        alliance: Alliance::TwoAgainstTwo,
+        enemies: 1,
+        ..SkirmishOptions::default()
+    };
+    let level = options.to_level();
+    assert_eq!(level.enemies.len(), 3);
+    let mut battle = Battle::on_level(level);
+    battle.add_ai(Team::Player, BaseSite::SouthWest.origin(), Difficulty::Hard);
+    battle.run_for(60.0);
+    assert!(battle.outcome() == GameOutcome::Ongoing);
+    assert!(battle.hostile_units(Team::Player) > 0);
 }
 
 #[test]

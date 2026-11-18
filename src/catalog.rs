@@ -25,10 +25,6 @@ impl Team {
         }
     }
 
-    pub fn is_hostile_to(self, other: Team) -> bool {
-        (self == Team::Player) != (other == Team::Player)
-    }
-
     pub fn name(self) -> &'static str {
         match self {
             Team::Player => "Coalition",
@@ -57,16 +53,43 @@ impl Team {
     }
 }
 
-/// Who fights whom. Normally the Syndicate commanders are allies against the Coalition; in a free-for-all
-/// every team fights every other.
+/// Which teams fight on the same side.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum Alliance {
+    /// The Syndicate commanders are allies against the Coalition.
+    #[default]
+    CoalitionAgainstSyndicate,
+    FreeForAll,
+    /// The Coalition and Amber against Crimson and Violet: with the default sites, the two western bases
+    /// against the two eastern ones, each pair the mirror image of the other.
+    TwoAgainstTwo,
+}
+
+impl Alliance {
+    pub const ALL: [Alliance; 3] = [
+        Alliance::CoalitionAgainstSyndicate,
+        Alliance::FreeForAll,
+        Alliance::TwoAgainstTwo,
+    ];
+
+    fn side(self, team: Team) -> usize {
+        match self {
+            Alliance::CoalitionAgainstSyndicate => usize::from(team != Team::Player),
+            Alliance::FreeForAll => team.index(),
+            Alliance::TwoAgainstTwo => usize::from(matches!(team, Team::Crimson | Team::Violet)),
+        }
+    }
+}
+
+/// Who fights whom in the current match.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Diplomacy {
-    pub free_for_all: bool,
+    pub alliance: Alliance,
 }
 
 impl Diplomacy {
     pub fn hostile(self, team: Team, other: Team) -> bool {
-        team != other && (self.free_for_all || team.is_hostile_to(other))
+        self.alliance.side(team) != self.alliance.side(other)
     }
 }
 

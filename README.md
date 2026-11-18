@@ -207,7 +207,12 @@ selection, notifications, the camera's home and the victory or defeat banner all
 while the simulation keeps every team's view and stays the same on both machines. If the connection drops
 or the battles drift apart, the player is told once and the battle stops.
 
-To play, both players open *Network battle* in the main menu. The host clicks *Host a battle*: the battle
+Up to four people can play: the host sets *Network players* (2 to 4) in the battle editor, the guests
+take the Syndicate corners in the order they join, and the computer plays any corner left over. A
+four-player battle with the editor's default alliance becomes a free-for-all; *Two against two* pairs the
+host with the Amber player. Every guest connects to the host, which passes the guests' turns, checksums and
+chat on to each other; a tick runs once the turns of every player have arrived. To play, everyone opens
+*Network battle* in the main menu. The host clicks *Host a battle*: the battle
 editor's settings with one opponent are used, the game listens on TCP port 47300 and shows this computer's
 local address. The other player types that address (the port may be left out; the last address is
 remembered) and clicks *Join*. Once connected, the host offers the battle and the guest reads it (objective,
@@ -296,7 +301,7 @@ A level file is plain JSON; omitted fields take defaults:
   "available_buildings": [],
   "fog_of_war": true,
   "tutorial": false,
-  "free_for_all": false,
+  "alliance": "CoalitionAgainstSyndicate",
   "landscape": "River",
   "weather": "Clear",
   "season": "Summer",
@@ -329,8 +334,10 @@ attack wave and its income (75 % / 100 % / 135 %).
 
 - **Factions:** Coalition (blue, the player) against up to three Syndicate commanders (Crimson red, Amber
   orange, Violet purple), each with its own base, economy and AI. They are allies and share what they see,
-  unless the level is a free-for-all (`"free_for_all": true`, or *Opponents* in the battle editor): then they
-  fight each other as well, and each sees only through its own units and buildings.
+  unless the level says otherwise with `"alliance"` (or *Opponents* in the battle editor): `"FreeForAll"`
+  makes everyone fight everyone, each seeing only through its own units and buildings, and `"TwoAgainstTwo"`
+  pairs the Coalition with Amber against Crimson and Violet (the two western corners against the two eastern
+  ones with the default sites); allies share what they see. Older levels' `"free_for_all": true` still works.
 - **Economy:** the harvester mines crystals and unloads them at the refinery. Every refinery comes with a free harvester.
 - **Power:** when consumption exceeds production, all production runs at half speed.
 - **Engineer:** unarmed $500 infantry from the Barracks. Right-click an enemy structure (not a wall) with

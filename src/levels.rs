@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{BuildingKind, Team, UnitKind};
+use crate::catalog::{Alliance, BuildingKind, Team, UnitKind};
 use crate::i18n::{tr, tr_fmt};
 use crate::map::{MapSize, base_sites};
 use crate::season::Season;
@@ -191,7 +191,9 @@ pub struct LevelDefinition {
     pub fog_of_war: bool,
     /// Walk the player through the basics step by step.
     pub tutorial: bool,
-    /// The opponents fight each other as well as the player.
+    pub alliance: Alliance,
+    /// Older levels said `"free_for_all": true` for what is now `"alliance": "FreeForAll"`.
+    #[serde(skip_serializing)]
     pub free_for_all: bool,
     pub landscape: Landscape,
     pub weather: Weather,
@@ -219,6 +221,7 @@ impl Default for LevelDefinition {
             available_buildings: Vec::new(),
             fog_of_war: true,
             tutorial: false,
+            alliance: Alliance::CoalitionAgainstSyndicate,
             free_for_all: false,
             landscape: Landscape::River,
             weather: Weather::Clear,
@@ -229,6 +232,14 @@ impl Default for LevelDefinition {
 }
 
 impl LevelDefinition {
+    pub fn effective_alliance(&self) -> Alliance {
+        if self.free_for_all {
+            Alliance::FreeForAll
+        } else {
+            self.alliance
+        }
+    }
+
     /// Opponents in team order; a level lists at most three.
     pub fn opponents(&self) -> impl Iterator<Item = (Team, &EnemySetup)> {
         Team::OPPONENTS.into_iter().zip(self.enemies.iter())
@@ -404,11 +415,13 @@ pub struct SkirmishOptions {
     pub map_variant: u64,
     pub player_site: BaseSite,
     pub fog_of_war: bool,
-    pub free_for_all: bool,
+    pub alliance: Alliance,
     pub landscape: Landscape,
     pub weather: Weather,
     pub season: Season,
     pub map_size: MapSize,
+    /// People in a network battle, the host included; the computer plays the other corners.
+    pub network_players: usize,
 }
 
 impl Default for SkirmishOptions {
@@ -422,22 +435,32 @@ impl Default for SkirmishOptions {
             map_variant: 1,
             player_site: BaseSite::SouthWest,
             fog_of_war: true,
-            free_for_all: false,
+            alliance: Alliance::CoalitionAgainstSyndicate,
             landscape: Landscape::River,
             weather: Weather::Clear,
             season: Season::Summer,
             map_size: MapSize::Standard,
+            network_players: 2,
         }
     }
 }
 
 impl SkirmishOptions {
+    /// Two against two needs every corner taken.
+    fn enemy_count(&self) -> usize {
+        if self.alliance == Alliance::TwoAgainstTwo {
+            Team::OPPONENTS.len()
+        } else {
+            self.enemies.clamp(1, Team::OPPONENTS.len())
+        }
+    }
+
     pub fn to_level(&self) -> LevelDefinition {
         let enemy_sites = BaseSite::ALL
             .into_iter()
             .filter(|&site| site != self.player_site);
         let enemies = enemy_sites
-            .take(self.enemies.clamp(1, Team::OPPONENTS.len()))
+            .take(self.enemy_count())
             .map(|site| EnemySetup {
                 force: ForceSetup {
                     site,
@@ -456,7 +479,7 @@ impl SkirmishOptions {
             },
         };
         LevelDefinition {
-            name: format!("Battle vs {} ({:?})", self.enemies, self.difficulty),
+            name: format!("Battle vs {} ({:?})", self.enemy_count(), self.difficulty),
             briefing: "A custom battle.".into(),
             map_seed: 0x1a0_7de + self.map_variant * 7919,
             player: ForceSetup {
@@ -470,7 +493,8 @@ impl SkirmishOptions {
             available_buildings: Vec::new(),
             fog_of_war: self.fog_of_war,
             tutorial: false,
-            free_for_all: self.free_for_all,
+            alliance: self.alliance,
+            free_for_all: false,
             landscape: self.landscape,
             weather: self.weather,
             season: self.season,

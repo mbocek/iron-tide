@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::Team;
+use crate::catalog::{Diplomacy, Team};
 use crate::components::{Building, Unit};
 use crate::map::{CELL_SIZE, GameMap, map_cells, world_to_cell};
 
@@ -62,11 +62,6 @@ impl FogOfWar {
 
     pub fn is_explored(&self, position: Vec3) -> bool {
         self.sight_at(world_to_cell(position)) != CellSight::Unexplored
-    }
-
-    /// Whether the player may know about something of `team` standing at `position`.
-    pub fn reveals(&self, team: Team, position: Vec3) -> bool {
-        !team.is_hostile_to(Team::Player) || self.is_visible(position)
     }
 
     pub fn explored_cells(&self) -> Vec<bool> {
@@ -135,6 +130,7 @@ pub fn update_fog(
     time: Res<Time>,
     mut countdown: Local<f32>,
     mut fog: ResMut<FogOfWar>,
+    diplomacy: Res<Diplomacy>,
     viewers: Query<(&Team, &Transform, &Sight), Or<(With<Unit>, With<Building>)>>,
 ) {
     *countdown -= time.delta_secs();
@@ -144,7 +140,7 @@ pub fn update_fog(
     *countdown = UPDATE_INTERVAL_SECS;
     let own = viewers
         .iter()
-        .filter(|(team, ..)| **team == Team::Player)
+        .filter(|(team, ..)| !diplomacy.hostile(**team, Team::Player))
         .map(|(_, transform, sight)| (transform.translation, sight.0));
     fog.reveal_around(own);
 }
@@ -172,14 +168,6 @@ mod tests {
             CellSight::Explored,
             "explored ground stays known"
         );
-    }
-
-    #[test]
-    fn only_enemies_can_be_hidden() {
-        let fog = FogOfWar::new(true);
-        let somewhere = cell_center(IVec2::new(30, 30));
-        assert!(fog.reveals(Team::Player, somewhere));
-        assert!(!fog.reveals(Team::Crimson, somewhere));
     }
 
     #[test]

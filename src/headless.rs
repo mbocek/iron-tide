@@ -6,7 +6,7 @@ use std::time::Duration;
 use crate::SimulationPlugin;
 use crate::ai::{AiCommander, AiCommanders};
 use crate::assets::ModelLibrary;
-use crate::catalog::{BuildingKind, Team, UnitKind};
+use crate::catalog::{BuildingKind, Diplomacy, Team, UnitKind};
 use crate::combat::DamageDealt;
 use crate::combat::{DamageSource, Destroyed};
 use crate::components::*;
@@ -339,10 +339,11 @@ impl Battle {
 
     pub fn hostile_units(&mut self, team: Team) -> usize {
         let world = self.world();
+        let diplomacy = *world.resource::<Diplomacy>();
         world
             .query::<&Team>()
             .iter(world)
-            .filter(|owner| owner.is_hostile_to(team))
+            .filter(|owner| diplomacy.hostile(**owner, team))
             .count()
     }
 }
@@ -376,7 +377,8 @@ impl Battle {
         local_team: Team,
         remote_team: Team,
     ) {
-        let session = NetSession::over(stream, remote_team).expect("a working connection");
+        let session =
+            NetSession::with_one_player(stream, remote_team).expect("a working connection");
         let world = self.world();
         world.insert_resource(LocalTeam(local_team));
         world.insert_resource(session);
@@ -384,6 +386,18 @@ impl Battle {
             .resource_mut::<AiCommanders>()
             .0
             .retain(|commander| commander.team != local_team && commander.team != remote_team);
+    }
+
+    /// Joins a battle with several other machines; this battle plays `local_team`.
+    pub fn join_session(&mut self, session: NetSession, local_team: Team) {
+        let humans: Vec<Team> = session.remote_teams().to_vec();
+        let world = self.world();
+        world.insert_resource(LocalTeam(local_team));
+        world.insert_resource(session);
+        world
+            .resource_mut::<AiCommanders>()
+            .0
+            .retain(|commander| commander.team != local_team && !humans.contains(&commander.team));
     }
 
     pub fn tick(&mut self) -> u64 {

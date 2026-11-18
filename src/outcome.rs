@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::catalog::{BuildingKind, Team};
+use crate::catalog::{BuildingKind, Diplomacy, Team};
 use crate::components::{Building, Unit};
 use crate::economy::Economies;
 use crate::i18n::tr_fmt;
@@ -19,6 +19,7 @@ pub enum GameOutcome {
 /// The player loses once nothing of theirs is left; how they win depends on the mission objective.
 pub fn decide_outcome(
     local: Res<LocalTeam>,
+    diplomacy: Res<Diplomacy>,
     mut outcome: ResMut<GameOutcome>,
     level: Res<ActiveLevel>,
     clock: Res<MatchClock>,
@@ -30,15 +31,15 @@ pub fn decide_outcome(
         return;
     }
     let standing = |building: &Building| !building.kind.is_wall();
-    let player_alive = units.iter().any(|&t| t == local.0)
+    let hostile = |team: &Team| diplomacy.hostile(*team, local.0);
+    let own_side_alive = units.iter().any(|team| !hostile(team))
         || buildings
             .iter()
-            .any(|(&t, building)| t == local.0 && standing(building));
-    if !player_alive {
+            .any(|(team, building)| !hostile(team) && standing(building));
+    if !own_side_alive {
         *outcome = GameOutcome::Defeat;
         return;
     }
-    let hostile = |team: &Team| team.is_hostile_to(local.0);
     let achieved = match level.0.objective {
         Objective::DestroyAllEnemies => {
             !units.iter().any(hostile)

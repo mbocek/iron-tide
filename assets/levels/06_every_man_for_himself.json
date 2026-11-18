@@ -16,7 +16,7 @@
   "objective": "DestroyAllEnemies",
   "available_units": [],
   "available_buildings": [],
-  "free_for_all": true,
+  "alliance": "FreeForAll",
   "landscape": "Lake",
   "weather": "Rain"
 }

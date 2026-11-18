@@ -2,7 +2,7 @@ mod common;
 
 use bevy::prelude::*;
 use common::{Battle, BattleSetup};
-use iron_tide::catalog::{BuildingKind, STARTING_CREDITS, Team, UnitKind};
+use iron_tide::catalog::{BuildingKind, Diplomacy, STARTING_CREDITS, Team, UnitKind};
 use iron_tide::components::*;
 use iron_tide::levels::{LevelDefinition, campaign};
 use iron_tide::map::{
@@ -23,10 +23,11 @@ fn arrived(battle: &mut Battle, unit: Entity, goal: IVec2) -> bool {
 /// Sends every idle combat unit of the team at the nearest enemy, letting it fight whatever it meets.
 fn hunt_enemies(battle: &mut Battle, team: Team) {
     let world = battle.world();
+    let diplomacy = *world.resource::<Diplomacy>();
     let enemies: Vec<Vec3> = world
         .query::<(&Team, &Transform, &Health)>()
         .iter(world)
-        .filter(|(owner, ..)| owner.is_hostile_to(team))
+        .filter(|(owner, ..)| diplomacy.hostile(**owner, team))
         .map(|(_, transform, _)| transform.translation)
         .collect();
     if enemies.is_empty() {

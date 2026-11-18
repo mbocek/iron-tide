@@ -61,7 +61,7 @@ pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
     commands.insert_resource(FogOfWar::new(level.0.fog_of_war));
     commands.insert_resource(Intel::new(level.0.fog_of_war));
     commands.insert_resource(Diplomacy {
-        free_for_all: level.0.free_for_all,
+        alliance: level.0.effective_alliance(),
     });
     commands.insert_resource(LastHits::default());
     commands.insert_resource(MatchStats::default());

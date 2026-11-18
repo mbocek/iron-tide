@@ -158,6 +158,7 @@ pub fn carry_out_engineer_tasks(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::catalog::Alliance;
 
     #[test]
     fn engineers_capture_enemies_repair_friends_and_ignore_walls() {
@@ -194,7 +195,9 @@ mod tests {
             job_for(allied, Team::Crimson, Team::Amber, plant, &intact),
             None
         );
-        let free_for_all = Diplomacy { free_for_all: true };
+        let free_for_all = Diplomacy {
+            alliance: Alliance::FreeForAll,
+        };
         assert_eq!(
             job_for(free_for_all, Team::Crimson, Team::Amber, plant, &intact),
             Some(EngineerJob::Capture)
