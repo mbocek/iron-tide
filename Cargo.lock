@@ -3323,6 +3323,7 @@ name = "iron_tide"
 version = "1.2.0"
 dependencies = [
  "bevy",
+ "libm",
  "pathfinding",
  "rand",
  "serde",

@@ -17,6 +17,7 @@ use crate::interpolation::TickTransforms;
 use crate::map::{CELL_SIZE, GameMap, world_to_cell};
 use crate::movement::order_move;
 use crate::player_commands::LocalTeam;
+use crate::sim_math;
 use crate::sound::{Sound, SoundCue};
 use crate::veterancy::{Rank, Veterancy};
 
@@ -348,7 +349,7 @@ pub fn aim_and_fire(
             continue;
         }
         weapon.cooldown = weapon.spec.reload_secs;
-        let barrel_direction = Quat::from_rotation_y(aimed_yaw) * Vec3::X;
+        let barrel_direction = sim_math::facing_direction(aimed_yaw);
         let muzzle = position + Vec3::Y * MUZZLE_HEIGHT + barrel_direction * BARREL_LENGTH;
         let rank = veterancy.map_or(Rank::Recruit, |veterancy| veterancy.rank);
         let mut ranked_weapon = weapon.spec;

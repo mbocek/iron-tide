@@ -219,9 +219,15 @@ straight away. Restarting, saving and loading are disabled during a
 network battle; pausing one machine makes the other wait. Over the internet the host's port 47300 must be
 forwarded. Capture runs can automate this (`IRON_TIDE_CAPTURE_HOST=1`, `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`).
 
-Known limit: both machines must compute floating point identically, which holds for the same build on the
-same kind of processor. An Apple Silicon Mac against an Intel PC may drift apart; the checksum then stops
-the battle rather than letting it diverge silently.
+Both machines must compute floating point identically, also across processors and operating systems. Basic
+arithmetic and square roots are exact under IEEE 754 everywhere, but Rust's own `sin`, `atan2` and `powf`
+call each platform's maths library, whose last bit differs, and SIMD quaternion maths may round differently
+on x86 and ARM. The simulation therefore takes those functions from the portable `libm` crate
+(`sim_math`) and keeps positions and directions in scalar `Vec3`; rotations it writes serve only the
+drawing. `tests/cross_platform.rs` replays a fixed computer-against-computer battle and compares its
+fingerprints with `tests/fingerprints.txt`, recorded on an Apple Silicon Mac; CI runs the test on x86
+Linux. When the rules change on purpose, record them again with
+`UPDATE_FINGERPRINTS=1 cargo test --test cross_platform`.
 
 ## Languages
 
@@ -410,6 +416,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `local_view` | the battle as this machine's player sees it, for drawing, sound and the interface |
 | `network` | the lockstep session with a player on another machine: turns, checksums, disconnection |
 | `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |
+| `sim_math` | the portable trigonometry the simulation uses so every processor computes the same battle |
 | `determinism` | the seeded simulation randomness, simulation ids, single-threaded schedules and the state checksum |
 | `updates` | checking GitHub for a newer release, downloading and opening its package |
 | `season` | summer, autumn and winter: terrain tint, snow, foliage colours, light |

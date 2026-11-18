@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::catalog::{ArmorClass, BuildingKind, UnitKind, WeaponSpec};
+use crate::sim_math;
 
 #[derive(Component)]
 pub struct Health {
@@ -226,7 +227,7 @@ pub struct Harvester {
 
 pub fn yaw_towards(from: Vec3, to: Vec3) -> f32 {
     let delta = to - from;
-    (-delta.z).atan2(delta.x)
+    sim_math::atan2(-delta.z, delta.x)
 }
 
 pub fn shortest_angle(from: f32, to: f32) -> f32 {

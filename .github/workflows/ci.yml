@@ -85,6 +85,11 @@ jobs:
       - name: Build the game
         run: cargo build --release --bin iron-tide --target ${{ matrix.target }}
 
+      # Networked players must compute the same battle on every processor and operating system.
+      - name: Same battle as the recorded one
+        if: runner.os == 'Windows' || matrix.platform == 'macos-arm64'
+        run: cargo test --release --target ${{ matrix.target }} --test cross_platform
+
       - name: Bundle binary and assets
         run: tools/package.sh ${{ matrix.platform }} "$BINARY"
 

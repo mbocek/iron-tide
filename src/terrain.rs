@@ -5,6 +5,7 @@ use bevy::render::mesh::{Indices, PrimitiveTopology};
 use serde::{Deserialize, Serialize};
 
 use crate::map::{CELL_SIZE, base_sites, map_cells, map_spread, map_world_size, relocate};
+use crate::sim_math;
 
 pub const WATER_LEVEL: f32 = -0.45;
 /// How far the mountains surrounding the playable area reach beyond the map edge.
@@ -74,7 +75,7 @@ fn map_center_cells() -> f32 {
 
 pub fn river_centerline(column: f32) -> f32 {
     let offset = column - map_center_cells();
-    map_center_cells() + 5.0 * (offset * 0.13).sin() + 2.0 * (offset * 0.31).sin()
+    map_center_cells() + 5.0 * sim_math::sin(offset * 0.13) + 2.0 * sim_math::sin(offset * 0.31)
 }
 
 /// The middle column of a ford authored at `standard_column` on the standard map.
@@ -98,7 +99,7 @@ pub fn river_depth(column: f32, row: f32) -> f32 {
     }
     let distance = (row - river_centerline(column)).abs();
     let bank = 1.0 - (distance / RIVER_HALF_WIDTH_CELLS).clamp(0.0, 1.0);
-    RIVER_DEPTH * bank.powf(0.6)
+    RIVER_DEPTH * sim_math::powf(bank, 0.6)
 }
 
 fn distance_to_river_cells(column: f32, row: f32) -> f32 {
@@ -159,7 +160,8 @@ fn lake_coordinates(column: f32, row: f32) -> (f32, f32) {
 fn lake_ellipse(column: f32, row: f32) -> f32 {
     let (along, across) = lake_coordinates(column, row);
     let length = LAKE_LENGTH_CELLS * map_spread();
-    ((along / length).powi(2) + (across / LAKE_WIDTH_CELLS).powi(2)).sqrt()
+    let (along, across) = (along / length, across / LAKE_WIDTH_CELLS);
+    (along * along + across * across).sqrt()
 }
 
 /// The shape of the battlefield. Every landscape is point-symmetric around the map centre.

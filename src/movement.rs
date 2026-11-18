@@ -5,6 +5,7 @@ use crate::components::*;
 use crate::determinism::SimId;
 use crate::levels::ActiveLevel;
 use crate::map::{GameMap, cell_center, world_to_cell};
+use crate::sim_math;
 
 const WAYPOINT_REACHED_DISTANCE: f32 = 0.2;
 pub const FLIGHT_ALTITUDE: f32 = 6.0;
@@ -89,7 +90,7 @@ pub fn settle_on_terrain(
             transform.rotation = heading;
             continue;
         }
-        let forward = heading * Vec3::X;
+        let forward = sim_math::facing_direction(mobile.facing);
         let right = forward.cross(Vec3::Y);
         let half_length = radius.0 * VEHICLE_HALF_LENGTH_PER_RADIUS;
         let half_width = radius.0 * VEHICLE_HALF_WIDTH_PER_RADIUS;

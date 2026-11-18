@@ -53,6 +53,7 @@ pub mod scenery;
 pub mod season;
 pub mod servicing;
 pub mod settings;
+pub mod sim_math;
 pub mod sound;
 pub mod spawn;
 pub mod structure_tools;
