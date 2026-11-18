@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::catalog::{BuildingKind, Team};
 use crate::components::{AttackTarget, Building, Health, Weapon};
+use crate::determinism::{SimId, in_simulation_order};
 use crate::economy::Economies;
 use crate::map::{GameMap, footprint_center};
 use crate::sound::{Sound, SoundCue};
@@ -127,10 +128,18 @@ pub fn repair_structures(
     mut commands: Commands,
     time: Res<Time>,
     mut economies: ResMut<Economies>,
-    mut structures: Query<(Entity, &Building, &Team, &mut Health, &mut Repairing)>,
+    mut structures: Query<(
+        Entity,
+        &Building,
+        &Team,
+        &mut Health,
+        &mut Repairing,
+        &SimId,
+    )>,
 ) {
     let dt = time.delta_secs();
-    for (entity, building, &team, mut health, mut repairing) in &mut structures {
+    let in_order = in_simulation_order(structures.iter_mut(), |item| *item.5);
+    for (entity, building, &team, mut health, mut repairing, _) in in_order {
         let destroyed = health.current <= 0.0;
         if destroyed {
             continue;

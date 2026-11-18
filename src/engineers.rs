@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use crate::assets::ModelLibrary;
 use crate::catalog::{BuildingKind, Diplomacy, Team};
 use crate::components::{Building, Health, Mobile, Orders};
+use crate::determinism::{SimId, in_simulation_order};
 use crate::i18n::{tr, tr_fmt};
 use crate::map::{CELL_SIZE, GameMap, footprint_center};
 use crate::movement::order_move;
@@ -74,12 +75,14 @@ pub fn carry_out_engineer_tasks(
         &mut Mobile,
         &mut EngineerTask,
         Option<&mut Orders>,
+        &SimId,
     )>,
     mut buildings: Query<(&Building, &Team, &mut Health)>,
     diplomacy: Res<Diplomacy>,
 ) {
     let mut entered = HashSet::new();
-    for (engineer, &team, transform, mut mobile, mut task, orders) in &mut engineers {
+    let in_order = in_simulation_order(engineers.iter_mut(), |item| *item.6);
+    for (engineer, &team, transform, mut mobile, mut task, orders, _) in in_order {
         let still_standing = !entered.contains(&task.building);
         let Some((building, &owner, mut health)) = buildings
             .get_mut(task.building)

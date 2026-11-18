@@ -139,6 +139,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<determinism::SimIds>()
             .add_observer(determinism::number_new_unit)
             .add_observer(determinism::number_new_building)
+            .add_observer(determinism::number_new_projectile)
             .init_resource::<economy::Economies>()
             .init_resource::<production::Production>()
             .init_resource::<production::Placement>()

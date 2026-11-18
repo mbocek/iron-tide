@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::catalog::{BuildingKind, HARVESTER_CAPACITY, STARTING_CREDITS, Team};
 use crate::components::*;
+use crate::determinism::{SimId, in_simulation_order};
 use crate::map::{CrystalVisual, GameMap, cell_center, crystal_scale, world_to_cell};
 use crate::movement::order_move;
 use crate::sound::{Sound, SoundCue};
@@ -86,7 +87,7 @@ pub fn run_harvesters(
     time: Res<Time>,
     mut map: ResMut<GameMap>,
     mut economies: ResMut<Economies>,
-    mut harvesters: Query<(&Team, &Transform, &mut Harvester, &mut Mobile)>,
+    mut harvesters: Query<(&Team, &Transform, &mut Harvester, &mut Mobile, &SimId)>,
     refineries: Query<(Entity, &Building, &Team, &Transform)>,
     mut crystal_visuals: Query<
         (&CrystalVisual, &mut Transform),
@@ -94,7 +95,8 @@ pub fn run_harvesters(
     >,
 ) {
     let dt = time.delta_secs();
-    for (&team, transform, mut harvester, mut mobile) in &mut harvesters {
+    let in_order = in_simulation_order(harvesters.iter_mut(), |item| *item.4);
+    for (&team, transform, mut harvester, mut mobile, _) in in_order {
         let position = transform.translation;
         let next_state = match harvester.state {
             HarvestState::Holding => None,
@@ -205,7 +207,10 @@ fn head_to_refinery(
         })
         .min_by(|a, b| {
             let distance = |t: &Transform| t.translation.distance_squared(position);
-            distance(a.3).total_cmp(&distance(b.3))
+            let site = |building: &Building| (building.origin.y, building.origin.x);
+            distance(a.3)
+                .total_cmp(&distance(b.3))
+                .then(site(a.1).cmp(&site(b.1)))
         })?;
     order_move(mobile, map, position, exit_cell(building), false)
         .then_some(HarvestState::ReturningToRefinery(refinery))

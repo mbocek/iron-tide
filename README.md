@@ -176,8 +176,14 @@ differ from machine to machine. Schedules run on one thread in a fixed order, in
 The battle advances in fixed 50 ms ticks (20 per second, the same step the tests use) whatever the frame rate;
 units and projectiles are drawn part way between their last two ticks, and get their exact simulated
 transform back before each tick, so drawing never changes the battle.
-`determinism::simulation_checksum` fingerprints units, structures and credits; a test plays the same
-computer-against-computer battle twice for eight minutes and compares the fingerprints every 15 seconds.
+Presentation adds its own components to units at moments that differ from machine to machine, which
+changes the order in which Bevy's queries visit them; so every simulation step whose outcome depends on that
+order (firing, projectile hits, destruction, harvesting, healing, repairs, engineers, the computer's army
+and turret walls, choosing a producer or a refinery) goes through `in_simulation_order` or a tie-break on
+position. `determinism::simulation_checksum` fingerprints units, structures and credits. One test plays
+the same computer-against-computer battle twice for eight minutes and compares the fingerprints every 15
+seconds; another does the same while reshuffling the storage of units, structures and projectiles in one
+of the two battles every second.
 
 ## Languages
 

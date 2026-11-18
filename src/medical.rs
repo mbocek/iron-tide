@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::catalog::{ArmorClass, Team};
 use crate::components::{Armor, Health, Mobile};
+use crate::determinism::{SimId, in_simulation_order};
 use crate::map::{GameMap, world_to_cell};
 use crate::movement::order_move;
 
@@ -21,11 +22,12 @@ pub struct Healer {
 pub fn treat_wounded(
     time: Res<Time>,
     map: Res<GameMap>,
-    mut healers: Query<(Entity, &Team, &Transform, &mut Healer, &mut Mobile)>,
+    mut healers: Query<(Entity, &Team, &Transform, &mut Healer, &mut Mobile, &SimId)>,
     mut patients: Query<(Entity, &Team, &Transform, &Armor, &mut Health)>,
 ) {
     let dt = time.delta_secs();
-    for (healer_entity, &team, transform, mut healer, mut mobile) in &mut healers {
+    let in_order = in_simulation_order(healers.iter_mut(), |item| *item.5);
+    for (healer_entity, &team, transform, mut healer, mut mobile, _) in in_order {
         let here = transform.translation;
         let patient = patients
             .iter()

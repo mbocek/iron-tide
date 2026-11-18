@@ -7,7 +7,7 @@ use crate::assets::ModelLibrary;
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
-use crate::determinism::SimulationRng;
+use crate::determinism::{SimId, SimulationRng, in_simulation_order};
 use crate::economy::Economies;
 use crate::engineers::{EngineerJob, EngineerTask};
 use crate::fog::FogOfWar;
@@ -106,6 +106,7 @@ type ArmyUnit<'a> = (
     &'a mut Mobile,
     Option<&'a AttackTarget>,
     Option<&'a mut Orders>,
+    &'a SimId,
 );
 
 pub fn command_enemies(
@@ -221,13 +222,14 @@ pub fn fortify_turrets(
         if !economy_stands || !production.allows(ai.team, BuildItem::Structure(wall)) {
             continue;
         }
-        let turrets: Vec<IVec2> = buildings
+        let mut turrets: Vec<IVec2> = buildings
             .iter()
             .filter(|(building, team)| {
                 **team == ai.team && building.kind == BuildingKind::GunTurret
             })
             .map(|(building, _)| building.origin)
             .collect();
+        turrets.sort_by_key(|origin| (origin.y, origin.x));
         let shield_cells = turrets.into_iter().flat_map(turret_shield);
         for cell in shield_cells {
             let affordable =
@@ -254,7 +256,15 @@ pub fn employ_engineers(
     mut production: ResMut<Production>,
     mut economies: ResMut<Economies>,
     buildings: Query<(&Building, &Team)>,
-    units: Query<(Entity, &Unit, &Team, &Transform, &Mobile, Has<EngineerTask>)>,
+    units: Query<(
+        Entity,
+        &Unit,
+        &Team,
+        &Transform,
+        &Mobile,
+        Has<EngineerTask>,
+        &SimId,
+    )>,
 ) {
     *countdown -= time.delta_secs();
     if *countdown > 0.0 {
@@ -270,10 +280,10 @@ pub fn employ_engineers(
             continue;
         };
         let own = |team: &Team| *team == ai.team;
-        let engineers: Vec<(Entity, bool)> = units
-            .iter()
+        let engineers: Vec<(Entity, bool)> = in_simulation_order(units, |unit| *unit.6)
+            .into_iter()
             .filter(|(_, unit, team, ..)| own(team) && unit.0 == UnitKind::Engineer)
-            .map(|(entity, _, _, _, mobile, tasked)| (entity, tasked || mobile.is_moving()))
+            .map(|(entity, _, _, _, mobile, tasked, _)| (entity, tasked || mobile.is_moving()))
             .collect();
         let queued = production
             .lane(ai.team, Lane::Infantry)
@@ -643,7 +653,10 @@ fn direct_army(
         .map(|(building, _)| building)
         .collect();
     let mut waiting_at_home = Vec::new();
-    for (entity, unit, &owner, transform, health, mobile, attack, orders) in army.iter_mut() {
+    let mut in_simulation_order: Vec<_> = army.iter_mut().collect();
+    in_simulation_order.sort_by_key(|member| *member.8);
+    for (entity, unit, &owner, transform, health, mobile, attack, orders, _) in in_simulation_order
+    {
         let is_soldier = owner == team && fights(unit.0);
         let Some(mut orders) = orders.filter(|_| is_soldier) else {
             continue;

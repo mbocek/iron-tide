@@ -6,6 +6,7 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 
 use crate::catalog::Team;
+use crate::combat::Projectile;
 use crate::components::{Building, Health, Unit};
 use crate::economy::Economies;
 
@@ -72,6 +73,25 @@ pub fn number_new_building(
     mut commands: Commands,
 ) {
     number(added.entity, &mut ids, &mut commands);
+}
+
+pub fn number_new_projectile(
+    added: On<Add<Projectile>>,
+    mut ids: ResMut<SimIds>,
+    mut commands: Commands,
+) {
+    number(added.entity, &mut ids, &mut commands);
+}
+
+/// Query items in the order the simulation spawned them, so the battle cannot depend on how the ECS
+/// happens to store entities (presentation adds components at moments that differ between machines).
+pub fn in_simulation_order<T>(
+    items: impl IntoIterator<Item = T>,
+    id: impl Fn(&T) -> SimId,
+) -> Vec<T> {
+    let mut items: Vec<T> = items.into_iter().collect();
+    items.sort_by_key(|item| id(item));
+    items
 }
 
 fn number(entity: Entity, ids: &mut SimIds, commands: &mut Commands) {

@@ -9,7 +9,7 @@ use crate::catalog::{
     ArmorClass, BuildingKind, Diplomacy, ProjectileStyle, Team, UnitKind, WeaponSpec,
 };
 use crate::components::*;
-use crate::determinism::SimulationRng;
+use crate::determinism::{SimId, SimulationRng, in_simulation_order};
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::fog::FogOfWar;
 use crate::intel::Intel;
@@ -153,6 +153,7 @@ pub fn snapshot_targets(
     diplomacy: Res<Diplomacy>,
     damageable: Query<
         (
+            &SimId,
             Entity,
             &Team,
             &Transform,
@@ -166,7 +167,9 @@ pub fn snapshot_targets(
     targets.list.clear();
     targets.by_entity.clear();
     targets.diplomacy = *diplomacy;
-    for (entity, &team, transform, radius, armor, is_building) in &damageable {
+    let mut in_simulation_order: Vec<_> = damageable.iter().collect();
+    in_simulation_order.sort_by_key(|target| *target.0);
+    for (_, entity, &team, transform, radius, armor, is_building) in in_simulation_order {
         let index = targets.list.len();
         targets.by_entity.insert(entity, index);
         targets.list.push(TargetInfo {
@@ -283,6 +286,7 @@ pub fn aim_and_fire(
         Option<&Unit>,
         Option<&Building>,
         Option<&Veterancy>,
+        &SimId,
     )>,
 ) {
     let dt = time.delta_secs();
@@ -297,7 +301,8 @@ pub fn aim_and_fire(
         unit,
         building,
         veterancy,
-    ) in &mut shooters
+        _,
+    ) in in_simulation_order(shooters.iter_mut(), |shooter| *shooter.10)
     {
         let source = match (unit, building) {
             (Some(unit), _) => DamageSource::Unit(unit.0),
@@ -426,12 +431,13 @@ pub fn fly_projectiles(
     time: Res<Time>,
     targets: Res<Targets>,
     effects: Res<EffectAssets>,
-    mut projectiles: Query<(Entity, &mut Projectile, &mut Transform)>,
+    mut projectiles: Query<(Entity, &mut Projectile, &mut Transform, &SimId)>,
     mut healths: Query<&mut Health>,
     mut damage_log: MessageWriter<DamageDealt>,
     mut impacts: MessageWriter<Impact>,
 ) {
-    for (entity, mut projectile, mut transform) in &mut projectiles {
+    let in_order = in_simulation_order(projectiles.iter_mut(), |item| *item.3);
+    for (entity, mut projectile, mut transform, _) in in_order {
         if let Some(target) = projectile.target.and_then(|e| targets.get(e)) {
             projectile.end = target.position + Vec3::Y * TARGET_CENTER_HEIGHT;
         }
@@ -552,9 +558,11 @@ pub fn remove_destroyed(
         &Team,
         Option<&Building>,
         Option<&Unit>,
+        &SimId,
     )>,
 ) {
-    for (entity, health, transform, &team, building, unit) in &destroyed {
+    let in_order = in_simulation_order(destroyed, |item| *item.6);
+    for (entity, health, transform, &team, building, unit, _) in in_order {
         if health.current > 0.0 {
             continue;
         }

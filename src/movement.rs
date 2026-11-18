@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::catalog::ArmorClass;
 use crate::components::*;
+use crate::determinism::SimId;
 use crate::levels::ActiveLevel;
 use crate::map::{GameMap, cell_center, world_to_cell};
 
@@ -135,28 +136,28 @@ pub fn seat_new_buildings(
 pub fn separate_units(
     time: Res<Time>,
     map: Res<GameMap>,
-    mut units: Query<(Entity, &mut Transform, &BodyRadius, &Mobile)>,
+    mut units: Query<(&SimId, &mut Transform, &BodyRadius, &Mobile)>,
 ) {
-    let snapshot: Vec<(Entity, Vec3, f32, bool)> = units
+    let mut snapshot: Vec<(SimId, Vec3, f32, bool)> = units
         .iter()
-        .map(|(entity, transform, radius, mobile)| {
-            (entity, transform.translation, radius.0, mobile.flying)
+        .map(|(&id, transform, radius, mobile)| {
+            (id, transform.translation, radius.0, mobile.flying)
         })
         .collect();
+    snapshot.sort_by_key(|unit| unit.0);
     let dt = time.delta_secs();
 
-    for (entity, mut transform, radius, mobile) in &mut units {
+    for (&id, mut transform, radius, mobile) in &mut units {
         let mut push = Vec3::ZERO;
         for &(other, other_position, other_radius, other_flies) in &snapshot {
-            if other == entity || other_flies != mobile.flying {
+            if other == id || other_flies != mobile.flying {
                 continue;
             }
             let offset = transform.translation - other_position;
             let overlap = radius.0 + other_radius - offset.length();
             if overlap > 0.0 {
-                let away = offset.normalize_or(
-                    Vec3::new(entity.index_u32() as f32 % 3.0 - 1.0, 0.0, 1.0).normalize(),
-                );
+                let away =
+                    offset.normalize_or(Vec3::new((id.0 % 3) as f32 - 1.0, 0.0, 1.0).normalize());
                 push += away * overlap;
             }
         }

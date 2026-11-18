@@ -267,9 +267,12 @@ pub fn advance_production(
             let producer = match item {
                 BuildItem::Structure(_) => None,
                 BuildItem::Unit(kind) => {
-                    let producer = buildings.iter().find(|(building, owner, _)| {
-                        **owner == team && building.kind == kind.spec().producer
-                    });
+                    let producer = buildings
+                        .iter()
+                        .filter(|(building, owner, _)| {
+                            **owner == team && building.kind == kind.spec().producer
+                        })
+                        .min_by_key(|(building, ..)| (building.origin.y, building.origin.x));
                     if producer.is_none() {
                         continue;
                     }
