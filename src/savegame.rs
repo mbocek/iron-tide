@@ -1,3 +1,4 @@
+use crate::abilities::{Mine, bury};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -81,6 +82,8 @@ pub struct SaveGame {
     /// What each team has researched, in `Team::ALL` order.
     #[serde(default)]
     researched: Vec<Vec<Upgrade>>,
+    #[serde(default)]
+    mines: Vec<Mine>,
     ai: AiCommanders,
     camera_focus: [f32; 3],
     #[serde(default)]
@@ -195,6 +198,7 @@ pub fn write_requested_save(
     fog: Res<FogOfWar>,
     intel: Res<Intel>,
     cameras: Query<&RtsCamera>,
+    mines: Query<&Mine>,
     buildings: Query<
         (
             &Building,
@@ -283,6 +287,11 @@ pub fn write_requested_save(
         researched: Team::ALL
             .map(|team| production.researched(team).to_vec())
             .to_vec(),
+        mines: {
+            let mut buried: Vec<Mine> = mines.iter().copied().collect();
+            buried.sort_by_key(|mine| (mine.cell.y, mine.cell.x));
+            buried
+        },
         ai: commanders.clone(),
         camera_focus: cameras
             .single()
@@ -442,6 +451,9 @@ pub fn restore_pending_load(
         lane.queue = saved.queue.into();
         lane.progress_secs = saved.progress_secs;
         lane.ready = saved.ready;
+    }
+    for mine in save.mines {
+        bury(&mut commands, mine);
     }
     for (team, upgrades) in Team::ALL.into_iter().zip(save.researched) {
         for upgrade in upgrades {

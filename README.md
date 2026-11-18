@@ -319,7 +319,7 @@ The game opens in a main menu:
 - **Mines:** with engineers selected, M (rebindable) buries a mine under each of them for $100. A mine arms after
   1.5 s and goes off under the first enemy ground unit that touches it (110 damage with splash); its own side
   and allies see it as a small disc, enemies never do. Computer commanders with money to spare send an engineer
-  to mine the approach to their base, up to four mines each. Mines are not kept in save games.
+  to mine the approach to their base, up to four mines each. Save games keep the mines.
 - **Camouflage:** a sniper that stands still for 3 s without firing is hidden from enemies: they neither see nor
   target it until one of them comes within 8 m. A shot gives it away for 2 s.
 - **Main menu:** a battle scene from the game sits behind the menu; campaign missions won on this computer are

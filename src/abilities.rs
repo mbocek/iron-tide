@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::catalog::{ArmorClass, ProjectileStyle, Team, UnitKind, WeaponSpec};
 use crate::combat::{DamageSource, Shot, Targets, fire_projectile, surface_distance};
@@ -28,7 +29,7 @@ const MINE_BLAST: WeaponSpec = WeaponSpec {
 };
 
 /// A mine an engineer buried; its own side and allies see it, enemies only when it goes off.
-#[derive(Component, Clone, Copy, Debug)]
+#[derive(Component, Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Mine {
     pub team: Team,
     pub cell: IVec2,
@@ -47,16 +48,24 @@ pub fn lay_mine(
         return false;
     }
     *credits -= MINE_COST;
-    commands.spawn((
+    bury(
+        commands,
         Mine {
             team,
             cell,
             arming_secs: MINE_ARMING_SECS,
         },
-        Transform::from_translation(cell_center(cell)),
+    );
+    true
+}
+
+/// Puts a mine in the ground as it is, for a new one or one restored from a save.
+pub fn bury(commands: &mut Commands, mine: Mine) {
+    commands.spawn((
+        mine,
+        Transform::from_translation(cell_center(mine.cell)),
         Visibility::Hidden,
     ));
-    true
 }
 
 pub fn detonate_mines(

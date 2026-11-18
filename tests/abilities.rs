@@ -124,3 +124,20 @@ fn the_computer_mines_the_approach_to_its_base_once_it_has_money_to_spare() {
         .count();
     assert!(laid > 0, "no mines after ten minutes");
 }
+
+#[test]
+fn buried_mines_survive_saving_and_loading() {
+    use iron_tide::savegame::SaveRequests;
+    let mut battle = Battle::standard();
+    bury_a_mine_at_the_field(&mut battle);
+    assert_eq!(mines(&mut battle), 1);
+    battle.world().resource_mut::<SaveRequests>().save = Some(1);
+    battle.run_for(0.1);
+    battle.world().resource_mut::<SaveRequests>().load = Some(1);
+    battle.run_for(0.3);
+    let world = battle.world();
+    let restored: Vec<Mine> = world.query::<&Mine>().iter(world).copied().collect();
+    assert_eq!(restored.len(), 1);
+    assert_eq!(restored[0].team, Team::Player);
+    assert_eq!(restored[0].cell, FIELD);
+}
