@@ -36,6 +36,7 @@ pub mod medical;
 pub mod menu;
 pub mod minimap;
 pub mod movement;
+pub mod network;
 pub mod notifications;
 pub mod orders;
 pub mod outcome;
@@ -127,8 +128,11 @@ impl Plugin for SimulationPlugin {
             )
             .configure_sets(
                 FixedUpdate,
-                FramePhase::Simulation.run_if(in_state(match_flow::GameState::Playing)),
+                FramePhase::Simulation
+                    .run_if(in_state(match_flow::GameState::Playing))
+                    .run_if(network::simulation_may_advance),
             )
+            .add_systems(FixedFirst, network::receive_turns)
             .insert_resource(Time::<Fixed>::from_duration(SIMULATION_TICK))
             .insert_resource(match_flow::MatchRules {
                 enemy_ai: self.enemy_ai,
@@ -173,6 +177,7 @@ impl Plugin for SimulationPlugin {
                     match_flow::reset_match_state,
                     map::generate_map,
                     match_flow::deploy_level_forces,
+                    network::retire_commanders_of_players,
                     savegame::restore_pending_load,
                 )
                     .chain(),
@@ -193,6 +198,7 @@ impl Plugin for SimulationPlugin {
                 FixedUpdate,
                 (
                     (
+                        network::send_turn,
                         player_commands::carry_out_player_commands,
                         match_flow::advance_match_clock,
                         economy::tally_power,
@@ -240,6 +246,7 @@ impl Plugin for SimulationPlugin {
                         notifications::watch_base,
                         outcome::decide_outcome,
                         savegame::write_requested_save,
+                        network::fingerprint_tick,
                         player_commands::count_ticks,
                     )
                         .chain(),

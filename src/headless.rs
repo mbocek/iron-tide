@@ -18,8 +18,11 @@ use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::{GameMap, cell_center};
 use crate::match_flow::GameState;
 use crate::movement::order_move;
+use crate::network::{NETWORK_COMMAND_DELAY_TICKS, NetSession, SessionState};
 use crate::outcome::GameOutcome;
-use crate::player_commands::{CommandQueue, PlayerCommand, SimulationTick};
+use crate::player_commands::{
+    COMMAND_DELAY_TICKS, CommandQueue, LocalTeam, PlayerCommand, SimulationTick,
+};
 use crate::production::{BuildItem, Production, construct_building};
 use crate::savegame::SaveDirectory;
 use crate::sound::{Sound, SoundCue};
@@ -356,9 +359,41 @@ impl Battle {
     /// Gives a command as a player of `team` would; it is carried out on a later tick.
     pub fn issue(&mut self, team: Team, command: PlayerCommand) {
         let tick = *self.world().resource::<SimulationTick>();
+        let delay = if self.world().contains_resource::<NetSession>() {
+            NETWORK_COMMAND_DELAY_TICKS
+        } else {
+            COMMAND_DELAY_TICKS
+        };
         self.world()
             .resource_mut::<CommandQueue>()
-            .issue(tick, team, command);
+            .issue_after(tick, delay, team, command);
+    }
+
+    /// Hands `remote_team` to a player at the other end of `stream`; this battle plays `local_team`.
+    pub fn join_network(
+        &mut self,
+        stream: std::net::TcpStream,
+        local_team: Team,
+        remote_team: Team,
+    ) {
+        let session = NetSession::over(stream, remote_team).expect("a working connection");
+        let world = self.world();
+        world.insert_resource(LocalTeam(local_team));
+        world.insert_resource(session);
+        world
+            .resource_mut::<AiCommanders>()
+            .0
+            .retain(|commander| commander.team != local_team && commander.team != remote_team);
+    }
+
+    pub fn tick(&mut self) -> u64 {
+        self.world().resource::<SimulationTick>().0
+    }
+
+    pub fn session_state(&mut self) -> Option<SessionState> {
+        self.world()
+            .get_resource::<NetSession>()
+            .map(|session| session.state)
     }
 
     pub fn sim_id(&mut self, entity: Entity) -> SimId {

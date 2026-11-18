@@ -9,6 +9,7 @@ use crate::economy::Economies;
 use crate::engineers::{EngineerTask, job_for};
 use crate::map::{GameMap, cells_by_distance, world_to_cell};
 use crate::movement::order_move;
+use crate::network::{NETWORK_COMMAND_DELAY_TICKS, NetSession};
 use crate::notifications::Notifications;
 use crate::production::{
     BuildItem, Lane, Production, affordable_wall_line, construct_building, owned_building_kinds,
@@ -107,19 +108,42 @@ pub struct CommandQueue {
 
 impl CommandQueue {
     pub fn issue(&mut self, now: SimulationTick, team: Team, command: PlayerCommand) {
-        self.pending.push(ScheduledCommand {
-            tick: now.0 + COMMAND_DELAY_TICKS,
+        self.issue_after(now, COMMAND_DELAY_TICKS, team, command);
+    }
+
+    pub fn issue_after(
+        &mut self,
+        now: SimulationTick,
+        delay: u64,
+        team: Team,
+        command: PlayerCommand,
+    ) {
+        self.schedule(ScheduledCommand {
+            tick: now.0 + delay,
             team,
             command,
         });
     }
 
-    /// Commands due by `tick`, in the order they were issued; later ones stay queued.
+    pub fn schedule(&mut self, scheduled: ScheduledCommand) {
+        self.pending.push(scheduled);
+    }
+
+    pub fn scheduled_for(&self, tick: u64, team: Team) -> Vec<PlayerCommand> {
+        self.pending
+            .iter()
+            .filter(|scheduled| scheduled.tick == tick && scheduled.team == team)
+            .map(|scheduled| scheduled.command.clone())
+            .collect()
+    }
+
+    /// Commands due by `tick`, team by team and in the order each team issued them, as on every machine.
     fn take_due(&mut self, tick: u64) -> Vec<ScheduledCommand> {
-        let (due, later) = std::mem::take(&mut self.pending)
+        let (mut due, later): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending)
             .into_iter()
             .partition(|scheduled| scheduled.tick <= tick);
         self.pending = later;
+        due.sort_by_key(|scheduled| (scheduled.tick, scheduled.team.index()));
         due
     }
 }
@@ -130,12 +154,18 @@ pub struct CommandIssuer<'w> {
     queue: ResMut<'w, CommandQueue>,
     tick: Res<'w, SimulationTick>,
     local: Res<'w, LocalTeam>,
+    session: Option<Res<'w, NetSession>>,
 }
 
 impl CommandIssuer<'_> {
     pub fn issue(&mut self, command: PlayerCommand) {
         let (tick, team) = (*self.tick, self.local.0);
-        self.queue.issue(tick, team, command);
+        let delay = if self.session.is_some() {
+            NETWORK_COMMAND_DELAY_TICKS
+        } else {
+            COMMAND_DELAY_TICKS
+        };
+        self.queue.issue_after(tick, delay, team, command);
     }
 
     pub fn team(&self) -> Team {

@@ -191,7 +191,15 @@ units and structures by simulation id and is carried out at the start of a later
 (`COMMAND_DELAY_TICKS`). The simulation checks that a team only commands its own units and structures.
 Selecting, the camera and the menus stay local. Feedback such as the acknowledgement sound and the order
 marker is immediate; the change itself happens one tick (50 ms) later. These commands are what machines
-will exchange in a networked match.
+exchange in a networked match.
+
+In a networked match (`network`) both machines run the whole battle. For every tick each sends a turn with
+its player's commands for the tick four ahead (200 ms, `NETWORK_COMMAND_DELAY_TICKS`), and the simulation
+takes a tick only once the other player's turn for it has arrived, so neither machine can run ahead. Messages
+travel over TCP as length-prefixed JSON. Every second each machine sends the checksum of its battle; differing
+checksums end the match as out of step, and a lost connection stops it. Tests join two battles in one process
+over a real local TCP connection: their orders reach each other, the battles stay identical, a deliberate
+drift is noticed by both, and a dropped connection halts the other side.
 
 ## Languages
 
@@ -376,6 +384,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
 | `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
 | `interpolation` | drawing moving things between simulation ticks |
+| `network` | the lockstep session with a player on another machine: turns, checksums, disconnection |
 | `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |
 | `determinism` | the seeded simulation randomness, simulation ids, single-threaded schedules and the state checksum |
 | `updates` | checking GitHub for a newer release, downloading and opening its package |
