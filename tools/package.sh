@@ -13,6 +13,7 @@ rm -rf "${stage}"
 mkdir -p "${stage}"
 cp "${binary}" "${stage}/"
 cp README.md "${stage}/"
+cp -R docs "${stage}/"
 # Bevy looks for assets next to the executable; previews are Blender renders the game never loads.
 cp -R assets "${stage}/"
 rm -rf "${stage}/assets/previews"

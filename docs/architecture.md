@@ -1,0 +1,51 @@
+# Code layout
+
+| Module | Responsibility |
+| --- | --- |
+| `catalog` | unit and building statistics, weapons, armor |
+| `map` | the cell grid (64, 96 or 128 cells a side), terrain with a river and fords, crystals, A* pathfinding |
+| `spawn` | spawning units and buildings from the glTF models |
+| `movement` | path following, unit separation |
+| `combat` | target acquisition, chasing, turrets, projectiles, damage |
+| `economy` | credits, power, harvester state machine |
+| `production` | production queues, placing structures |
+| `structures`, `structure_tools` | repairing and selling structures; the repair / sell mouse modes, buttons and hint |
+| `orders` | selection and player orders |
+| `ai` | computer opponents: build plan, saving up for structures, gathered attack waves, base defense |
+| `army_mix` | what the computer has seen of the enemy army and which units counter it |
+| `headless` | windowless battle harness shared by the tests and the balance tool |
+| `terrain`, `terrain_material` | landscapes (river, lake, plains): terrain height, water, roads, texture layers, WESL shader |
+| `scenery`, `flat_scenery` | forests, meadows, reeds, mountains with boulders; scenery models merged into one mesh each |
+| `minimap`, `notifications` | minimap, status messages |
+| `ui`, `overlay` | sidebar (tabs, tiles with icons), health bars, selection |
+| `settings`, `menu`, `perf_overlay`, `frame_pacing` | settings and their persistence, in-game menu, performance overlay, frame rate limit |
+| `savegame` | saving and loading games (JSON) |
+| `lib.rs` | `SimulationPlugin` (battle logic, also used headless by the tests) and `GamePlugin` (the full game) |
+| `levels`, `match_flow`, `main_menu` | level definitions, campaign and custom levels; match setup and states; main menu and battle editor |
+| `medical` | field medics healing infantry |
+| `unit_orders` | move, attack-move, patrol and queued waypoints |
+| `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
+| `i18n` | interface languages: loads `assets/i18n/*.json`, `tr` / `tr_fmt` |
+| `interpolation` | drawing moving things between simulation ticks |
+| `lobby` | hosting and joining a network battle from the main menu |
+| `local_view` | the battle as this machine's player sees it, for drawing, sound and the interface |
+| `network_hud` | the ping and the banner shown while waiting for the other player |
+| `network` | the lockstep session with a player on another machine: turns, checksums, disconnection |
+| `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |
+| `sim_math` | the portable trigonometry the simulation uses so every processor computes the same battle |
+| `determinism` | the seeded simulation randomness, simulation ids, single-threaded schedules and the state checksum |
+| `updates` | checking GitHub for a newer release, downloading and opening its package |
+| `season` | summer, autumn and winter: terrain tint, snow, foliage colours, light |
+| `key_bindings` | rebindable hotkeys: actions, their default and bindable keys, swapping on conflict |
+| `engineers` | engineers capturing enemy structures and repairing own ones |
+| `tutorial` | the step-by-step tutorial of levels with `"tutorial": true` |
+| `sound` | sound cues from the simulation, playback with distance and fog, music director |
+| `announcer` | the radio operator's spoken reports in the interface language |
+| `battle_noise` | looping engines, rotors, footsteps, harvesting and construction, mixed from the units in view |
+| `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
+| `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |
+| `outcome`, `match_stats` | mission objectives, victory and defeat; the tally shown at the end of a match |
+| `replay` | recording matches, storing and listing replays, watching them |
+| `battlefield` | scorch marks, vehicle wrecks and rain |
+| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay, `_SELECT_ALL=1` selects every own unit, `_ZOOM=150` sets the camera distance, `_MENU=keys` opens that menu page; `_MISSION` numbers past the campaign
+continue with the custom levels) |

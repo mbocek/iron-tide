@@ -1,0 +1,81 @@
+# Rules
+
+- **Factions:** Coalition (blue, the player) against up to three Syndicate commanders (Crimson red, Amber
+  orange, Violet purple), each with its own base, economy and AI. They are allies and share what they see,
+  unless the level says otherwise with `"alliance"` (or *Opponents* in the battle editor): `"FreeForAll"`
+  makes everyone fight everyone, each seeing only through its own units and buildings, and `"TwoAgainstTwo"`
+  pairs the Coalition with Amber against Crimson and Violet (the two western corners against the two eastern
+  ones with the default sites); allies share what they see. Older levels' `"free_for_all": true` still works.
+- **Economy:** the harvester mines crystals and unloads them at the refinery. Every refinery comes with a free harvester.
+- **Power:** when consumption exceeds production, all production runs at half speed.
+- **Engineer:** unarmed $500 infantry from the Barracks. Right-click an enemy structure (not a wall) with
+  engineers selected: they walk in and capture it, damage and all. Right-click a damaged own structure: they
+  repair it fully. Either way the engineer is used up. Other selected units attack the structure as usual.
+- **Walls:** $50 concrete segments that block movement. Click the Wall tile, then drag on the map to lay a
+  straight line; each segment is paid as it is placed and the mode stays on until right click / Esc. Every
+  segment extends the area you may build in, so walls can reach out from the base. Walls do not keep a
+  defeated side alive, and the computer does not pick them as targets for its attack waves.
+- **Repair and sell:** a structure under repair regains 4 % of its health per second and pays as it goes:
+  a repair from rubble to full health costs half its price (the Command Center counts as $3000). Repairs pause
+  while the credits run out and stop at full health; a green cross turns above it meanwhile. Selling refunds
+  half the price and the structure sinks into the ground. The Command Center cannot be sold. The computer
+  repairs its own structures below 60 % health when it has credits to spare.
+- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Tech Center, Repair Bay,
+  Helipad; Barracks → Gun Turret, Flak Cannon, Rocket Bunker, Wall. The Bulwark, the Missile Truck, the Howitzer
+  and the Gunship also need a Tech Center.
+- **Factions:** the Coalition and the Syndicate share most of the arsenal, but each has its own: only the
+  Coalition trains Snipers and builds Bulwarks; only the Syndicate trains Flame Troopers (short-range flamers that
+  burn infantry and buildings), builds Missile Trucks (wheeled rocket artillery, 18 m range) and Rocket Bunkers
+  (a defense that hits vehicles and aircraft). The build menu shows only your own faction's items.
+- **Units:** Rifleman, Rocketeer (anti-armour missiles), Sniper (long-range anti-infantry), Field Medic (heals
+  nearby infantry), Engineer, Scout Buggy, Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range
+  artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship, Harvester.
+- **Map editor:** EDIT MAP on the battle editor page or on a custom level opens the map in the editor. Paint
+  crystal fields, forests and rocks with the left button (keys 1-4 pick the brush), clear ground with the right
+  one, in brushes of 1, 3 or 5 cells. Mirroring, on by default, paints the opposite cell too so both halves stay
+  equally fair; base sites cannot be built over. SAVE writes the level (with its `map_edits`) to the custom
+  levels, overwriting the custom level it was opened from. The LEVEL page sets the name, the briefing (click the
+  field and type, Enter ends), the objective, and which corner each side starts in, with one to three computer
+  opponents and their difficulty. Bases stay in the four corners, where the ground is levelled for them. PLAY IT
+  starts a battle on the level as it stands.
+- **Research:** the RESEARCH tab of the build menu offers three one-time upgrades from the Tech Center, which
+  must stand while the research runs: Composite Armour ($1500, vehicles and aircraft take 20 % less damage),
+  High-Explosive Warheads ($2000, every weapon deals 15 % more damage) and Combat Drills ($1000, infantry
+  reload 25 % faster). The computer researches them too once it has credits to spare.
+- **Field repairs:** a vehicle standing still on a cell touching its own Repair Bay ($800, after the War Factory)
+  regains 4 % of its health per second for free.
+- **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over
+  water, walls and units, and tears through armour with its rocket pods. An aircraft hovering over its own
+  Helipad (within 3 m of the pad's centre, not moving) regains 4 % of its health per second for free. Tank cannons and howitzers cannot shoot upwards at all;
+  riflemen and turrets hit it weakly, scout buggies better and rocketeers well. The dedicated counters are
+  the Flak Track ($700, War Factory) and the Flak Cannon ($700 structure, after the Barracks), whose bursting
+  shells do double damage to aircraft; the Flak Cannon cannot shoot at the ground at all.
+- **Fair corners:** the map is point-symmetric around its centre: the river and its fords, the crystal fields
+  and every tree or rock that blocks movement have a twin in the opposite corner. The last row and column, which
+  would have no twin, are closed. Bases in the far half face
+  the other way, so every base's doors, refinery dock and new units point towards the middle of the map.
+- **Veterancy:** units earn experience worth the price of every enemy unit or structure they destroy (the last
+  hit counts). At their own price in experience they become Veterans (+20 % damage and health, one gold
+  chevron), at three times it Elites (+40 %, two chevrons, and they slowly mend their own wounds). Structures
+  that shoot do not gain ranks. Ranks are kept in saves.
+- **Battlefield:** shells and explosions leave scorch marks that fade after 40 s; destroyed vehicles leave
+  their charred hulls, smoking for a while, until they sink into the ground; damaged structures smoke and
+  burn. All of it only where you can see.
+- **Victory:** depends on the mission objective (destroy everything, destroy the Command Centers, capture one, survive,
+  stockpile credits). The end screen compares you with your opponents (units trained and lost, structures built and
+  lost, enemies destroyed, damage, credits harvested, match time) and offers the replay of the match.
+- **Fog of war:** unexplored ground is black; explored ground stays visible but enemy units show only within
+  the sight of your units and buildings. Enemy structures stay on the map once spotted. Your units only open
+  fire on enemies someone on your side can see, so long-range artillery needs a spotter. The computer
+  opponents play by the same rules: allied Syndicate commanders share one view of the map, remember the
+  structures they have spotted, and send a scout (a Scout Buggy if they have one) and then their attack
+  waves to base sites they have not explored yet. Once their economy stands they shield each gun turret
+  with a short L of wall facing the middle of the map, and once they know an enemy structure they keep an
+  engineer that follows their attack wave to capture it. They also count the enemy infantry, vehicles and
+  aircraft they have seen lately (older sightings fade) and train more of whatever answers them best,
+  judged by each unit's weapon against those armour classes; against aircraft they dig in up to two Flak
+  Cannons first. Their vehicles below 35 % health fall back to a Repair Bay and their aircraft to a Helipad,
+  and rejoin the fight at 90 %. Up to three scout buggies or gunships waiting at home dash off to hunt any
+  enemy harvester they can see, and a wave of six or more splits: every other unit marches round a flank
+  point 24 m beside the direct road before joining the attack. Levels can switch the fog off (`"fog_of_war": false`, or in the
+  battle editor).

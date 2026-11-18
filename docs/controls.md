@@ -1,0 +1,40 @@
+# Controls
+
+| Input | Action |
+| --- | --- |
+| LMB / drag | select unit / box-select units (Shift adds); the box counts the units inside, selected units get white corner marks |
+| RMB on ground | move (formation) |
+| RMB on enemy | attack |
+| Ctrl + RMB | attack-move: fight anything met on the way, then carry on |
+| Alt + RMB | patrol between the current position and the target |
+| Shift + RMB | queue the order behind the current ones (route shown for selected units) |
+| RMB with a barracks or factory selected | set its rally point |
+| RMB on crystals / refinery (harvester) | harvest / unload |
+| RMB on a structure with engineers selected | capture it (enemy) / repair it fully (own, damaged) |
+| Menu: tile LMB | build; a finished structure: click, then place it on the map |
+| Menu: tile RMB | cancel and refund |
+| Wall tile, then LMB drag on the map | lay a straight wall, $50 per segment (RMB / Esc ends) |
+| T or REPAIR, then LMB on own structure | start or stop repairing it (stays on for more clicks; RMB / Esc ends it) |
+| Y or SELL, then LMB on own structure | sell it for half its price (stays on for more clicks; RMB / Esc ends it) |
+| WASD, arrows, screen edge | scroll the camera (Shift = faster) |
+| Middle mouse button + drag | drag the map |
+| Minimap: click / drag | jump to that spot |
+| Mouse wheel / Q, E / R | zoom / rotate / reset rotation |
+| Space or Home | back to base |
+| X / Esc | stop / deselect, cancel placement |
+| double-click / Ctrl+click a unit | select every unit of that kind on screen |
+| M | engineers lay a mine ($100 each) |
+| V | jump to the last attack on your base or a harvester |
+| Ctrl+1-9 (Cmd+1-9) | save the selection as a group |
+| 1-9 / twice quickly | select a group / move the camera to it |
+| Shift+1-9 | add a group to the selection |
+| F1 | show controls in-game |
+| F2 | graphics quality Low / Medium / High (also `IRON_TIDE_QUALITY=low\|medium\|high`) |
+| F3 | performance overlay: FPS, frame time, GPU time, CPU (game / system), memory, entities |
+| F5 / F9 | quick save / quick load |
+| F10, Esc (when nothing is selected), MENU button | menu: game, graphics, gameplay, keys, audio, save/load (pauses the game) |
+
+The letter and function keys above are defaults: the menu's *Keys* tab rebinds camera scrolling, rotation,
+back to base, stop, repair, sell, quick save / load and F1-F3 (click an action, press the new key; a key
+already in use swaps with it). Arrows, Home, Esc, F10, the digits and the modifiers stay fixed. The
+controls overview, buttons and tutorial show the current keys.
