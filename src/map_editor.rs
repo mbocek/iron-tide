@@ -91,6 +91,7 @@ pub enum EditorButton {
     Difficulty(usize),
     AddEnemy,
     RemoveEnemy,
+    Faction,
     PlayTest,
     Save,
     Exit,
@@ -229,6 +230,9 @@ fn spawn_level_page(
         false,
     );
     panel.spawn(fonts.heading(tr("SIDES"), 15.0, TEXT_DIM));
+    let faction = tr(Team::Player.name_in(level.player_faction));
+    let faction_label = tr_fmt("Your faction: {}", &[&faction]);
+    spawn_button(panel, fonts, &faction_label, EditorButton::Faction, false);
     let sides = std::iter::once((tr("You").to_string(), level.player.site, None)).chain(
         level.enemies.iter().enumerate().map(|(index, enemy)| {
             let name = tr_fmt("Computer {}", &[&(index + 1)]);
@@ -328,6 +332,7 @@ fn press_editor_button(
         EditorButton::RemoveEnemy => {
             remove_enemy(level);
         }
+        EditorButton::Faction => level.player_faction = level.player_faction.opposite(),
         EditorButton::PlayTest => next_state.set(GameState::Playing),
         EditorButton::Save => save_edited_level(&mut editor, level),
         EditorButton::Exit => next_state.set(GameState::MainMenu),

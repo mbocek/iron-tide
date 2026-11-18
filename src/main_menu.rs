@@ -108,9 +108,10 @@ pub enum EditorField {
     Season,
     MapSize,
     NetworkPlayers,
+    Faction,
 }
 
-const EDITOR_FIELDS: [EditorField; 14] = [
+const EDITOR_FIELDS: [EditorField; 15] = [
     EditorField::Enemies,
     EditorField::Difficulty,
     EditorField::Credits,
@@ -118,6 +119,7 @@ const EDITOR_FIELDS: [EditorField; 14] = [
     EditorField::Tech,
     EditorField::MapVariant,
     EditorField::PlayerSite,
+    EditorField::Faction,
     EditorField::FogOfWar,
     EditorField::Alliance,
     EditorField::Landscape,
@@ -154,6 +156,7 @@ impl EditorField {
             EditorField::Season => tr("Season"),
             EditorField::MapSize => tr("Map size"),
             EditorField::NetworkPlayers => tr("Network players"),
+            EditorField::Faction => tr("Your faction"),
         }
     }
 
@@ -195,6 +198,7 @@ impl EditorField {
                 ],
             ),
             EditorField::NetworkPlayers => options.network_players.to_string(),
+            EditorField::Faction => tr(Team::Player.name_in(options.player_faction)).into(),
         }
     }
 
@@ -254,6 +258,7 @@ impl EditorField {
                 let counts: Vec<usize> = (2..=MOST_PLAYERS).collect();
                 options.network_players = cycle(&counts, options.network_players, forward);
             }
+            EditorField::Faction => options.player_faction = options.player_faction.opposite(),
         }
     }
 }

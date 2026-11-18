@@ -450,6 +450,7 @@ pub struct SkirmishOptions {
     pub map_size: MapSize,
     /// People in a network battle, the host included; the computer plays the other corners.
     pub network_players: usize,
+    pub player_faction: Faction,
 }
 
 impl Default for SkirmishOptions {
@@ -469,6 +470,7 @@ impl Default for SkirmishOptions {
             season: Season::Summer,
             map_size: MapSize::Standard,
             network_players: 2,
+            player_faction: Faction::Coalition,
         }
     }
 }
@@ -528,7 +530,7 @@ impl SkirmishOptions {
             season: self.season,
             map_size: self.map_size,
             map_edits: Vec::new(),
-            player_faction: Faction::Coalition,
+            player_faction: self.player_faction,
         }
     }
 }

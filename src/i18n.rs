@@ -1021,6 +1021,8 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ("SIDES", "STRANY", "STRANY"),
     ("Computer {}", "Počítač {}", "Počítač {}"),
     ("PLAY IT", "VYSKÚŠAŤ", "VYZKOUŠET"),
+    ("Your faction", "Tvoja frakcia", "Tvoje frakce"),
+    ("Your faction: {}", "Tvoja frakcia: {}", "Tvoje frakce: {}"),
     ("+ COMPUTER", "+ POČÍTAČ", "+ POČÍTAČ"),
     ("- COMPUTER", "- POČÍTAČ", "- POČÍTAČ"),
     ("EDIT MAP", "UPRAVIŤ MAPU", "UPRAVIT MAPU"),
