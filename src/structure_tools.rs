@@ -6,7 +6,9 @@ use crate::catalog::Team;
 use crate::components::{Building, Health};
 use crate::fog::FogOfWar;
 use crate::i18n::{tr, tr_fmt};
+use crate::key_bindings::{Action, KeyBindings};
 use crate::map::{GameMap, footprint_center, world_to_cell};
+use crate::settings::GameSettings;
 use crate::sound::{Sound, SoundCue};
 use crate::structures::{
     Repairing, StructureOrder, StructureOrderKind, can_sell, repair_cost, sale_refund,
@@ -29,17 +31,32 @@ pub struct ToolButton(StructureOrderKind);
 #[derive(Component)]
 pub struct ToolHint;
 
-fn hotkey(tool: StructureOrderKind) -> KeyCode {
+#[derive(Component)]
+pub struct ToolLabel(StructureOrderKind);
+
+fn hotkey(tool: StructureOrderKind) -> Action {
     match tool {
-        StructureOrderKind::ToggleRepair => KeyCode::KeyT,
-        StructureOrderKind::Sell => KeyCode::KeyY,
+        StructureOrderKind::ToggleRepair => Action::RepairTool,
+        StructureOrderKind::Sell => Action::SellTool,
     }
 }
 
-fn label(tool: StructureOrderKind) -> &'static str {
-    match tool {
-        StructureOrderKind::ToggleRepair => tr("REPAIR  T"),
-        StructureOrderKind::Sell => tr("SELL  Y"),
+fn label(tool: StructureOrderKind, bindings: &KeyBindings) -> String {
+    let template = match tool {
+        StructureOrderKind::ToggleRepair => "REPAIR  {}",
+        StructureOrderKind::Sell => "SELL  {}",
+    };
+    tr_fmt(template, &[&bindings.label(hotkey(tool))])
+}
+
+pub fn label_tool_buttons(
+    settings: Res<GameSettings>,
+    mut labels: Query<(Ref<ToolLabel>, &mut Text)>,
+) {
+    for (label_of, mut text) in &mut labels {
+        if settings.is_changed() || label_of.is_added() {
+            text.0 = label(label_of.0, &settings.keys);
+        }
     }
 }
 
@@ -67,7 +84,7 @@ pub fn spawn_tool_buttons(panel: &mut ChildSpawnerCommands, fonts: &UiFonts) {
                     BorderColor::all(FRAME),
                 ))
                 .with_children(|button| {
-                    button.spawn(fonts.heading(label(tool), 13.0, TEXT_MAIN));
+                    button.spawn((ToolLabel(tool), fonts.heading("", 13.0, TEXT_MAIN)));
                 })
                 .observe(
                     move |_: On<PointerClick>,
@@ -108,10 +125,11 @@ fn toggle(active: &mut StructureTool, tool: StructureOrderKind) {
 pub fn switch_tools_by_keyboard(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    settings: Res<GameSettings>,
     mut active: ResMut<StructureTool>,
 ) {
     for tool in [StructureOrderKind::ToggleRepair, StructureOrderKind::Sell] {
-        if keys.just_pressed(hotkey(tool)) {
+        if settings.keys.just_pressed(&keys, hotkey(tool)) {
             toggle(&mut active, tool);
         }
     }

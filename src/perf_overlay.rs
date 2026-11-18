@@ -5,6 +5,7 @@ use bevy::diagnostic::{
 use bevy::prelude::*;
 
 use crate::components::Unit;
+use crate::key_bindings::Action;
 use crate::settings::GameSettings;
 use crate::ui::{FRAME, PANEL, SIDEBAR_WIDTH, TEXT_MAIN, UiFonts};
 
@@ -48,7 +49,10 @@ pub fn toggle_performance_overlay(
     keys: Res<ButtonInput<KeyCode>>,
     mut settings: ResMut<GameSettings>,
 ) {
-    if keys.just_pressed(KeyCode::F3) {
+    if settings
+        .keys
+        .just_pressed(&keys, Action::PerformanceOverlay)
+    {
         settings.performance_overlay = !settings.performance_overlay;
     }
 }

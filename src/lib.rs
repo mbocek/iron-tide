@@ -23,6 +23,7 @@ pub mod graphics;
 pub mod headless;
 pub mod i18n;
 pub mod intel;
+pub mod key_bindings;
 pub mod levels;
 pub mod main_menu;
 pub mod map;
@@ -422,6 +423,15 @@ impl Plugin for GamePlugin {
                 )
                     .chain()
                     .in_set(FramePhase::Input),
+            )
+            .add_systems(
+                Update,
+                (
+                    structure_tools::label_tool_buttons,
+                    ui::fill_controls_help,
+                    menu::capture_key_binding,
+                )
+                    .in_set(FramePhase::Presentation),
             )
             .add_systems(
                 Update,

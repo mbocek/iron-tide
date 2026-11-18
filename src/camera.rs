@@ -12,6 +12,7 @@ use bevy::render::view::{ColorGrading, ColorGradingGlobal, ColorGradingSection};
 use bevy::window::PrimaryWindow;
 
 use crate::catalog::BuildingKind;
+use crate::key_bindings::{Action, KeyBindings};
 use crate::levels::ActiveLevel;
 use crate::map::{MAP_WORLD_SIZE, footprint_center};
 use crate::match_flow::Persistent;
@@ -134,18 +135,18 @@ pub fn setup_scene(mut commands: Commands) {
     commands.insert_resource(ClearColor(SKY_COLOR));
 }
 
-fn keyboard_pan(keys: &ButtonInput<KeyCode>) -> Vec2 {
+fn keyboard_pan(keys: &ButtonInput<KeyCode>, bindings: &KeyBindings) -> Vec2 {
     let mut pan = Vec2::ZERO;
-    if keys.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]) {
+    if bindings.pressed(keys, Action::ScrollUp) || keys.pressed(KeyCode::ArrowUp) {
         pan.y -= 1.0;
     }
-    if keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {
+    if bindings.pressed(keys, Action::ScrollDown) || keys.pressed(KeyCode::ArrowDown) {
         pan.y += 1.0;
     }
-    if keys.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]) {
+    if bindings.pressed(keys, Action::ScrollLeft) || keys.pressed(KeyCode::ArrowLeft) {
         pan.x -= 1.0;
     }
-    if keys.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]) {
+    if bindings.pressed(keys, Action::ScrollRight) || keys.pressed(KeyCode::ArrowRight) {
         pan.x += 1.0;
     }
     pan
@@ -192,16 +193,16 @@ pub fn control_camera(
     };
     let dt = time.delta_secs();
 
-    if keys.any_just_pressed([KeyCode::Home, KeyCode::Space]) {
+    if settings.keys.just_pressed(&keys, Action::JumpHome) || keys.just_pressed(KeyCode::Home) {
         camera.focus = home_focus(&level);
     }
-    if keys.just_pressed(KeyCode::KeyR) {
+    if settings.keys.just_pressed(&keys, Action::ResetRotation) {
         camera.yaw = 0.0;
     }
-    if keys.pressed(KeyCode::KeyQ) {
+    if settings.keys.pressed(&keys, Action::RotateLeft) {
         camera.yaw += ROTATE_SPEED * dt;
     }
-    if keys.pressed(KeyCode::KeyE) {
+    if settings.keys.pressed(&keys, Action::RotateRight) {
         camera.yaw -= ROTATE_SPEED * dt;
     }
     for event in wheel.read() {
@@ -224,7 +225,7 @@ pub fn control_camera(
     } else {
         Vec2::ZERO
     };
-    let pan = keyboard_pan(&keys) + edge;
+    let pan = keyboard_pan(&keys, &settings.keys) + edge;
     let pan_speed = PAN_SPEED
         * settings.scroll_speed_factor()
         * camera.distance

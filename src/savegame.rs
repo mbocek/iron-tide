@@ -13,12 +13,13 @@ use crate::economy::Economies;
 use crate::fog::FogOfWar;
 use crate::i18n::{tr, tr_fmt};
 use crate::intel::Intel;
+use crate::key_bindings::Action;
 use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::{GameMap, cell_of_index, spawn_crystal_visual};
 use crate::match_flow::{GameState, MatchClock};
 use crate::notifications::Notifications;
 use crate::production::{BuildItem, Lane, Production};
-use crate::settings::game_data_directory;
+use crate::settings::{GameSettings, game_data_directory};
 use crate::spawn::{spawn_building, spawn_unit};
 use crate::structures::{BeingSold, Repairing};
 use crate::veterancy::Veterancy;
@@ -159,11 +160,15 @@ pub fn slot_summary(directory: &SaveDirectory, slot: usize) -> Option<String> {
     ))
 }
 
-pub fn quick_save_keys(keys: Res<ButtonInput<KeyCode>>, mut requests: ResMut<SaveRequests>) {
-    if keys.just_pressed(KeyCode::F5) {
+pub fn quick_save_keys(
+    keys: Res<ButtonInput<KeyCode>>,
+    settings: Res<GameSettings>,
+    mut requests: ResMut<SaveRequests>,
+) {
+    if settings.keys.just_pressed(&keys, Action::QuickSave) {
         requests.save = Some(QUICK_SAVE_SLOT);
     }
-    if keys.just_pressed(KeyCode::F9) {
+    if settings.keys.just_pressed(&keys, Action::QuickLoad) {
         requests.load = Some(QUICK_SAVE_SLOT);
     }
 }

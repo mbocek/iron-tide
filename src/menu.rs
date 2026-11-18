@@ -3,7 +3,8 @@ use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 
 use crate::components::Selected;
-use crate::i18n::{Language, tr, tr_owned};
+use crate::i18n::{Language, tr, tr_fmt, tr_owned};
+use crate::key_bindings::{Action, is_bindable};
 use crate::match_flow::GameState;
 use crate::production::Placement;
 use crate::savegame::{
@@ -17,6 +18,7 @@ use crate::ui::{ACCENT, FRAME, FRAME_BRIGHT, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts
 
 const MENU_WIDTH: f32 = 620.0;
 const VALUE_BUTTON_WIDTH: f32 = 190.0;
+const KEY_BUTTON_WIDTH: f32 = 110.0;
 const BUTTON_IDLE: Color = Color::srgb(0.13, 0.15, 0.17);
 const BUTTON_HOVERED: Color = Color::srgb(0.19, 0.22, 0.25);
 
@@ -26,15 +28,17 @@ enum MenuPage {
     Game,
     Graphics,
     Gameplay,
+    Keys,
     Audio,
     SaveLoad,
 }
 
 impl MenuPage {
-    const ALL: [MenuPage; 5] = [
+    const ALL: [MenuPage; 6] = [
         MenuPage::Game,
         MenuPage::Graphics,
         MenuPage::Gameplay,
+        MenuPage::Keys,
         MenuPage::Audio,
         MenuPage::SaveLoad,
     ];
@@ -44,6 +48,7 @@ impl MenuPage {
             MenuPage::Game => tr("GAME"),
             MenuPage::Graphics => tr("GRAPHICS"),
             MenuPage::Gameplay => tr("GAMEPLAY"),
+            MenuPage::Keys => tr("KEYS"),
             MenuPage::Audio => tr("AUDIO"),
             MenuPage::SaveLoad => tr("SAVE / LOAD"),
         }
@@ -55,6 +60,8 @@ pub struct MenuState {
     open: bool,
     page: MenuPage,
     needs_rebuild: bool,
+    /// The action waiting for the player to press its new key.
+    rebinding: Option<Action>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -315,6 +322,7 @@ enum MenuAction {
     Quit,
     Save(usize),
     Load(usize),
+    ResetKeys,
 }
 
 #[derive(Component)]
@@ -334,6 +342,12 @@ pub struct SettingValue(Setting);
 
 #[derive(Component)]
 pub struct ActionButton(MenuAction);
+
+#[derive(Component)]
+pub struct KeyButton(Action);
+
+#[derive(Component)]
+pub struct KeyValue(Action);
 
 pub fn spawn_menu(commands: &mut Commands, fonts: &UiFonts) {
     commands
@@ -429,6 +443,10 @@ pub fn toggle_menu(
     selected: Query<(), With<Selected>>,
     mut menu: ResMut<MenuState>,
 ) {
+    if menu.rebinding.is_some() && keys.just_pressed(KeyCode::Escape) {
+        menu.rebinding = None;
+        return;
+    }
     let escape_is_free = placement.active.is_none() && tool.0.is_none() && selected.is_empty();
     let wants_toggle = keys.just_pressed(KeyCode::F10)
         || (keys.just_pressed(KeyCode::Escape) && (menu.open || escape_is_free));
@@ -438,9 +456,27 @@ pub fn toggle_menu(
     }
 }
 
+impl MenuState {
+    /// Opens the menu on the page whose English debug name matches, ignoring case.
+    pub fn show_page_named(&mut self, name: &str) {
+        let Some(page) = MenuPage::ALL
+            .into_iter()
+            .find(|page| format!("{page:?}").eq_ignore_ascii_case(name))
+        else {
+            return;
+        };
+        if self.open && self.page == page {
+            return;
+        }
+        self.page = page;
+        set_open(self, true);
+    }
+}
+
 fn set_open(menu: &mut MenuState, open: bool) {
     menu.open = open;
     menu.needs_rebuild = open;
+    menu.rebinding = None;
 }
 
 /// A fresh match starts with the pause menu closed and time running.
@@ -479,6 +515,7 @@ fn select_page(click: On<PointerClick>, tabs: Query<&MenuTab>, mut menu: ResMut<
     if let Ok(tab) = tabs.get(click.entity) {
         menu.page = tab.0;
         menu.needs_rebuild = true;
+        menu.rebinding = None;
     }
 }
 
@@ -498,10 +535,38 @@ fn change_setting(
     button.0.change(&mut settings, forward);
 }
 
+fn start_rebinding(
+    click: On<PointerClick>,
+    buttons: Query<&KeyButton>,
+    mut menu: ResMut<MenuState>,
+) {
+    if click.button != PointerButton::Primary {
+        return;
+    }
+    if let Ok(button) = buttons.get(click.entity) {
+        menu.rebinding = Some(button.0);
+    }
+}
+
+pub fn capture_key_binding(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut menu: ResMut<MenuState>,
+    mut settings: ResMut<GameSettings>,
+) {
+    let Some(action) = menu.rebinding else {
+        return;
+    };
+    if let Some(&key) = keys.get_just_pressed().find(|&&key| is_bindable(key)) {
+        settings.keys.bind(action, key);
+        menu.rebinding = None;
+    }
+}
+
 fn run_action(
     click: On<PointerClick>,
     buttons: Query<&ActionButton>,
     mut menu: ResMut<MenuState>,
+    mut settings: ResMut<GameSettings>,
     mut requests: ResMut<SaveRequests>,
     mut next_state: ResMut<NextState<GameState>>,
     mut exit: MessageWriter<AppExit>,
@@ -532,6 +597,10 @@ fn run_action(
         MenuAction::Load(slot) => {
             requests.load = Some(slot);
             set_open(&mut menu, false);
+        }
+        MenuAction::ResetKeys => {
+            settings.keys.reset();
+            menu.rebinding = None;
         }
     }
 }
@@ -600,6 +669,56 @@ fn spawn_setting_row(
         });
 }
 
+fn spawn_key_column(
+    content: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    settings: &GameSettings,
+    actions: &[Action],
+) {
+    content
+        .spawn(Node {
+            flex_direction: FlexDirection::Column,
+            flex_grow: 1.0,
+            flex_basis: Val::Px(0.0),
+            row_gap: Val::Px(6.0),
+            ..default()
+        })
+        .with_children(|column| {
+            for &action in actions {
+                column
+                    .spawn(Node {
+                        justify_content: JustifyContent::SpaceBetween,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        row.spawn(fonts.text(action.name(), 15.0, TEXT_MAIN));
+                        row.spawn((
+                            KeyButton(action),
+                            Hovered::default(),
+                            Node {
+                                width: Val::Px(KEY_BUTTON_WIDTH),
+                                height: Val::Px(30.0),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                border: UiRect::all(Val::Px(1.0)),
+                                ..default()
+                            },
+                            BackgroundColor(BUTTON_IDLE),
+                            BorderColor::all(FRAME),
+                        ))
+                        .with_children(|button| {
+                            button.spawn((
+                                KeyValue(action),
+                                fonts.heading(settings.keys.label(action), 15.0, ACCENT),
+                            ));
+                        })
+                        .observe(start_rebinding);
+                    });
+            }
+        });
+}
+
 fn spawn_slot_row(
     content: &mut ChildSpawnerCommands,
     fonts: &UiFonts,
@@ -663,7 +782,14 @@ pub fn rebuild_menu_page(
     commands.entity(content).with_children(|content| match page {
         MenuPage::Game => {
             content.spawn(fonts.text(
-                tr("Battle is paused. Graphics and gameplay options are saved automatically.\nF5 quick save, F9 quick load, F3 performance overlay."),
+                tr_fmt(
+                    "Battle is paused. Graphics and gameplay options are saved automatically.\n{} quick save, {} quick load, {} performance overlay.",
+                    &[
+                        &settings.keys.label(Action::QuickSave),
+                        &settings.keys.label(Action::QuickLoad),
+                        &settings.keys.label(Action::PerformanceOverlay),
+                    ],
+                ),
                 16.0,
                 TEXT_DIM,
             ));
@@ -689,6 +815,25 @@ pub fn rebuild_menu_page(
                 spawn_setting_row(content, &fonts, &settings, setting);
             }
         }
+        MenuPage::Keys => {
+            let (left, right) = Action::ALL.split_at(Action::ALL.len() / 2);
+            content
+                .spawn(Node {
+                    column_gap: Val::Px(24.0),
+                    ..default()
+                })
+                .with_children(|columns| {
+                    spawn_key_column(columns, &fonts, &settings, left);
+                    spawn_key_column(columns, &fonts, &settings, right);
+                });
+            content.spawn(fonts.text(
+                tr("Click an action, then press its new key. A key already in use swaps places. Esc cancels."),
+                14.0,
+                TEXT_DIM,
+            ));
+            let reset = spawn_button(content, &fonts, tr("Reset to defaults"), 240.0);
+            content.commands().entity(reset).insert(ActionButton(MenuAction::ResetKeys)).observe(run_action);
+        }
         MenuPage::Audio => {
             for setting in AUDIO_SETTINGS {
                 spawn_setting_row(content, &fonts, &settings, setting);
@@ -707,12 +852,13 @@ pub fn refresh_menu(
     menu: Res<MenuState>,
     settings: Res<GameSettings>,
     mut values: Query<(&SettingValue, &mut Text)>,
+    mut key_values: Query<(&KeyValue, &mut Text), Without<SettingValue>>,
     mut tabs: Query<(&MenuTab, &mut BorderColor, &mut BackgroundColor, &Hovered)>,
     mut buttons: Query<
         (&Hovered, &mut BackgroundColor),
         (
             Without<MenuTab>,
-            Or<(With<SettingButton>, With<ActionButton>)>,
+            Or<(With<SettingButton>, With<ActionButton>, With<KeyButton>)>,
         ),
     >,
 ) {
@@ -723,6 +869,16 @@ pub fn refresh_menu(
         let current = value.0.value(&settings);
         if text.0 != current {
             text.0 = current;
+        }
+    }
+    for (value, mut text) in &mut key_values {
+        let current = if menu.rebinding == Some(value.0) {
+            tr("press a key")
+        } else {
+            settings.keys.label(value.0)
+        };
+        if text.0 != current {
+            text.0 = current.to_string();
         }
     }
     for (tab, mut border, mut background, hovered) in &mut tabs {

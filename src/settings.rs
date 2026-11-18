@@ -5,6 +5,7 @@ use bevy::window::{MonitorSelection, PresentMode, PrimaryWindow, WindowMode};
 use serde::{Deserialize, Serialize};
 
 use crate::i18n::{Language, set_language};
+use crate::key_bindings::KeyBindings;
 
 const GAME_DIRECTORY: &str = "iron_tide";
 const SETTINGS_FILE: &str = "settings.json";
@@ -98,6 +99,7 @@ pub struct GameSettings {
     pub music_volume: f32,
     pub effects_volume: f32,
     pub language: Language,
+    pub keys: KeyBindings,
 }
 
 impl Default for GameSettings {
@@ -123,6 +125,7 @@ impl Default for GameSettings {
             music_volume: 0.6,
             effects_volume: 0.8,
             language: Language::English,
+            keys: KeyBindings::default(),
         };
         settings.apply_preset(QualityPreset::High);
         settings

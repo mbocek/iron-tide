@@ -7,6 +7,7 @@ use bevy::prelude::*;
 use crate::camera::RtsCamera;
 use crate::fog_view::Shrouded;
 use crate::i18n::{tr_fmt, tr_owned};
+use crate::key_bindings::Action;
 use crate::notifications::Notifications;
 use crate::settings::{GameSettings, QualityPreset, ShadowQuality};
 
@@ -35,7 +36,7 @@ pub fn cycle_quality_preset(
     mut settings: ResMut<GameSettings>,
     mut notifications: ResMut<Notifications>,
 ) {
-    if keys.just_pressed(KeyCode::F2) {
+    if settings.keys.just_pressed(&keys, Action::GraphicsQuality) {
         let preset = next_preset(settings.preset);
         settings.apply_preset(preset);
         notifications.push(tr_fmt(

@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::components::{Building, Mobile, Order, Orders, Selected, Unit};
 use crate::i18n::{tr, tr_fmt};
+use crate::key_bindings::{Action, KeyBindings};
 use crate::levels::ActiveLevel;
+use crate::settings::GameSettings;
 use crate::sound::{Sound, SoundCue};
 use crate::ui::{ACCENT, FRAME_BRIGHT, GOOD, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
 
@@ -36,8 +38,8 @@ pub const TUTORIAL_STEPS: [TutorialStep; 8] = [
 ];
 
 impl TutorialStep {
-    pub fn instruction(self) -> &'static str {
-        match self {
+    pub fn instruction(self, keys: &KeyBindings) -> String {
+        let fixed = match self {
             TutorialStep::SelectUnits => {
                 tr("Select your troops: drag a box around them with the left mouse button.")
             }
@@ -55,10 +57,14 @@ impl TutorialStep {
             TutorialStep::AttackMove => tr(
                 "Select your troops and Ctrl + right-click across the river: they fight anything on the way.",
             ),
-            TutorialStep::DestroyOutpost => tr(
-                "Destroy the Syndicate outpost in the north-east. Press F1 any time for all controls.",
-            ),
-        }
+            TutorialStep::DestroyOutpost => {
+                return tr_fmt(
+                    "Destroy the Syndicate outpost in the north-east. Press {} any time for all controls.",
+                    &[&keys.label(Action::ControlsHelp)],
+                );
+            }
+        };
+        fixed.to_string()
     }
 }
 
@@ -214,6 +220,7 @@ pub fn follow_tutorial(
 
 pub fn refresh_tutorial_panel(
     tutorial: Option<Res<Tutorial>>,
+    settings: Res<GameSettings>,
     mut panels: Query<(&mut Visibility, &mut BorderColor), With<TutorialPanel>>,
     mut texts: Query<&mut Text, (With<TutorialText>, Without<TutorialCounter>)>,
     mut counters: Query<&mut Text, (With<TutorialCounter>, Without<TutorialText>)>,
@@ -245,8 +252,9 @@ pub fn refresh_tutorial_panel(
         }
     }
     for mut text in &mut texts {
-        if text.0 != tr(step.instruction()) {
-            text.0 = tr(step.instruction()).to_string();
+        let instruction = step.instruction(&settings.keys);
+        if text.0 != instruction {
+            text.0 = instruction.clone();
         }
     }
 }

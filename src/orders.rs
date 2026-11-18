@@ -6,9 +6,11 @@ use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
 use crate::engineers::{EngineerJob, EngineerTask, job_for};
 use crate::i18n::{tr, tr_fmt};
+use crate::key_bindings::Action;
 use crate::map::{GameMap, cells_by_distance, world_to_cell};
 use crate::movement::order_move;
 use crate::production::Placement;
+use crate::settings::GameSettings;
 use crate::sound::{Sound, SoundCue};
 use crate::structure_tools::StructureTool;
 use crate::ui::UiFonts;
@@ -301,7 +303,7 @@ pub fn issue_orders(
     mut commands: Commands,
     mut cues: MessageWriter<SoundCue>,
     mouse: Res<ButtonInput<MouseButton>>,
-    keys: Res<ButtonInput<KeyCode>>,
+    (keys, settings): (Res<ButtonInput<KeyCode>>, Res<GameSettings>),
     cursor: Res<Cursor>,
     placement: Res<Placement>,
     tool: Res<StructureTool>,
@@ -315,7 +317,7 @@ pub fn issue_orders(
     kinds: Query<&Unit>,
     selected_buildings: Query<(Entity, &Building, &Team), With<Selected>>,
 ) {
-    if keys.just_pressed(KeyCode::KeyX) {
+    if settings.keys.just_pressed(&keys, Action::Stop) {
         for (_, _, mobile, attack, _, orders) in &mut units {
             if let Some(mut mobile) = mobile {
                 mobile.stop();

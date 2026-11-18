@@ -12,6 +12,7 @@ use crate::components::{Selected, Unit};
 use crate::levels::{ActiveLevel, campaign};
 use crate::map::cell_center;
 use crate::match_flow::GameState;
+use crate::menu::MenuState;
 use crate::savegame::SaveRequests;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 
@@ -24,6 +25,7 @@ const CAPTURE_MISSION_VAR: &str = "IRON_TIDE_CAPTURE_MISSION";
 const CAPTURE_REPLAY_VAR: &str = "IRON_TIDE_CAPTURE_REPLAY";
 const CAPTURE_SELECT_ALL_VAR: &str = "IRON_TIDE_CAPTURE_SELECT_ALL";
 const CAPTURE_ZOOM_VAR: &str = "IRON_TIDE_CAPTURE_ZOOM";
+const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
 const LOAD_AFTER_SECS: f32 = 1.5;
 const DEFAULT_CAPTURE_DELAY_SECS: f32 = 5.0;
 const FRAMES_TO_FLUSH_SCREENSHOT: u32 = 10;
@@ -76,7 +78,8 @@ impl Plugin for CapturePlugin {
         .add_systems(Update, (follow_main_camera, capture_then_exit).chain())
         .add_systems(
             Update,
-            (select_all_own_units, zoom_camera).run_if(in_state(GameState::Playing)),
+            (select_all_own_units, zoom_camera, open_requested_menu_page)
+                .run_if(in_state(GameState::Playing)),
         );
         if let Some(cell) = std::env::var(CAPTURE_FOCUS_VAR)
             .ok()
@@ -138,7 +141,7 @@ fn follow_main_camera(
 
 fn capture_then_exit(
     mut commands: Commands,
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     target: Option<Res<CaptureTarget>>,
     diagnostics: Res<DiagnosticsStore>,
     mut requests: ResMut<SaveRequests>,
@@ -217,6 +220,13 @@ fn zoom_camera(mut cameras: Query<&mut RtsCamera>) {
     for mut camera in &mut cameras {
         camera.distance = distance;
         camera.target_distance = distance;
+    }
+}
+
+/// `IRON_TIDE_CAPTURE_MENU=keys` opens the pause menu on that page (game, graphics, keys, ...).
+fn open_requested_menu_page(mut menu: ResMut<MenuState>) {
+    if let Ok(page) = std::env::var(CAPTURE_MENU_VAR) {
+        menu.show_page_named(&page);
     }
 }
 

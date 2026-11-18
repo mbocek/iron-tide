@@ -123,12 +123,18 @@ Without fog the north-east has had a slight edge over several runs; the cause is
 | F2 | graphics quality Low / Medium / High (also `IRON_TIDE_QUALITY=low\|medium\|high`) |
 | F3 | performance overlay: FPS, frame time, GPU time, CPU (game / system), memory, entities |
 | F5 / F9 | quick save / quick load |
-| F10, Esc (when nothing is selected), MENU button | menu: game, graphics, gameplay, save/load (pauses the game) |
+| F10, Esc (when nothing is selected), MENU button | menu: game, graphics, gameplay, keys, audio, save/load (pauses the game) |
+
+The letter and function keys above are defaults: the menu's *Keys* tab rebinds camera scrolling, rotation,
+back to base, stop, repair, sell, quick save / load and F1-F3 (click an action, press the new key; a key
+already in use swaps with it). Arrows, Home, Esc, F10, the digits and the modifiers stay fixed. The
+controls overview, buttons and tutorial show the current keys.
 
 ## Settings and saves
 
 Settings (graphics: preset, shadows, AO, bloom, SMAA, vegetation, wind, VSync, frame rate limit, fullscreen;
-gameplay: game speed, edge scrolling, scroll speed, damage numbers, health bars, overlay) are saved
+gameplay: language, game speed, edge scrolling, scroll speed, damage numbers, health bars, overlay; key
+bindings, stored by key name and only where they differ from the defaults) are saved
 automatically to `~/.config/iron_tide/settings.json` (Windows: `%APPDATA%\iron_tide`). Saved games live in
 the `saves/` directory next to it: a quick save plus 3 slots.
 
@@ -297,6 +303,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
 | `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
+| `key_bindings` | rebindable hotkeys: actions, their default and bindable keys, swapping on conflict |
 | `engineers` | engineers capturing enemy structures and repairing own ones |
 | `tutorial` | the step-by-step tutorial of levels with `"tutorial": true` |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
@@ -305,7 +312,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `outcome`, `match_stats` | mission objectives, victory and defeat; the tally shown at the end of a match |
 | `replay` | recording matches, storing and listing replays, watching them |
 | `battlefield` | scorch marks, vehicle wrecks and rain |
-| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay, `_SELECT_ALL=1` selects every own unit, `_ZOOM=150` sets the camera distance) |
+| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay, `_SELECT_ALL=1` selects every own unit, `_ZOOM=150` sets the camera distance, `_MENU=keys` opens that menu page) |
 
 ## Model contract (Blender → game)
 
