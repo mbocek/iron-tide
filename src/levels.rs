@@ -102,7 +102,7 @@ impl Difficulty {
         match self {
             Difficulty::Easy => 4,
             Difficulty::Normal => 6,
-            Difficulty::Hard => 8,
+            Difficulty::Hard => 7,
         }
     }
 
@@ -111,7 +111,7 @@ impl Difficulty {
         match self {
             Difficulty::Easy => 0.75,
             Difficulty::Normal => 1.0,
-            Difficulty::Hard => 1.35,
+            Difficulty::Hard => 1.25,
         }
     }
 }

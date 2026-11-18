@@ -82,11 +82,11 @@ on its own map variant, once from each corner):
 
 | Challenger | vs | fog | wins : losses (unfinished) | median length | SW : NE site wins |
 | --- | --- | --- | --- | --- | --- |
-| Normal | Normal | on | 24 : 26 (10) | 10.5 min | 29 : 21 |
-| Hard | Normal | on | 41 : 5 (14) | 6.2 min | 24 : 22 |
-| Normal | Hard | on | 8 : 38 (14) | 6.7 min | 22 : 24 |
-| Easy | Normal | on | 8 : 38 (14) | 10.8 min | 32 : 14 |
-| Normal | Normal | off | 33 : 26 (1) | 4.7 min | 33 : 26 |
+| Normal | Normal | on | 24 : 30 (6) | 10.2 min | 31 : 23 |
+| Hard | Normal | on | 27 : 12 (21) | 6.8 min | 12 : 27 |
+| Normal | Hard | on | 9 : 30 (21) | 7.0 min | 16 : 23 |
+| Easy | Normal | on | 6 : 43 (11) | 11.1 min | 31 : 18 |
+| Normal | Normal | off | 27 : 24 (9) | 4.6 min | 27 : 24 |
 
 The challenger plays the Coalition and the defender the Syndicate. The defender wins the Normal mirror more
 often, but it does the same with both sides on one faction or with the factions swapped, so that is the
@@ -97,8 +97,9 @@ vehicle it cannot afford yet saves for it instead of choosing again, so the heav
 vehicles, scouts hunt infantry, rocketeers kill armour, tanks and the Bulwark beat light vehicles, and howitzers
 and missile trucks shell infantry but lose to anything fast that reaches them. Unfinished matches are mostly
 mutual exhaustion: both sides out of units, money and harvesters, with only turrets left standing. Hard used to
-think every 0.6 s and lost to Normal because of it; it now thinks as often as Normal and wins on income and
-bigger waves.
+think every 0.6 s and lost to Normal because of it; it now thinks as often as Normal and wins on 25 % more
+income and a first wave of seven instead of six. The size of that first wave matters far more than income:
+with eight, Hard won 41:5.
 
 ## Controls
 
