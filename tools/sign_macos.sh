@@ -12,7 +12,13 @@ kind="${1:?app or dmg}"
 target="${2:?path to sign}"
 
 if [ -z "${MACOS_CERTIFICATE:-}" ] || [ -z "${MACOS_SIGNING_IDENTITY:-}" ]; then
-  echo "macOS signing secrets are not set: ${target} stays unsigned"
+  if [ "${kind}" = app ]; then
+    # Only the binary carries the linker's signature, so Gatekeeper calls the downloaded bundle "damaged";
+    # an ad-hoc signature over the whole bundle lets the player open it with "Open Anyway" instead.
+    codesign --force --deep --sign - "${target}"
+    codesign --verify --strict --verbose=2 "${target}"
+  fi
+  echo "macOS signing secrets are not set: ${target} is not signed with a Developer ID"
   exit 0
 fi
 

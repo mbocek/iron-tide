@@ -30,6 +30,10 @@ Download the package for your system from the [latest release](https://github.co
 unpack it and run `iron-tide` (on macOS open the disk image and start *Iron Tide*).
 Press **F1** in a battle to see the controls.
 
+Release builds are not yet signed with a Developer ID, so macOS refuses the first start: open *System
+Settings → Privacy & Security* and click *Open Anyway* next to Iron Tide. For packages up to 1.3.0, which
+macOS calls "damaged", run `xattr -dr com.apple.quarantine "/Applications/Iron Tide.app"` once instead.
+
 ## Build from source
 
 ```sh
