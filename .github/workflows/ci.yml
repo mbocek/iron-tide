@@ -90,11 +90,26 @@ jobs:
         if: runner.os == 'Windows' || matrix.platform == 'macos-arm64'
         run: cargo test --release --target ${{ matrix.target }} --test cross_platform
 
+      # Signing steps skip themselves while the certificates are not configured; see docs/signing.md.
+      - name: Sign the Windows executable
+        if: runner.os == 'Windows'
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: tools/sign_windows.sh "$BINARY"
+
       - name: Bundle binary and assets
         run: tools/package.sh ${{ matrix.platform }} "$BINARY"
 
-      - name: Build the macOS disk image
+      - name: Build, sign and notarize the macOS disk image
         if: matrix.dmg
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: tools/package_dmg.sh ${{ matrix.platform }} "$BINARY"
 
       - uses: actions/upload-artifact@v4
@@ -114,6 +129,9 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt
 
       - name: Publish the GitHub release
         uses: softprops/action-gh-release@v2

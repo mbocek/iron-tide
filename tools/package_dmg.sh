@@ -50,7 +50,10 @@ cat > "${app}/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+tools/sign_macos.sh app "${app}"
+
 ln -s /Applications "${stage}/Applications"
 hdiutil create -quiet -volname "Iron Tide" -srcfolder "${stage}" -ov -format UDZO "dist/${name}.dmg"
 rm -rf "${stage}"
+tools/sign_macos.sh dmg "dist/${name}.dmg"
 ls -lh "dist/${name}.dmg"

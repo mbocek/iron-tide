@@ -163,7 +163,7 @@ At start-up the game asks GitHub for the latest release of this repository (one 
 `api.github.com`, sent as `iron-tide/<version>` with nothing about the player). When a newer version has a
 package for this computer, the main menu shows a banner; clicking it downloads the package into the
 Downloads folder and then opens it: a disk image is mounted on macOS, the zip or archive is shown in its
-folder on Windows and Linux. Installing stays in the player's hands, as the builds are not signed. The check
+folder on Windows and Linux. Installing stays in the player's hands. Release builds are signed and notarized once the certificates are configured in CI (see [docs/signing.md](docs/signing.md)); until then they are unsigned. The check
 can be switched off with *Check for updates* in the menu's *Gameplay* tab, and capture runs never check.
 
 ## Determinism (groundwork for multiplayer)
