@@ -12,7 +12,7 @@ MATCHES ?= 12
 PLATFORM ?= $(shell uname -s | tr A-Z a-z)-$(shell uname -m)
 
 .DEFAULT_GOAL := help
-.PHONY: help run run-release build release models models-fast previews capture check lint fmt fmt-check test test-unit test-playability balance package clean clean-models
+.PHONY: help run run-release build release models models-fast previews capture check lint fmt fmt-check test test-unit test-playability balance package dmg clean clean-models
 
 help: ## List the available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -50,6 +50,9 @@ test-playability: ## Headless matches: movement, economy, production, combat, AI
 
 package: release ## Bundle the release binary and assets into dist/ (PLATFORM=, defaults to this machine)
 	tools/package.sh $(PLATFORM) $(RELEASE_BIN)
+
+dmg: release ## macOS only: "Iron Tide.app" on a disk image in dist/ (PLATFORM=, defaults to this machine)
+	tools/package_dmg.sh $(PLATFORM) $(RELEASE_BIN)
 
 balance: ## AI-against-AI balance report: unit duels and difficulty tournaments (MATCHES=per pairing)
 	cargo run --release --bin balance -- --matches $(MATCHES)

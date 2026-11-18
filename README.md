@@ -13,6 +13,7 @@ make models           # regenerate the models in Blender 5.x (ONLY=tank,scout fo
 make models-fast      # export only, without rendering previews (no GPU needed)
 make check            # cargo fmt --check + clippy -D warnings + tests
 make package          # release build bundled with its assets in dist/
+make dmg              # macOS: Iron Tide.app on a disk image in dist/
 make capture CAPTURE=shot.png CAPTURE_AFTER=30 CAPTURE_FOCUS=52,10
 make help             # every target
 ```
@@ -24,9 +25,10 @@ make package          # dist/iron-tide-<version>-<os>-<arch>.tar.gz: the release
 ```
 
 The game loads its assets from the folder next to the executable, so a package just needs unpacking.
-CI (`.github/workflows/ci.yml`) runs `make check`, then packages Linux x86_64, macOS arm64 and Windows x86_64
-(zip) builds and attaches them to the workflow run. Pushing a version tag also publishes a GitHub release with
-the three packages:
+CI (`.github/workflows/ci.yml`) runs `make check`, then packages Linux x86_64, macOS arm64, macOS x86_64
+(Intel, cross-compiled on the Apple Silicon runner) and Windows x86_64 (zip) builds. Both macOS builds also
+come as a disk image with `Iron Tide.app` (`make dmg` builds one locally). Pushing a version tag also
+publishes a GitHub release with all the packages:
 
 ```sh
 git tag v1.1.0 && git push origin v1.1.0   # the tag should match the version in Cargo.toml
@@ -94,7 +96,7 @@ Without fog the north-east has had a slight edge over several runs; the cause is
 
 | Input | Action |
 | --- | --- |
-| LMB / drag | select unit / box-select units (Shift adds) |
+| LMB / drag | select unit / box-select units (Shift adds); the box counts the units inside, selected units get white corner marks |
 | RMB on ground | move (formation) |
 | RMB on enemy | attack |
 | Ctrl + RMB | attack-move: fight anything met on the way, then carry on |
@@ -285,7 +287,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `outcome` | mission objectives, victory and defeat |
 | `replay` | recording matches, storing and listing replays, watching them |
 | `battlefield` | scorch marks, vehicle wrecks and rain |
-| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay) |
+| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay, `_SELECT_ALL=1` selects every own unit, `_ZOOM=150` sets the camera distance) |
 
 ## Model contract (Blender → game)
 

@@ -40,18 +40,30 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux-x86_64
-            binary: target/release/iron-tide
+            target: x86_64-unknown-linux-gnu
+            executable: iron-tide
           - os: macos-latest
             platform: macos-arm64
-            binary: target/release/iron-tide
+            target: aarch64-apple-darwin
+            executable: iron-tide
+            dmg: true
+          # Intel Macs: cross-compiled on the Apple Silicon runner.
+          - os: macos-latest
+            platform: macos-x86_64
+            target: x86_64-apple-darwin
+            executable: iron-tide
+            dmg: true
           - os: windows-latest
             platform: windows-x86_64
-            binary: target/release/iron-tide.exe
+            target: x86_64-pc-windows-msvc
+            executable: iron-tide.exe
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
       run:
         shell: bash
+    env:
+      BINARY: target/${{ matrix.target }}/release/${{ matrix.executable }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,16 +75,22 @@ jobs:
             pkg-config libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
       - uses: dtolnay/rust-toolchain@1.100.0
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.platform }}
 
       - name: Build the game
-        run: cargo build --release --bin iron-tide
+        run: cargo build --release --bin iron-tide --target ${{ matrix.target }}
 
       - name: Bundle binary and assets
-        run: tools/package.sh ${{ matrix.platform }} ${{ matrix.binary }}
+        run: tools/package.sh ${{ matrix.platform }} "$BINARY"
+
+      - name: Build the macOS disk image
+        if: matrix.dmg
+        run: tools/package_dmg.sh ${{ matrix.platform }} "$BINARY"
 
       - uses: actions/upload-artifact@v4
         with:
