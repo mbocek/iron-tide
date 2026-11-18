@@ -10,6 +10,7 @@ struct TerrainSettings {
     normal_strength: f32,
     macro_variation: f32,
     water_level: f32,
+    snow_cover: f32,
 };
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> terrain: TerrainSettings;
@@ -33,6 +34,8 @@ const CLOUD_SCALE: f32 = 0.011;
 const CLOUD_SHADOW_DEPTH: f32 = 0.32;
 const FOAM_COLOR: vec3<f32> = vec3<f32>(0.82, 0.86, 0.85);
 const FOAM_BAND: f32 = 0.09;
+// Same as SNOW in src/season.rs.
+const SNOW_COLOR: vec3<f32> = vec3<f32>(0.82, 0.86, 0.92);
 
 fn hash(p: vec2<f32>) -> f32 {
     return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
@@ -127,6 +130,15 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
 
     let broad_shading = 1.0 + (value_noise(world_xz * 0.018) - 0.5) * 2.0 * terrain.macro_variation;
     albedo *= broad_shading;
+
+    if terrain.snow_cover > 0.0 {
+        let drift = value_noise(world_xz * 0.3) * 0.6 + value_noise(world_xz * 1.9) * 0.4;
+        let flat_ground = smoothstep(0.7, 0.95, pbr_input.world_normal.y);
+        let above_water = smoothstep(terrain.water_level + 0.15, terrain.water_level + 0.7, in.world_position.y);
+        let snow = flat_ground * above_water * smoothstep(0.55, 0.3, drift - terrain.snow_cover * 0.45);
+        albedo = mix(albedo, SNOW_COLOR, snow);
+        roughness = mix(roughness, 0.6, snow);
+    }
 
     let wetness = 1.0 - smoothstep(terrain.water_level, terrain.water_level + 0.5, in.world_position.y);
     albedo *= mix(1.0, 0.55, wetness);

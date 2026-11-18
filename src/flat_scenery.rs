@@ -6,7 +6,9 @@ use bevy::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::prelude::*;
 
 use crate::assets::ModelLibrary;
+use crate::levels::ActiveLevel;
 use crate::scenery::FlatScenery;
+use crate::season::{Foliage, Season};
 
 /// Trees, rocks and decoration as one merged mesh each. A glTF scene costs a handful of entities per
 /// prop (root, nodes, one per material); thousands of grass tufts made that most of the world.
@@ -18,7 +20,8 @@ pub struct FlatSceneryLibrary {
 
 #[derive(Clone)]
 struct MergedModel {
-    mesh: Handle<Mesh>,
+    /// Indexed by `Season::index`: the same mesh with its colours turned for each season.
+    seasonal_meshes: Vec<Handle<Mesh>>,
     material: Handle<StandardMaterial>,
 }
 
@@ -77,7 +80,10 @@ pub fn merge_scenery_models(
             continue;
         };
         let merged = merge_parts(&parts).map(|(mesh, material)| MergedModel {
-            mesh: meshes.add(mesh),
+            seasonal_meshes: Season::ALL
+                .iter()
+                .map(|&season| meshes.add(in_season(&mesh, season, Foliage::of_model(&id))))
+                .collect(),
             material: materials.add(material),
         });
         if merged.is_none() {
@@ -165,18 +171,41 @@ fn merge_parts(parts: &[(Mesh, GltfMaterial)]) -> Option<(Mesh, StandardMaterial
     Some((merged, material))
 }
 
+fn in_season(mesh: &Mesh, season: Season, foliage: Foliage) -> Mesh {
+    let mut seasonal = mesh.clone();
+    let (
+        Some(VertexAttributeValues::Float32x4(colors)),
+        Some(VertexAttributeValues::Float32x3(normals)),
+    ) = (
+        mesh.attribute(Mesh::ATTRIBUTE_COLOR),
+        mesh.attribute(Mesh::ATTRIBUTE_NORMAL),
+    )
+    else {
+        return seasonal;
+    };
+    let turned: Vec<[f32; 4]> = colors
+        .iter()
+        .zip(normals)
+        .map(|(&color, &normal)| season.recolor(color, normal, foliage))
+        .collect();
+    seasonal.insert_attribute(Mesh::ATTRIBUTE_COLOR, turned);
+    seasonal
+}
+
 /// Gives flat scenery its merged mesh once it is ready, or the full scene if the model could not be merged.
 pub fn dress_flat_scenery(
     mut commands: Commands,
     library: Res<FlatSceneryLibrary>,
     models: Res<ModelLibrary>,
+    level: Option<Res<ActiveLevel>>,
     undressed: Query<(Entity, &FlatScenery), (Without<Mesh3d>, Without<WorldAssetRoot>)>,
 ) {
+    let season = level.map_or(Season::Summer, |level| level.0.season);
     for (entity, scenery) in &undressed {
         match library.merged.get(scenery.0) {
             Some(Some(model)) => {
                 commands.entity(entity).insert((
-                    Mesh3d(model.mesh.clone()),
+                    Mesh3d(model.seasonal_meshes[season.index()].clone()),
                     MeshMaterial3d(model.material.clone()),
                 ));
             }

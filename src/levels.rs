@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::i18n::{tr, tr_fmt};
 use crate::map::BASE_SITES;
+use crate::season::Season;
 use crate::settings::game_data_directory;
 use crate::terrain::Landscape;
 
@@ -194,6 +195,7 @@ pub struct LevelDefinition {
     pub free_for_all: bool,
     pub landscape: Landscape,
     pub weather: Weather,
+    pub season: Season,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -219,6 +221,7 @@ impl Default for LevelDefinition {
             free_for_all: false,
             landscape: Landscape::River,
             weather: Weather::Clear,
+            season: Season::Summer,
         }
     }
 }
@@ -402,6 +405,7 @@ pub struct SkirmishOptions {
     pub free_for_all: bool,
     pub landscape: Landscape,
     pub weather: Weather,
+    pub season: Season,
 }
 
 impl Default for SkirmishOptions {
@@ -418,6 +422,7 @@ impl Default for SkirmishOptions {
             free_for_all: false,
             landscape: Landscape::River,
             weather: Weather::Clear,
+            season: Season::Summer,
         }
     }
 }
@@ -464,6 +469,7 @@ impl SkirmishOptions {
             free_for_all: self.free_for_all,
             landscape: self.landscape,
             weather: self.weather,
+            season: self.season,
         }
     }
 }

@@ -14,5 +14,6 @@
   "objective": "CaptureCommandCenter",
   "available_units": [],
   "available_buildings": [],
-  "landscape": "Plains"
+  "landscape": "Plains",
+  "season": "Autumn"
 }

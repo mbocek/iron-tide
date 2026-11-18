@@ -10,6 +10,7 @@ use crate::combat::{DamageSource, Destroyed, Impact};
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::fog::FogOfWar;
 use crate::levels::{ActiveLevel, Weather};
+use crate::season::Season;
 
 const CRATER_LIFETIME_SECS: f32 = 40.0;
 const MAX_CRATERS: usize = 80;
@@ -26,6 +27,9 @@ const RAIN_AREA_HALF_SPAN: f32 = 40.0;
 const RAIN_HEIGHT: f32 = 24.0;
 const RAIN_FALL_SPEED: f32 = 18.0;
 const RAIN_STREAK: Vec3 = Vec3::new(0.12, -0.9, 0.05);
+const SNOW_FALL_SPEED: f32 = 2.2;
+const SNOWFLAKE: Vec3 = Vec3::new(0.05, -0.12, 0.0);
+const SNOW_FLUTTER: f32 = 0.5;
 const CLEAR_SUNLIGHT: f32 = 7_000.0;
 const RAIN_SUNLIGHT: f32 = 3_200.0;
 const CLEAR_AMBIENT: f32 = 280.0;
@@ -234,14 +238,17 @@ pub fn set_the_weather(
     mut ambient: ResMut<GlobalAmbientLight>,
 ) {
     let raining = level.0.weather == Weather::Rain;
+    let season = level.0.season;
     for mut sun in &mut suns {
         sun.illuminance = if raining {
             RAIN_SUNLIGHT
         } else {
             CLEAR_SUNLIGHT
         };
+        sun.color = season.sunlight_color();
     }
-    ambient.brightness = if raining { RAIN_AMBIENT } else { CLEAR_AMBIENT };
+    let brightness = if raining { RAIN_AMBIENT } else { CLEAR_AMBIENT };
+    ambient.brightness = brightness * season.ambient_factor();
 }
 
 fn drop_hash(index: usize, salt: u32) -> f32 {
@@ -252,7 +259,7 @@ fn drop_hash(index: usize, salt: u32) -> f32 {
     (h & 0x00ff_ffff) as f32 / 0x00ff_ffff as f32
 }
 
-/// Streaks of rain falling around the point the camera looks at.
+/// Streaks of rain, or in winter drifting snowflakes, falling around the point the camera looks at.
 pub fn draw_rain(
     mut gizmos: Gizmos,
     time: Res<Time>,
@@ -263,17 +270,35 @@ pub fn draw_rain(
         return;
     }
     let Ok(camera) = cameras.single() else { return };
-    let color = Color::srgba(0.72, 0.78, 0.86, 0.45);
+    let snowing = level.0.season == Season::Winter;
+    let (color, fall_speed, streak) = if snowing {
+        (
+            Color::srgba(0.95, 0.97, 1.0, 0.8),
+            SNOW_FALL_SPEED,
+            SNOWFLAKE,
+        )
+    } else {
+        (
+            Color::srgba(0.72, 0.78, 0.86, 0.45),
+            RAIN_FALL_SPEED,
+            RAIN_STREAK,
+        )
+    };
     let elapsed = time.elapsed_secs();
     for index in 0..RAIN_DROPS {
         let offset = Vec2::new(drop_hash(index, 1), drop_hash(index, 2)) * 2.0 - Vec2::ONE;
-        let fallen = (elapsed * RAIN_FALL_SPEED + drop_hash(index, 3) * RAIN_HEIGHT) % RAIN_HEIGHT;
+        let fallen = (elapsed * fall_speed + drop_hash(index, 3) * RAIN_HEIGHT) % RAIN_HEIGHT;
+        let flutter = if snowing {
+            (elapsed * 1.3 + drop_hash(index, 4) * 6.0).sin() * SNOW_FLUTTER
+        } else {
+            0.0
+        };
         let top = camera.focus
             + Vec3::new(
-                offset.x * RAIN_AREA_HALF_SPAN,
+                offset.x * RAIN_AREA_HALF_SPAN + flutter,
                 RAIN_HEIGHT - fallen,
                 offset.y * RAIN_AREA_HALF_SPAN,
             );
-        gizmos.line(top, top + RAIN_STREAK, color);
+        gizmos.line(top, top + streak, color);
     }
 }

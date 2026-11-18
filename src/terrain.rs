@@ -345,9 +345,8 @@ impl GroundLayers {
         layer_weights(self.landscape, position, &self.roads, crystal_soil)
     }
 
-    pub fn minimap_color(&self, position: Vec2, crystal: bool) -> Vec3 {
+    pub fn minimap_color(&self, position: Vec2, crystal: bool, grass: Vec3) -> Vec3 {
         let weights = self.weights(position, if crystal { 1.0 } else { 0.0 });
-        let grass = Vec3::new(0.30, 0.38, 0.17);
         let dirt = Vec3::new(0.42, 0.34, 0.24);
         let rock = Vec3::new(0.48, 0.46, 0.43);
         let riverbed = Vec3::new(0.20, 0.36, 0.48);

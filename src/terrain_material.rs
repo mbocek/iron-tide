@@ -11,6 +11,8 @@ use bevy::render::render_resource::{
 use bevy::shader::ShaderRef;
 
 use crate::fog_view::FogTexture;
+use crate::levels::ActiveLevel;
+use crate::season::Season;
 
 /// Order must match the layer indices in `assets/shaders/terrain.wesl` and the weights in `terrain::layer_weights`.
 const TERRAIN_LAYERS: [&str; 5] = [
@@ -22,8 +24,6 @@ const TERRAIN_LAYERS: [&str; 5] = [
 ];
 const LAYER_TILE_SIZES: Vec4 = Vec4::new(4.5, 5.0, 7.0, 3.5);
 const BASE_PAD_TILE_SIZE: f32 = 5.0;
-/// The grass photo is late-summer brown; this pushes it toward a lusher green.
-const GRASS_TINT: Vec4 = Vec4::new(0.6, 0.98, 0.5, 1.0);
 /// The sources are 2K; the camera never gets close enough to need more than 1K, so the top mip is dropped.
 const SKIPPED_SOURCE_MIPS: usize = 1;
 const WATER_NORMAL_SIZE: u32 = 256;
@@ -68,6 +68,7 @@ mod uniforms {
         pub normal_strength: f32,
         pub macro_variation: f32,
         pub water_level: f32,
+        pub snow_cover: f32,
     }
 }
 
@@ -159,12 +160,13 @@ pub fn assemble_terrain_material(
         },
         extension: TerrainLayers {
             settings: TerrainSettings {
-                grass_tint: GRASS_TINT,
+                grass_tint: Season::Summer.grass_tint(),
                 layer_tile_sizes: LAYER_TILE_SIZES,
                 pad_tile_size: BASE_PAD_TILE_SIZE,
                 normal_strength: 1.3,
                 macro_variation: 0.26,
                 water_level: crate::terrain::WATER_LEVEL,
+                snow_cover: Season::Summer.snow_cover(),
             },
             albedo_roughness: images.add(mipmapped_array(
                 &albedo_layers,
@@ -176,6 +178,29 @@ pub fn assemble_terrain_material(
     };
     commands.insert_resource(TerrainMaterialHandle(terrain_materials.add(material)));
     commands.remove_resource::<TerrainTextureSources>();
+}
+
+/// The ground material is shared by every match, so it takes on the season of the level being played.
+pub fn season_the_terrain(
+    level: Option<Res<ActiveLevel>>,
+    handle: Option<Res<TerrainMaterialHandle>>,
+    mut materials: ResMut<Assets<TerrainMaterial>>,
+) {
+    let (Some(level), Some(handle)) = (level, handle) else {
+        return;
+    };
+    let season = level.0.season;
+    let Some(material) = materials.get(&handle.0) else {
+        return;
+    };
+    let settings = material.extension.settings;
+    if settings.grass_tint == season.grass_tint() && settings.snow_cover == season.snow_cover() {
+        return;
+    }
+    if let Some(mut material) = materials.get_mut(&handle.0) {
+        material.extension.settings.grass_tint = season.grass_tint();
+        material.extension.settings.snow_cover = season.snow_cover();
+    }
 }
 
 /// Gives each newly spawned terrain the textured material once it exists.

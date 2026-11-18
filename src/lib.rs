@@ -44,6 +44,7 @@ pub mod queue_bar;
 pub mod replay;
 pub mod savegame;
 pub mod scenery;
+pub mod season;
 pub mod servicing;
 pub mod settings;
 pub mod sound;
@@ -314,6 +315,7 @@ impl Plugin for GamePlugin {
                     camera::control_camera,
                     fog_view::paint_fog_texture,
                     terrain_material::assemble_terrain_material,
+                    terrain_material::season_the_terrain,
                     terrain_material::dress_terrain_surfaces,
                     terrain_material::animate_water,
                     battlefield::draw_rain,
@@ -455,6 +457,7 @@ impl Plugin for GamePlugin {
                         damage_feedback::float_damage_numbers,
                         damage_feedback::emit_damage_smoke,
                         terrain_material::assemble_terrain_material,
+                        terrain_material::season_the_terrain,
                         terrain_material::animate_water,
                     )
                         .chain(),

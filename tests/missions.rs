@@ -12,6 +12,7 @@ use iron_tide::map::GameMap;
 use iron_tide::outcome::GameOutcome;
 use iron_tide::production::BuildItem;
 use iron_tide::savegame::SaveRequests;
+use iron_tide::season::Season;
 
 const OPEN_FIELD: IVec2 = IVec2::new(30, 45);
 
@@ -284,4 +285,12 @@ fn capturing_the_enemy_command_center_wins_silent_takeover() {
         .insert(EngineerTask::new(enemy_center, EngineerJob::Capture));
     let took = battle.run_until(30.0, |battle| battle.outcome() == GameOutcome::Victory);
     assert!(took.is_some(), "the capture did not win the mission");
+}
+
+#[test]
+fn the_campaign_passes_through_the_seasons() {
+    let seasons: Vec<Season> = campaign().iter().map(|entry| entry.level.season).collect();
+    assert_eq!(seasons[0], Season::Summer);
+    assert!(seasons.contains(&Season::Autumn));
+    assert!(seasons.contains(&Season::Winter));
 }

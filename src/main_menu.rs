@@ -11,6 +11,7 @@ use crate::levels::{
 use crate::match_flow::GameState;
 use crate::replay::{ReplayPlayback, ReplaySummary, list_replays, load_replay, replay_directory};
 use crate::savegame::{QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_summary};
+use crate::season::Season;
 use crate::settings::GameSettings;
 use crate::terrain::Landscape;
 use crate::ui::{ACCENT, FRAME, FRAME_BRIGHT, GOOD, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
@@ -80,9 +81,10 @@ pub enum EditorField {
     Alliance,
     Landscape,
     Weather,
+    Season,
 }
 
-const EDITOR_FIELDS: [EditorField; 11] = [
+const EDITOR_FIELDS: [EditorField; 12] = [
     EditorField::Enemies,
     EditorField::Difficulty,
     EditorField::Credits,
@@ -94,6 +96,7 @@ const EDITOR_FIELDS: [EditorField; 11] = [
     EditorField::Alliance,
     EditorField::Landscape,
     EditorField::Weather,
+    EditorField::Season,
 ];
 
 fn cycle<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
@@ -120,6 +123,7 @@ impl EditorField {
             EditorField::Alliance => tr("Opponents"),
             EditorField::Landscape => tr("Landscape"),
             EditorField::Weather => tr("Weather"),
+            EditorField::Season => tr("Season"),
         }
     }
 
@@ -151,6 +155,7 @@ impl EditorField {
             .into(),
             EditorField::Landscape => tr_owned(&format!("{:?}", options.landscape)),
             EditorField::Weather => tr_owned(&format!("{:?}", options.weather)),
+            EditorField::Season => tr_owned(&format!("{:?}", options.season)),
         }
     }
 
@@ -197,6 +202,9 @@ impl EditorField {
             }
             EditorField::Weather => {
                 options.weather = cycle(&[Weather::Clear, Weather::Rain], options.weather, forward);
+            }
+            EditorField::Season => {
+                options.season = cycle(&Season::ALL, options.season, forward);
             }
         }
     }

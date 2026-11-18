@@ -221,13 +221,19 @@ A level file is plain JSON; omitted fields take defaults:
   "tutorial": false,
   "free_for_all": false,
   "landscape": "River",
-  "weather": "Clear"
+  "weather": "Clear",
+  "season": "Summer"
 }
 ```
 
 Landscapes: `River` (a winding river with three fords), `Lake` (a long lake between the bases with one
 causeway across its middle) and `Plains` (open ground without water); all of them are point-symmetric.
 Weather: `Clear` or `Rain` (falling rain, a dimmer sun and sky).
+Seasons: `Summer`, `Autumn` (birches turn yellow, broadleaf trees orange, shrubs red, grass straw; pines stay
+green; a warmer sun) or `Winter` (snow on open flat ground and on top of rocks, trees and logs, frosted
+leaves, a colder sun, and rain falls as snow). Each scenery model's colours are turned once per season when
+it is loaded, so seasons cost nothing while playing. The campaign's third mission is fought in winter and its
+fifth in autumn.
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel

@@ -788,6 +788,10 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Betonová bariéra. Tažením postavíte řadu; každý díl se platí při položení.",
     ),
     ("Helipad", "Heliport", "Heliport"),
+    ("Season", "Ročné obdobie", "Roční období"),
+    ("Summer", "Leto", "Léto"),
+    ("Autumn", "Jeseň", "Podzim"),
+    ("Winter", "Zima", "Zima"),
     ("Repair Bay", "Opravovňa", "Opravna"),
     (
         "Repairs vehicles that wait next to it.",

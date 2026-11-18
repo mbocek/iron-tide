@@ -39,6 +39,7 @@ pub fn create_minimap(
 ) {
     let landscape = level.0.landscape;
     let ground = GroundLayers::new(landscape);
+    let grass = level.0.season.minimap_grass();
     let mut terrain = Vec::with_capacity((RESOLUTION * RESOLUTION * 4) as usize);
     for py in 0..RESOLUTION {
         for px in 0..RESOLUTION {
@@ -50,7 +51,8 @@ pub fn create_minimap(
             } else if !map.is_passable(cell) {
                 OBSTACLE
             } else {
-                let color = ground.minimap_color(world, map.crystal_at(cell) > 0) * 255.0;
+                let crystal = map.crystal_at(cell) > 0;
+                let color = ground.minimap_color(world, crystal, grass) * 255.0;
                 [color.x as u8, color.y as u8, color.z as u8]
             };
             terrain.extend_from_slice(&[rgb[0], rgb[1], rgb[2], 255]);

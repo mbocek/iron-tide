@@ -15,5 +15,6 @@
   "objective": "DestroyCommandCenters",
   "available_units": [],
   "available_buildings": [],
-  "landscape": "Lake"
+  "landscape": "Lake",
+  "season": "Winter"
 }
