@@ -22,6 +22,8 @@ pub struct TeamEconomy {
     pub power_demand: i32,
     /// Multiplier on delivered crystal; the difficulty setting of computer opponents.
     pub income_rate: f32,
+    /// Credits earned from delivered crystal over the whole match.
+    pub harvested: i32,
 }
 
 impl TeamEconomy {
@@ -172,8 +174,9 @@ pub fn run_harvesters(
                     Some(HarvestState::Unloading { refinery, timer })
                 } else {
                     let economy = economies.of_mut(team);
-                    economy.credits +=
-                        (harvester.cargo as f32 * economy.income_rate).round() as i32;
+                    let earned = (harvester.cargo as f32 * economy.income_rate).round() as i32;
+                    economy.credits += earned;
+                    economy.harvested += earned;
                     harvester.cargo = 0;
                     if team == Team::Player {
                         cues.write(SoundCue::at(Sound::Credits, position));
@@ -287,13 +290,13 @@ mod tests {
             credits: 0,
             power_supply: 100,
             power_demand: 100,
-            income_rate: 1.0,
+            ..default()
         };
         let starved = TeamEconomy {
             credits: 0,
             power_supply: 100,
             power_demand: 101,
-            income_rate: 1.0,
+            ..default()
         };
         assert_eq!(balanced.production_rate(), 1.0);
         assert_eq!(starved.production_rate(), LOW_POWER_PRODUCTION_RATE);

@@ -26,6 +26,7 @@ pub mod levels;
 pub mod main_menu;
 pub mod map;
 pub mod match_flow;
+pub mod match_stats;
 pub mod medical;
 pub mod menu;
 pub mod minimap;
@@ -129,6 +130,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<intel::Intel>()
             .init_resource::<catalog::Diplomacy>()
             .init_resource::<veterancy::LastHits>()
+            .init_resource::<match_stats::MatchStats>()
             .init_resource::<savegame::SaveRequests>()
             .init_resource::<savegame::SaveDirectory>()
             .add_message::<combat::DamageDealt>()
@@ -198,6 +200,9 @@ impl Plugin for SimulationPlugin {
                     )
                         .chain(),
                     (
+                        match_stats::tally_damage,
+                        match_stats::tally_losses,
+                        match_stats::tally_new_forces,
                         veterancy::record_last_hits,
                         veterancy::credit_kills,
                         veterancy::promote_veterans,

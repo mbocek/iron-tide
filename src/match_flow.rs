@@ -10,6 +10,7 @@ use crate::fog::FogOfWar;
 use crate::intel::Intel;
 use crate::levels::{ActiveLevel, ForceSetup};
 use crate::map::{GameMap, cell_center, in_far_half};
+use crate::match_stats::MatchStats;
 use crate::notifications::Notifications;
 use crate::outcome::GameOutcome;
 use crate::production::{BuildItem, Placement, PlacementContext, Production, construct_building};
@@ -54,6 +55,7 @@ pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
         free_for_all: level.0.free_for_all,
     });
     commands.insert_resource(LastHits::default());
+    commands.insert_resource(MatchStats::default());
     commands.insert_resource(Targets::default());
     commands.insert_resource(Economies::default());
     commands.insert_resource(Production::default());

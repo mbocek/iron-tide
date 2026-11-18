@@ -1,3 +1,5 @@
+use crate::match_stats::{MatchStats, TeamTally};
+use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
 use crate::structure_tools::spawn_tool_buttons;
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
@@ -8,7 +10,7 @@ use crate::components::*;
 use crate::control_groups::spawn_group_bar;
 use crate::economy::Economies;
 use crate::levels::ActiveLevel;
-use crate::match_flow::MatchClock;
+use crate::match_flow::{GameState, MatchClock};
 use crate::menu::{MenuState, open_menu_from_button, spawn_menu};
 use crate::minimap::{Minimap, jump_camera_on_drag, jump_camera_on_press};
 use crate::notifications::Notifications;
@@ -105,6 +107,9 @@ pub struct OutcomeOverlay;
 
 #[derive(Component)]
 pub struct OutcomeTitle;
+
+#[derive(Component)]
+pub struct OutcomeStats;
 
 impl UiFonts {
     pub(crate) fn text(&self, text: impl Into<String>, size: f32, color: Color) -> impl Bundle {
@@ -643,9 +648,10 @@ fn spawn_outcome_overlay(commands: &mut Commands, fonts: &UiFonts) {
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
+                row_gap: Val::Px(14.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.45)),
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
             Visibility::Hidden,
         ))
         .with_children(|overlay| {
@@ -654,12 +660,197 @@ fn spawn_outcome_overlay(commands: &mut Commands, fonts: &UiFonts) {
                 fonts.heading("", 96.0, ACCENT),
                 TextShadow::default(),
             ));
-            overlay.spawn(fonts.text(
-                "Open the menu (F10) to restart or return to the main menu.",
-                24.0,
-                TEXT_MAIN,
+            overlay.spawn((
+                OutcomeStats,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(4.0),
+                    padding: UiRect::axes(Val::Px(24.0), Val::Px(14.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    min_width: Val::Px(460.0),
+                    ..default()
+                },
+                BackgroundColor(PANEL.with_alpha(0.9)),
+                BorderColor::all(FRAME_BRIGHT),
             ));
+            overlay
+                .spawn(Node {
+                    column_gap: Val::Px(12.0),
+                    ..default()
+                })
+                .with_children(|buttons| {
+                    spawn_outcome_button(
+                        buttons,
+                        fonts,
+                        "WATCH REPLAY",
+                        OutcomeAction::WatchReplay,
+                    );
+                    spawn_outcome_button(buttons, fonts, "MAIN MENU", OutcomeAction::MainMenu);
+                });
+            overlay.spawn(fonts.text("F10 opens the menu to restart the mission.", 18.0, TEXT_DIM));
         });
+}
+
+#[derive(Component, Clone, Copy)]
+pub enum OutcomeAction {
+    WatchReplay,
+    MainMenu,
+}
+
+fn spawn_outcome_button(
+    parent: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    label: &str,
+    action: OutcomeAction,
+) {
+    parent
+        .spawn((
+            action,
+            Hovered::default(),
+            Node {
+                padding: UiRect::axes(Val::Px(18.0), Val::Px(8.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(TILE),
+            BorderColor::all(FRAME_BRIGHT),
+        ))
+        .with_children(|button| {
+            button.spawn(fonts.heading(label, 18.0, TEXT_MAIN));
+        })
+        .observe(run_outcome_action);
+}
+
+fn run_outcome_action(
+    click: On<PointerClick>,
+    mut commands: Commands,
+    actions: Query<&OutcomeAction>,
+    mut notifications: ResMut<Notifications>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    let Ok(&action) = actions.get(click.entity) else {
+        return;
+    };
+    match action {
+        OutcomeAction::MainMenu => next_state.set(GameState::MainMenu),
+        OutcomeAction::WatchReplay => {
+            let newest = list_replays(&replay_directory())
+                .into_iter()
+                .next()
+                .and_then(|summary| load_replay(&summary.path).ok());
+            match newest {
+                Some(replay) => {
+                    commands.insert_resource(ActiveLevel(replay.level.clone()));
+                    commands.insert_resource(ReplayPlayback::new(replay));
+                    next_state.set(GameState::Replay);
+                }
+                None => notifications.push("The replay could not be found"),
+            }
+        }
+    }
+}
+
+/// The rows of the end-of-match table: what the player did against what all opponents did together.
+fn outcome_rows(stats: &MatchStats, economies: &Economies) -> Vec<(&'static str, String, String)> {
+    let player = *stats.of(Team::Player);
+    let mut opponents = TeamTally::default();
+    let mut opponents_harvested = 0;
+    for team in Team::OPPONENTS {
+        opponents.add(stats.of(team));
+        opponents_harvested += economies.of(team).harvested;
+    }
+    let count = |value: u32| value.to_string();
+    let amount = |value: f32| format!("{:.0}", value);
+    vec![
+        (
+            "Units trained",
+            count(player.units_trained),
+            count(opponents.units_trained),
+        ),
+        (
+            "Units lost",
+            count(player.units_lost),
+            count(opponents.units_lost),
+        ),
+        (
+            "Structures built",
+            count(player.structures_built),
+            count(opponents.structures_built),
+        ),
+        (
+            "Structures lost",
+            count(player.structures_lost),
+            count(opponents.structures_lost),
+        ),
+        (
+            "Enemies destroyed",
+            count(player.enemies_destroyed),
+            count(opponents.enemies_destroyed),
+        ),
+        (
+            "Damage dealt",
+            amount(player.damage_dealt),
+            amount(opponents.damage_dealt),
+        ),
+        (
+            "Credits harvested",
+            format!("${}", economies.of(Team::Player).harvested),
+            format!("${opponents_harvested}"),
+        ),
+    ]
+}
+
+fn spawn_outcome_table(
+    table: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    rows: Vec<(&'static str, String, String)>,
+    match_secs: f32,
+) {
+    let row = |table: &mut ChildSpawnerCommands, cells: [(String, Color); 3]| {
+        table
+            .spawn(Node {
+                column_gap: Val::Px(12.0),
+                ..default()
+            })
+            .with_children(|line| {
+                for (index, (text, color)) in cells.into_iter().enumerate() {
+                    let width = if index == 0 { 220.0 } else { 100.0 };
+                    line.spawn(Node {
+                        width: Val::Px(width),
+                        justify_content: if index == 0 {
+                            JustifyContent::FlexStart
+                        } else {
+                            JustifyContent::FlexEnd
+                        },
+                        ..default()
+                    })
+                    .with_children(|cell| {
+                        cell.spawn(fonts.text(text, 18.0, color));
+                    });
+                }
+            });
+    };
+    let minutes = match_secs as u32 / 60;
+    let seconds = match_secs as u32 % 60;
+    table.spawn(fonts.heading(format!("MATCH TIME  {minutes}:{seconds:02}"), 18.0, ACCENT));
+    row(
+        table,
+        [
+            (String::new(), TEXT_DIM),
+            ("You".into(), Team::Player.ui_color()),
+            ("Enemies".into(), Team::Crimson.ui_color()),
+        ],
+    );
+    for (label, player, opponents) in rows {
+        row(
+            table,
+            [
+                (label.into(), TEXT_DIM),
+                (player, TEXT_MAIN),
+                (opponents, TEXT_MAIN),
+            ],
+        );
+    }
 }
 
 pub fn toggle_controls_help(
@@ -1128,9 +1319,15 @@ pub fn refresh_notifications(
 }
 
 pub fn show_outcome(
+    mut commands: Commands,
+    fonts: Res<UiFonts>,
     outcome: Res<GameOutcome>,
+    stats: Res<MatchStats>,
+    economies: Res<Economies>,
+    clock: Res<MatchClock>,
     mut overlay: Query<&mut Visibility, With<OutcomeOverlay>>,
     mut title: Query<(&mut Text, &mut TextColor), With<OutcomeTitle>>,
+    tables: Query<Entity, With<OutcomeStats>>,
 ) {
     if !outcome.is_changed() {
         return;
@@ -1145,6 +1342,15 @@ pub fn show_outcome(
     {
         text.0 = message.into();
         color.0 = team.ui_color();
+    }
+    if banner.is_some()
+        && let Ok(table) = tables.single()
+    {
+        let rows = outcome_rows(&stats, &economies);
+        commands.entity(table).despawn_related::<Children>();
+        commands.entity(table).with_children(|table| {
+            spawn_outcome_table(table, &fonts, rows, clock.elapsed_secs);
+        });
     }
     if let Ok(mut visibility) = overlay.single_mut() {
         *visibility = if banner.is_some() {

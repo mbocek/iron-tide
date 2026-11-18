@@ -244,7 +244,9 @@ attack wave and its income (75 % / 100 % / 135 %).
 - **Battlefield:** shells and explosions leave scorch marks that fade after 40 s; destroyed vehicles leave
   their charred hulls, smoking for a while, until they sink into the ground; damaged structures smoke and
   burn. All of it only where you can see.
-- **Victory:** depends on the mission objective (destroy everything, destroy the Command Centers, survive, stockpile credits).
+- **Victory:** depends on the mission objective (destroy everything, destroy the Command Centers, capture one, survive,
+  stockpile credits). The end screen compares you with your opponents (units trained and lost, structures built and
+  lost, enemies destroyed, damage, credits harvested, match time) and offers the replay of the match.
 - **Fog of war:** unexplored ground is black; explored ground stays visible but enemy units show only within
   the sight of your units and buildings. Enemy structures stay on the map once spotted. Your units only open
   fire on enemies someone on your side can see, so long-range artillery needs a spotter. The computer
@@ -286,7 +288,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |
-| `outcome` | mission objectives, victory and defeat |
+| `outcome`, `match_stats` | mission objectives, victory and defeat; the tally shown at the end of a match |
 | `replay` | recording matches, storing and listing replays, watching them |
 | `battlefield` | scorch marks, vehicle wrecks and rain |
 | `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay, `_SELECT_ALL=1` selects every own unit, `_ZOOM=150` sets the camera distance) |
