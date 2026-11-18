@@ -9,6 +9,7 @@ use crate::catalog::{
     ArmorClass, BuildingKind, Diplomacy, ProjectileStyle, Team, UnitKind, WeaponSpec,
 };
 use crate::components::*;
+use crate::determinism::SimulationRng;
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::fog::FogOfWar;
 use crate::intel::Intel;
@@ -266,6 +267,7 @@ pub fn chase_targets(
 pub fn aim_and_fire(
     mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
+    mut rng: ResMut<SimulationRng>,
     time: Res<Time>,
     targets: Res<Targets>,
     effects: Res<EffectAssets>,
@@ -346,7 +348,7 @@ pub fn aim_and_fire(
             muzzle,
             weapon: ranked_weapon,
         };
-        fire_projectile(&mut commands, &effects, shot, target);
+        fire_projectile(&mut commands, &mut rng, &effects, shot, target);
         cues.write(SoundCue::at(weapon.spec.report, muzzle));
     }
 }
@@ -362,6 +364,7 @@ struct Shot {
 
 fn fire_projectile(
     commands: &mut Commands,
+    rng: &mut SimulationRng,
     effects: &EffectAssets,
     shot: Shot,
     target: &TargetInfo,
@@ -377,7 +380,6 @@ fn fire_projectile(
     let mut arc_height = 0.0;
     let mut homing_target = Some(target.entity);
     if weapon.style == ProjectileStyle::ArtilleryShell {
-        let mut rng = rand::rng();
         end += Vec3::new(
             rng.random_range(-ARTILLERY_SCATTER..ARTILLERY_SCATTER),
             -TARGET_CENTER_HEIGHT,

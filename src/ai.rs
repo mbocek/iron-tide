@@ -7,6 +7,7 @@ use crate::assets::ModelLibrary;
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
+use crate::determinism::SimulationRng;
 use crate::economy::Economies;
 use crate::engineers::{EngineerJob, EngineerTask};
 use crate::fog::FogOfWar;
@@ -109,6 +110,7 @@ type ArmyUnit<'a> = (
 
 pub fn command_enemies(
     mut commands: Commands,
+    mut rng: ResMut<SimulationRng>,
     time: Res<Time>,
     models: Res<ModelLibrary>,
     targets: Res<Targets>,
@@ -162,6 +164,7 @@ pub fn command_enemies(
             .filter(|(_, unit, team, ..)| **team == ai.team && unit.0 == UnitKind::Harvester)
             .count();
         train_units(
+            &mut rng,
             ai.team,
             &ai.sightings,
             &mut production,
@@ -488,6 +491,7 @@ const AIR_THREAT_SHARE: f32 = 0.25;
 const FLAK_CANNONS_UNDER_AIR_THREAT: usize = 2;
 
 fn pick_weighted(
+    rng: &mut SimulationRng,
     mix: &[(UnitKind, f32)],
     sightings: &Sightings,
     allowed: impl Fn(UnitKind) -> bool,
@@ -501,7 +505,7 @@ fn pick_weighted(
     if total <= 0.0 {
         return None;
     }
-    let mut roll = rand::rng().random_range(0.0..total);
+    let mut roll = rng.random_range(0.0..total);
     candidates
         .iter()
         .find_map(|&(kind, weight)| {
@@ -516,6 +520,7 @@ fn pick_weighted(
 }
 
 fn train_units(
+    rng: &mut SimulationRng,
     team: Team,
     sightings: &Sightings,
     production: &mut Production,
@@ -551,7 +556,7 @@ fn train_units(
         let choice = if wants_harvester {
             Some(UnitKind::Harvester)
         } else {
-            pick_weighted(&VEHICLE_MIX, sightings, allowed)
+            pick_weighted(rng, &VEHICLE_MIX, sightings, allowed)
                 .filter(|&kind| affordable(economies, kind))
         };
         if let Some(kind) = choice {
@@ -560,7 +565,7 @@ fn train_units(
     }
     let infantry_queue = production.lane(team, Lane::Infantry).queue.len();
     if infantry_queue < 2
-        && let Some(kind) = pick_weighted(&INFANTRY_MIX, sightings, allowed)
+        && let Some(kind) = pick_weighted(rng, &INFANTRY_MIX, sightings, allowed)
             .filter(|&kind| affordable(economies, kind))
     {
         let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);

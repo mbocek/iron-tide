@@ -166,6 +166,16 @@ Downloads folder and then opens it: a disk image is mounted on macOS, the zip or
 folder on Windows and Linux. Installing stays in the player's hands, as the builds are not signed. The check
 can be switched off with *Check for updates* in the menu's *Gameplay* tab, and capture runs never check.
 
+## Determinism (groundwork for multiplayer)
+
+Multiplayer will keep every machine in step by exchanging only orders, so the simulation must play out
+identically from the same orders. All chance in the simulation (artillery scatter, the computer's unit
+choices, where new units gather) comes from one generator seeded by the level. Units and structures get a
+simulation id in the order the simulation spawned them, because Bevy's entity ids also count effects, which
+differ from machine to machine. Schedules run on one thread in a fixed order, in the game and in the tests.
+`determinism::simulation_checksum` fingerprints units, structures and credits; a test plays the same
+computer-against-computer battle twice for eight minutes and compares the fingerprints every 15 seconds.
+
 ## Languages
 
 The interface speaks English, Slovak and Czech: choose it with the *Language* button in the main menu or in
@@ -348,6 +358,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
 | `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
+| `determinism` | the seeded simulation randomness, simulation ids, single-threaded schedules and the state checksum |
 | `updates` | checking GitHub for a newer release, downloading and opening its package |
 | `season` | summer, autumn and winter: terrain tint, snow, foliage colours, light |
 | `key_bindings` | rebindable hotkeys: actions, their default and bindable keys, swapping on conflict |

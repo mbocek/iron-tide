@@ -13,6 +13,7 @@ pub mod combat;
 pub mod components;
 pub mod control_groups;
 pub mod damage_feedback;
+pub mod determinism;
 pub mod economy;
 pub mod effects;
 pub mod engineers;
@@ -124,6 +125,10 @@ impl Plugin for SimulationPlugin {
             })
             .init_resource::<levels::ActiveLevel>()
             .init_resource::<combat::Targets>()
+            .init_resource::<determinism::SimulationRng>()
+            .init_resource::<determinism::SimIds>()
+            .add_observer(determinism::number_new_unit)
+            .add_observer(determinism::number_new_building)
             .init_resource::<economy::Economies>()
             .init_resource::<production::Production>()
             .init_resource::<production::Placement>()

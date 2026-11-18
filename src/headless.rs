@@ -109,6 +109,7 @@ impl Battle {
                 (record_damage, record_sounds, record_losses, record_recruits)
                     .after(crate::FramePhase::Simulation),
             );
+        crate::determinism::run_schedules_on_one_thread(&mut app);
         if let Some(level) = setup.level {
             app.insert_resource(ActiveLevel(level));
         }

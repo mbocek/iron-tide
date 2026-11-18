@@ -8,6 +8,7 @@ use crate::assets::ModelLibrary;
 use crate::camera::Cursor;
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::components::*;
+use crate::determinism::SimulationRng;
 use crate::economy::Economies;
 use crate::i18n::{tr, tr_fmt};
 use crate::map::{
@@ -244,6 +245,7 @@ pub fn owned_building_kinds(
 pub fn advance_production(
     mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
+    mut rng: ResMut<SimulationRng>,
     time: Res<Time>,
     models: Res<ModelLibrary>,
     map: Res<GameMap>,
@@ -296,6 +298,7 @@ pub fn advance_production(
                 (BuildItem::Unit(kind), Some(producer)) => {
                     deploy_unit(
                         &mut commands,
+                        &mut rng,
                         &models,
                         &map,
                         kind,
@@ -312,6 +315,7 @@ pub fn advance_production(
 
 fn deploy_unit(
     commands: &mut Commands,
+    rng: &mut SimulationRng,
     models: &ModelLibrary,
     map: &GameMap,
     kind: UnitKind,
@@ -335,7 +339,6 @@ fn deploy_unit(
         });
         return entity;
     }
-    let mut rng = rand::rng();
     let rally = exit + IVec2::new(RALLY_DISTANCE_CELLS, rng.random_range(-2..=2));
     let mut mobile = Mobile::for_unit(kind, 0.0);
     if order_move(&mut mobile, map, cell_center(exit), rally, false) {

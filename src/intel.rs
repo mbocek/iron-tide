@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 
@@ -15,7 +15,7 @@ const UPDATE_INTERVAL_SECS: f32 = 0.2;
 pub struct Intel {
     /// Indexed by `Team::index`; the player's slot is unused.
     visions: [FogOfWar; 4],
-    known_structures: [HashMap<Entity, Vec3>; 4],
+    known_structures: [BTreeMap<Entity, Vec3>; 4],
 }
 
 impl Intel {
