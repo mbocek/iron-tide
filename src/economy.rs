@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use crate::catalog::{BuildingKind, HARVESTER_CAPACITY, STARTING_CREDITS, Team};
 use crate::components::*;
 use crate::determinism::{SimId, in_simulation_order};
-use crate::map::{CrystalVisual, GameMap, cell_center, crystal_scale, world_to_cell};
+use crate::map::{
+    CrystalVisual, GameMap, cell_center, cells_by_distance, crystal_scale, world_to_cell,
+};
 use crate::movement::order_move;
 use crate::player_commands::LocalTeam;
 use crate::sound::{Sound, SoundCue};
@@ -97,6 +99,10 @@ pub fn run_harvesters(
     >,
 ) {
     let dt = time.delta_secs();
+    let mut claimed: Vec<IVec2> = harvesters
+        .iter()
+        .filter_map(|(_, _, harvester, ..)| claimed_crystal(harvester.state))
+        .collect();
     let in_order = in_simulation_order(harvesters.iter_mut(), |item| *item.4);
     for (&team, transform, mut harvester, mut mobile, _) in in_order {
         let position = transform.translation;
@@ -107,7 +113,8 @@ pub fn run_harvesters(
                     head_to_refinery(&mut mobile, &map, position, team, &refineries)
                 } else {
                     let search_from = harvester.preferred_field.unwrap_or(world_to_cell(position));
-                    map.nearest_crystal(search_from, FIELD_SEARCH_RADIUS)
+                    nearest_free_crystal(&map, search_from, &claimed)
+                        .or_else(|| map.nearest_crystal(search_from, FIELD_SEARCH_RADIUS))
                         .filter(|&cell| order_move(&mut mobile, &map, position, cell, false))
                         .map(HarvestState::TravellingToField)
                 }
@@ -190,9 +197,23 @@ pub fn run_harvesters(
             }
         };
         if let Some(state) = next_state {
+            claimed.extend(claimed_crystal(state));
             harvester.state = state;
         }
     }
+}
+
+fn claimed_crystal(state: HarvestState) -> Option<IVec2> {
+    match state {
+        HarvestState::TravellingToField(cell) | HarvestState::Mining { cell, .. } => Some(cell),
+        _ => None,
+    }
+}
+
+/// Harvesters spread over a field instead of crowding onto one cell and shoving each other off it.
+fn nearest_free_crystal(map: &GameMap, from: IVec2, claimed: &[IVec2]) -> Option<IVec2> {
+    cells_by_distance(from, FIELD_SEARCH_RADIUS)
+        .find(|cell| map.crystal_at(*cell) > 0 && !claimed.contains(cell))
 }
 
 fn head_to_refinery(

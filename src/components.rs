@@ -54,6 +54,15 @@ pub struct Mobile {
     pub ordered_move: bool,
     /// Aircraft fly straight to where they are sent, over water, walls and other units.
     pub flying: bool,
+    pub approach: WaypointApproach,
+}
+
+/// How close a unit has come to its current waypoint, and how long it has failed to get any closer.
+#[derive(Clone, Copy, Default)]
+pub struct WaypointApproach {
+    pub waypoint: Vec3,
+    pub closest: f32,
+    pub stalled_secs: f32,
 }
 
 impl Mobile {
@@ -65,6 +74,7 @@ impl Mobile {
             path: VecDeque::new(),
             ordered_move: false,
             flying: false,
+            approach: WaypointApproach::default(),
         }
     }
 

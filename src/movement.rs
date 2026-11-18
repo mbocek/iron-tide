@@ -4,10 +4,15 @@ use crate::catalog::ArmorClass;
 use crate::components::*;
 use crate::determinism::SimId;
 use crate::levels::ActiveLevel;
-use crate::map::{GameMap, cell_center, in_far_half, world_to_cell};
+use crate::map::{CELL_SIZE, GameMap, cell_center, in_far_half, world_to_cell};
 use crate::sim_math;
 
 const WAYPOINT_REACHED_DISTANCE: f32 = 0.2;
+/// Two vehicles heading for the same waypoint from opposite sides push each other off it for ever,
+/// so one that stops closing in while this near counts the waypoint as reached.
+const WAYPOINT_CROWDED_REACH: f32 = CELL_SIZE * 0.5;
+const WAYPOINT_STALL_SECS: f32 = 1.5;
+const MEANINGFUL_PROGRESS: f32 = 0.05;
 pub const FLIGHT_ALTITUDE: f32 = 6.0;
 const FLIGHT_NOSE_DOWN: f32 = 0.12;
 /// Vehicles drive forward only once roughly facing their next waypoint, so they turn on the spot like tracked vehicles.
@@ -49,7 +54,8 @@ pub fn follow_paths(time: Res<Time>, mut movers: Query<(&mut Mobile, &mut Transf
         };
         let to_waypoint = (waypoint - transform.translation).with_y(0.0);
         let distance = to_waypoint.length();
-        if distance < WAYPOINT_REACHED_DISTANCE {
+        let crowded_out = stalled_beside(&mut mobile.approach, waypoint, distance, dt);
+        if distance < WAYPOINT_REACHED_DISTANCE || crowded_out {
             mobile.path.pop_front();
             continue;
         }
@@ -62,6 +68,20 @@ pub fn follow_paths(time: Res<Time>, mut movers: Query<(&mut Mobile, &mut Transf
             transform.translation += to_waypoint / distance * step;
         }
     }
+}
+
+fn stalled_beside(approach: &mut WaypointApproach, waypoint: Vec3, distance: f32, dt: f32) -> bool {
+    let new_waypoint = approach.waypoint != waypoint;
+    if new_waypoint || distance < approach.closest - MEANINGFUL_PROGRESS {
+        *approach = WaypointApproach {
+            waypoint,
+            closest: distance,
+            stalled_secs: 0.0,
+        };
+        return false;
+    }
+    approach.stalled_secs += dt;
+    approach.stalled_secs > WAYPOINT_STALL_SECS && distance < WAYPOINT_CROWDED_REACH
 }
 
 /// Rests every unit on the terrain. Vehicles sample the ground under their nose, tail and flanks,
@@ -145,24 +165,37 @@ fn stacked_unit_escape(id: SimId, position: Vec3) -> Vec3 {
     }
 }
 
+/// Harvesters shuttle both ways along the same lanes; in one a single cell wide, two driving ones could
+/// never push past each other, so they pass through instead.
+fn commuting_harvester(mobile: &Mobile, is_harvester: bool) -> bool {
+    is_harvester && mobile.is_moving()
+}
+
 pub fn separate_units(
     time: Res<Time>,
     map: Res<GameMap>,
-    mut units: Query<(&SimId, &mut Transform, &BodyRadius, &Mobile)>,
+    mut units: Query<(&SimId, &mut Transform, &BodyRadius, &Mobile, Has<Harvester>)>,
 ) {
-    let mut snapshot: Vec<(SimId, Vec3, f32, bool)> = units
+    let mut snapshot: Vec<(SimId, Vec3, f32, bool, bool)> = units
         .iter()
-        .map(|(&id, transform, radius, mobile)| {
-            (id, transform.translation, radius.0, mobile.flying)
+        .map(|(&id, transform, radius, mobile, is_harvester)| {
+            (
+                id,
+                transform.translation,
+                radius.0,
+                mobile.flying,
+                commuting_harvester(mobile, is_harvester),
+            )
         })
         .collect();
     snapshot.sort_by_key(|unit| unit.0);
     let dt = time.delta_secs();
 
-    for (&id, mut transform, radius, mobile) in &mut units {
+    for (&id, mut transform, radius, mobile, is_harvester) in &mut units {
+        let commuting = commuting_harvester(mobile, is_harvester);
         let mut push = Vec3::ZERO;
-        for &(other, other_position, other_radius, other_flies) in &snapshot {
-            if other == id || other_flies != mobile.flying {
+        for &(other, other_position, other_radius, other_flies, other_commuting) in &snapshot {
+            if other == id || other_flies != mobile.flying || (commuting && other_commuting) {
                 continue;
             }
             let offset = transform.translation - other_position;

@@ -3,7 +3,7 @@ mod common;
 use bevy::prelude::*;
 use common::Battle;
 use iron_tide::catalog::{Team, UnitKind};
-use iron_tide::components::Health;
+use iron_tide::components::{HarvestState, Harvester, Health};
 use iron_tide::levels::LevelDefinition;
 use iron_tide::savegame::SaveRequests;
 use iron_tide::veterancy::{Rank, Veterancy};
@@ -27,11 +27,17 @@ fn health(battle: &mut Battle, entity: Entity) -> (f32, f32) {
 fn park_harvesters(battle: &mut Battle, count: i32) -> Vec<Entity> {
     (0..count)
         .map(|i| {
-            battle.spawn_unit(
+            let harvester = battle.spawn_unit(
                 UnitKind::Harvester,
                 Team::Crimson,
                 FIELD + IVec2::new(4, i * 2 - 2),
-            )
+            );
+            battle
+                .world()
+                .get_mut::<Harvester>(harvester)
+                .unwrap()
+                .state = HarvestState::Holding;
+            harvester
         })
         .collect()
 }

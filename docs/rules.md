@@ -7,6 +7,8 @@
   pairs the Coalition with Amber against Crimson and Violet (the two western corners against the two eastern
   ones with the default sites); allies share what they see. Older levels' `"free_for_all": true` still works.
 - **Economy:** the harvester mines crystals and unloads them at the refinery. Every refinery comes with a free harvester.
+  Harvesters spread over a field, each to a crystal no other harvester has claimed, and drive through each other
+  on their way so two of them never block a narrow lane.
 - **Power:** when consumption exceeds production, all production runs at half speed.
 - **Engineer:** unarmed $500 infantry from the Barracks. Right-click an enemy structure (not a wall) with
   engineers selected: they walk in and capture it, damage and all. Right-click a damaged own structure: they
