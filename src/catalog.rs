@@ -476,12 +476,12 @@ const SNIPER_RIFLE: WeaponSpec = WeaponSpec {
 
 const FLAMETHROWER: WeaponSpec = WeaponSpec {
     range: 6.0,
-    damage: 14.0,
+    damage: 12.0,
     reload_secs: 0.25,
     projectile_speed: 22.0,
-    splash_radius: 1.4,
+    splash_radius: 1.2,
     style: ProjectileStyle::Flame,
-    versus_infantry: 1.6,
+    versus_infantry: 1.5,
     versus_vehicle: 0.12,
     versus_structure: 0.9,
     versus_aircraft: 0.0,

@@ -80,6 +80,10 @@ pub struct AiCommander {
     scout: Option<Entity>,
     #[serde(default)]
     sightings: Sightings,
+    /// The vehicle chosen but not yet affordable; the commander saves for it instead of choosing again,
+    /// or only the cheap vehicles would ever be bought.
+    #[serde(default)]
+    planned_vehicle: Option<UnitKind>,
 }
 
 impl AiCommander {
@@ -93,6 +97,7 @@ impl AiCommander {
             secs_since_enemy_army_seen: 0.0,
             scout: None,
             sightings: Sightings::default(),
+            planned_vehicle: None,
         }
     }
 }
@@ -169,8 +174,7 @@ pub fn command_enemies(
             .count();
         train_units(
             &mut rng,
-            ai.team,
-            &ai.sightings,
+            ai,
             &mut production,
             &mut economies,
             &owned,
@@ -491,12 +495,12 @@ fn plan_next_structure(
 /// forbids is skipped.
 const VEHICLE_MIX: [(UnitKind, f32); 7] = [
     (UnitKind::Tank, 5.0),
-    (UnitKind::Bulwark, 2.0),
-    (UnitKind::Artillery, 2.0),
+    (UnitKind::Bulwark, 4.0),
+    (UnitKind::Artillery, 3.0),
     (UnitKind::Scout, 3.0),
-    (UnitKind::Gunship, 2.0),
+    (UnitKind::Gunship, 3.0),
     (UnitKind::FlakTrack, 1.0),
-    (UnitKind::MissileTruck, 2.0),
+    (UnitKind::MissileTruck, 4.0),
 ];
 const INFANTRY_MIX: [(UnitKind, f32); 5] = [
     (UnitKind::Rifleman, 6.0),
@@ -539,14 +543,14 @@ fn pick_weighted(
 
 fn train_units(
     rng: &mut SimulationRng,
-    team: Team,
-    sightings: &Sightings,
+    ai: &mut AiCommander,
     production: &mut Production,
     economies: &mut Economies,
     owned: &[BuildingKind],
     harvesters: usize,
     saving_for: Option<i32>,
 ) {
+    let (team, sightings) = (ai.team, &ai.sightings);
     let refineries = owned
         .iter()
         .filter(|&&k| k == BuildingKind::Refinery)
@@ -571,20 +575,30 @@ fn train_units(
 
     if vehicles_idle {
         let wants_harvester = refineries > 0 && harvesters < refineries * HARVESTERS_PER_REFINERY;
-        let choice = if wants_harvester {
-            Some(UnitKind::Harvester)
+        if wants_harvester {
+            let _ =
+                production.enqueue(economies, team, BuildItem::Unit(UnitKind::Harvester), owned);
         } else {
-            pick_weighted(rng, &VEHICLE_MIX, sightings, allowed)
-                .filter(|&kind| affordable(economies, kind))
-        };
-        if let Some(kind) = choice {
-            let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);
+            let planned = ai.planned_vehicle.take().filter(|&kind| allowed(kind));
+            if let Some(kind) =
+                planned.or_else(|| pick_weighted(rng, &VEHICLE_MIX, sightings, allowed))
+            {
+                if affordable(economies, kind) {
+                    let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);
+                } else {
+                    ai.planned_vehicle = Some(kind);
+                }
+            }
         }
     }
+    let saved_for_vehicle = ai.planned_vehicle.map_or(0, |kind| kind.spec().cost);
     let infantry_queue = production.lane(team, Lane::Infantry).queue.len();
     if infantry_queue < 2
         && let Some(kind) = pick_weighted(rng, &INFANTRY_MIX, sightings, allowed)
             .filter(|&kind| affordable(economies, kind))
+            .filter(|&kind| {
+                economies.of(team).credits >= kind.spec().cost + reserve + saved_for_vehicle
+            })
     {
         let _ = production.enqueue(economies, team, BuildItem::Unit(kind), owned);
     }

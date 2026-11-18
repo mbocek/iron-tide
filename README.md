@@ -73,23 +73,27 @@ on its own map variant, once from each corner):
 
 | Duel ($3000 a side) | Rifleman | Rocketeer | Scout | Tank | Bulwark | Howitzer | Flame Trooper | Missile Truck |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Rifleman** | 0 | +80 | −84 | −70 | −20 | −68 | −53 | −84 |
-| **Rocketeer** | −80 | 0 | −42 | +57 | +53 | −65 | −76 | −72 |
-| **Scout Buggy** | +84 | +41 | 0 | −49 | −56 | +23 | +91 | +35 |
-| **Battle Tank** | +68 | −57 | +49 | 0 | −8 | +53 | +74 | +62 |
-| **Flame Trooper** | +53 | +77 | −91 | −74 | −80 | −87 | 0 | −91 |
-| **Missile Truck** | +84 | +72 | −35 | −62 | −68 | +1 | +91 | 0 |
+| **Rifleman** | 0 | +80 | −84 | −70 | −20 | −68 | −40 | −84 |
+| **Rocketeer** | −80 | 0 | −42 | +57 | +53 | −65 | −75 | −72 |
+| **Scout Buggy** | +84 | +41 | 0 | −49 | −56 | +23 | +93 | +35 |
+| **Battle Tank** | +68 | −57 | +49 | 0 | −8 | +53 | +84 | +62 |
+| **Flame Trooper** | +39 | +77 | −93 | −84 | −83 | −92 | 0 | −93 |
+| **Missile Truck** | +84 | +72 | −35 | −62 | −68 | +1 | +93 | 0 |
 
 | Challenger | vs | fog | wins : losses (unfinished) | median length | SW : NE site wins |
 | --- | --- | --- | --- | --- | --- |
-| Normal | Normal | on | 19 : 23 (18) | 10.9 min | 27 : 15 |
-| Hard | Normal | on | 28 : 12 (20) | 7.9 min | 17 : 23 |
-| Normal | Hard | on | 8 : 32 (20) | 7.8 min | 19 : 21 |
-| Easy | Normal | on | 2 : 52 (6) | 8.3 min | 28 : 26 |
-| Normal | Normal | off | 29 : 29 (2) | 4.6 min | 34 : 24 |
+| Normal | Normal | on | 18 : 36 (6) | 10.7 min | 34 : 20 |
+| Hard | Normal | on | 27 : 12 (21) | 8.2 min | 20 : 19 |
+| Normal | Hard | on | 9 : 31 (20) | 7.8 min | 21 : 19 |
+| Easy | Normal | on | 3 : 53 (4) | 10.3 min | 31 : 25 |
+| Normal | Normal | off | 31 : 26 (3) | 4.5 min | 33 : 24 |
 
-The challenger plays the Coalition and the defender the Syndicate, so the Normal mirror also compares the
-factions. Every unit has a counter: riflemen beat rocketeers, flame troopers burn any infantry but melt before
+The challenger plays the Coalition and the defender the Syndicate. The defender wins the Normal mirror more
+often, but it does the same with both sides on one faction or with the factions swapped, so that is the
+computer playing the player's team (which a person does in a real battle), not the factions. The south-west
+corner also wins somewhat more often; scouting ties were ruled out as the cause. A commander that picks a
+vehicle it cannot afford yet saves for it instead of choosing again, so the heavy units of the Tech Center
+(Bulwark, Missile Truck, Howitzer, Gunship) now appear in a long match. Every unit has a counter: riflemen beat rocketeers, flame troopers burn any infantry but melt before
 vehicles, scouts hunt infantry, rocketeers kill armour, tanks and the Bulwark beat light vehicles, and howitzers
 and missile trucks shell infantry but lose to anything fast that reaches them. Unfinished matches are mostly
 mutual exhaustion: both sides out of units, money and harvesters, with only turrets left standing. Hard used to
