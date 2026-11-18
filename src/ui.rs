@@ -154,14 +154,18 @@ pub(crate) fn icon_path(item: BuildItem) -> String {
     format!("icons/{model_id}.png")
 }
 
-fn lane_items(lane: Lane) -> Vec<BuildItem> {
-    match lane {
+fn lane_items(lane: Lane, team: Team) -> Vec<BuildItem> {
+    let items = match lane {
         Lane::Structures => BuildingKind::CONSTRUCTIBLE
             .map(BuildItem::Structure)
             .to_vec(),
         Lane::Infantry => UnitKind::INFANTRY.map(BuildItem::Unit).to_vec(),
         Lane::Vehicles => UnitKind::VEHICLES.map(BuildItem::Unit).to_vec(),
-    }
+    };
+    items
+        .into_iter()
+        .filter(|item| item.belongs_to(team))
+        .collect()
 }
 
 fn lane_title(lane: Lane) -> &'static str {
@@ -219,7 +223,7 @@ pub fn build_interface(
             spawn_minimap(sidebar, &minimap);
             spawn_resources(sidebar, fonts);
             spawn_tabs(sidebar, fonts);
-            spawn_build_grid(sidebar, fonts, &asset_server);
+            spawn_build_grid(sidebar, fonts, &asset_server, local.0);
             spawn_info_panel(sidebar, fonts);
         });
 
@@ -396,6 +400,7 @@ fn spawn_build_grid(
     sidebar: &mut ChildSpawnerCommands,
     fonts: &UiFonts,
     asset_server: &AssetServer,
+    team: Team,
 ) {
     sidebar
         .spawn(Node {
@@ -407,7 +412,10 @@ fn spawn_build_grid(
             ..default()
         })
         .with_children(|grid| {
-            for item in Lane::ALL.into_iter().flat_map(lane_items) {
+            for item in Lane::ALL
+                .into_iter()
+                .flat_map(|lane| lane_items(lane, team))
+            {
                 spawn_build_tile(grid, fonts, asset_server, item);
             }
         });
@@ -1200,7 +1208,7 @@ pub fn refresh_build_tiles(
         };
     }
     for (tab, hovered, mut background, mut border) in &mut tabs {
-        let has_ready = lane_items(tab.0)
+        let has_ready = lane_items(tab.0, team)
             .into_iter()
             .any(|item| matches!(state_of(item), TileState::Ready));
         let selected = tab.0 == active.0;

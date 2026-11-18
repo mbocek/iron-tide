@@ -393,7 +393,7 @@ impl TechLevel {
             ],
             TechLevel::Standard => UnitKind::ALL
                 .into_iter()
-                .filter(|&k| k != UnitKind::Bulwark)
+                .filter(|&k| !matches!(k, UnitKind::Bulwark | UnitKind::MissileTruck))
                 .collect(),
             TechLevel::Full => Vec::new(),
         }

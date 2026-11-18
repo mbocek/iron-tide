@@ -34,6 +34,13 @@ impl Team {
         }
     }
 
+    pub fn faction(self) -> Faction {
+        match self {
+            Team::Player => Faction::Coalition,
+            Team::Crimson | Team::Amber | Team::Violet => Faction::Syndicate,
+        }
+    }
+
     pub fn model_variant(self) -> &'static str {
         match self {
             Team::Player => "blue",
@@ -51,6 +58,13 @@ impl Team {
             Team::Violet => Color::srgb(0.72, 0.4, 1.0),
         }
     }
+}
+
+/// Whose armoury a team builds from; each side has units and structures the other cannot order.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Faction {
+    Coalition,
+    Syndicate,
 }
 
 /// Which teams fight on the same side.
@@ -107,6 +121,7 @@ pub enum ProjectileStyle {
     Shell,
     ArtilleryShell,
     Missile,
+    Flame,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -155,6 +170,8 @@ pub enum UnitKind {
     Gunship,
     FlakTrack,
     Sniper,
+    FlameTrooper,
+    MissileTruck,
 }
 
 pub struct UnitSpec {
@@ -173,6 +190,8 @@ pub struct UnitSpec {
     pub producer: BuildingKind,
     /// A structure needed besides the producer before the unit can be ordered.
     pub requires: Option<BuildingKind>,
+    /// None when both factions can order it.
+    pub faction: Option<Faction>,
     /// Health restored per second to wounded friendly infantry nearby; zero for everyone but medics.
     pub heal_per_sec: f32,
     /// Radius in meters this unit reveals through the fog of war.
@@ -180,23 +199,25 @@ pub struct UnitSpec {
 }
 
 impl UnitKind {
-    pub const INFANTRY: [UnitKind; 5] = [
+    pub const INFANTRY: [UnitKind; 6] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Sniper,
+        UnitKind::FlameTrooper,
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
-    pub const VEHICLES: [UnitKind; 7] = [
+    pub const VEHICLES: [UnitKind; 8] = [
         UnitKind::Scout,
         UnitKind::Tank,
         UnitKind::Bulwark,
         UnitKind::Artillery,
+        UnitKind::MissileTruck,
         UnitKind::FlakTrack,
         UnitKind::Gunship,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 12] = [
+    pub const ALL: [UnitKind; 14] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -209,6 +230,8 @@ impl UnitKind {
         UnitKind::Gunship,
         UnitKind::FlakTrack,
         UnitKind::Sniper,
+        UnitKind::FlameTrooper,
+        UnitKind::MissileTruck,
     ];
 
     pub fn flies(self) -> bool {
@@ -229,6 +252,8 @@ impl UnitKind {
             UnitKind::Bulwark => &BULWARK,
             UnitKind::FlakTrack => &FLAK_TRACK,
             UnitKind::Sniper => &SNIPER,
+            UnitKind::FlameTrooper => &FLAME_TROOPER,
+            UnitKind::MissileTruck => &MISSILE_TRUCK,
         }
     }
 }
@@ -246,6 +271,7 @@ pub enum BuildingKind {
     FlakCannon,
     TechCenter,
     RepairBay,
+    RocketBunker,
 }
 
 pub struct BuildingSpec {
@@ -261,10 +287,12 @@ pub struct BuildingSpec {
     pub weapon: Option<WeaponSpec>,
     /// Radius in meters this structure reveals through the fog of war.
     pub sight: f32,
+    /// None when both factions can build it.
+    pub faction: Option<Faction>,
 }
 
 impl BuildingKind {
-    pub const CONSTRUCTIBLE: [BuildingKind; 10] = [
+    pub const CONSTRUCTIBLE: [BuildingKind; 11] = [
         BuildingKind::PowerPlant,
         BuildingKind::Refinery,
         BuildingKind::Barracks,
@@ -274,6 +302,7 @@ impl BuildingKind {
         BuildingKind::Helipad,
         BuildingKind::GunTurret,
         BuildingKind::FlakCannon,
+        BuildingKind::RocketBunker,
         BuildingKind::Wall,
     ];
 
@@ -295,6 +324,7 @@ impl BuildingKind {
             BuildingKind::FlakCannon => &FLAK_CANNON,
             BuildingKind::TechCenter => &TECH_CENTER,
             BuildingKind::RepairBay => &REPAIR_BAY,
+            BuildingKind::RocketBunker => &ROCKET_BUNKER,
         }
     }
 }
@@ -412,6 +442,48 @@ const SNIPER_RIFLE: WeaponSpec = WeaponSpec {
     report: Sound::SniperShot,
 };
 
+const FLAMETHROWER: WeaponSpec = WeaponSpec {
+    range: 5.0,
+    damage: 14.0,
+    reload_secs: 0.25,
+    projectile_speed: 22.0,
+    splash_radius: 1.2,
+    style: ProjectileStyle::Flame,
+    versus_infantry: 1.6,
+    versus_vehicle: 0.3,
+    versus_structure: 1.0,
+    versus_aircraft: 0.0,
+    report: Sound::FlameBurst,
+};
+
+const ROCKET_SALVO: WeaponSpec = WeaponSpec {
+    range: 18.0,
+    damage: 55.0,
+    reload_secs: 3.5,
+    projectile_speed: 24.0,
+    splash_radius: 2.0,
+    style: ProjectileStyle::Missile,
+    versus_infantry: 0.8,
+    versus_vehicle: 0.9,
+    versus_structure: 1.1,
+    versus_aircraft: 0.0,
+    report: Sound::MissileLaunch,
+};
+
+const BUNKER_ROCKETS: WeaponSpec = WeaponSpec {
+    range: 13.0,
+    damage: 40.0,
+    reload_secs: 1.6,
+    projectile_speed: 30.0,
+    splash_radius: 0.0,
+    style: ProjectileStyle::Missile,
+    versus_infantry: 0.5,
+    versus_vehicle: 1.1,
+    versus_structure: 0.5,
+    versus_aircraft: 0.8,
+    report: Sound::MissileLaunch,
+};
+
 const RIFLEMAN: UnitSpec = UnitSpec {
     name: "Rifleman",
     role: "Cheap infantry. Strong against soldiers, weak against armor.",
@@ -427,6 +499,7 @@ const RIFLEMAN: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     requires: None,
+    faction: None,
     heal_per_sec: 0.0,
     sight: 14.0,
 };
@@ -446,6 +519,7 @@ const SCOUT: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     requires: None,
+    faction: None,
     heal_per_sec: 0.0,
     sight: 22.0,
 };
@@ -465,6 +539,7 @@ const TANK: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     requires: None,
+    faction: None,
     heal_per_sec: 0.0,
     sight: 16.0,
 };
@@ -484,6 +559,7 @@ const ARTILLERY: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     requires: Some(BuildingKind::TechCenter),
+    faction: None,
     heal_per_sec: 0.0,
     sight: 14.0,
 };
@@ -503,6 +579,7 @@ const HARVESTER: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Factory,
     requires: None,
+    faction: None,
     heal_per_sec: 0.0,
     sight: 10.0,
 };
@@ -550,6 +627,7 @@ const ROCKETEER: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     requires: None,
+    faction: None,
     heal_per_sec: 0.0,
     sight: 14.0,
 };
@@ -569,6 +647,7 @@ const MEDIC: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     requires: None,
+    faction: None,
     heal_per_sec: 8.0,
     sight: 12.0,
 };
@@ -588,6 +667,7 @@ const ENGINEER: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     requires: None,
+    faction: None,
     heal_per_sec: 0.0,
     sight: 12.0,
 };
@@ -621,6 +701,7 @@ const GUNSHIP: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Helipad,
     requires: Some(BuildingKind::TechCenter),
+    faction: None,
     heal_per_sec: 0.0,
     sight: 20.0,
 };
@@ -640,6 +721,7 @@ const BULWARK: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     requires: Some(BuildingKind::TechCenter),
+    faction: Some(Faction::Coalition),
     heal_per_sec: 0.0,
     sight: 16.0,
 };
@@ -659,6 +741,7 @@ const FLAK_TRACK: UnitSpec = UnitSpec {
     has_turret: true,
     producer: BuildingKind::Factory,
     requires: None,
+    faction: None,
     heal_per_sec: 0.0,
     sight: 16.0,
 };
@@ -678,8 +761,49 @@ const SNIPER: UnitSpec = UnitSpec {
     has_turret: false,
     producer: BuildingKind::Barracks,
     requires: None,
+    faction: Some(Faction::Coalition),
     heal_per_sec: 0.0,
     sight: 20.0,
+};
+
+const FLAME_TROOPER: UnitSpec = UnitSpec {
+    name: "Flame Trooper",
+    role: "Burns out infantry and buildings at close range. Weak against armour.",
+    model_id: "flame_trooper",
+    cost: 300,
+    build_secs: 7.0,
+    max_health: 80.0,
+    speed: 2.3,
+    turn_rate: 8.0,
+    radius: 0.4,
+    armor: ArmorClass::Infantry,
+    weapon: Some(FLAMETHROWER),
+    has_turret: false,
+    producer: BuildingKind::Barracks,
+    requires: None,
+    faction: Some(Faction::Syndicate),
+    heal_per_sec: 0.0,
+    sight: 9.0,
+};
+
+const MISSILE_TRUCK: UnitSpec = UnitSpec {
+    name: "Missile Truck",
+    role: "Rocket artillery on wheels. Outranges defenses, fragile up close.",
+    model_id: "missile_truck",
+    cost: 1000,
+    build_secs: 18.0,
+    max_health: 220.0,
+    speed: 4.0,
+    turn_rate: 2.5,
+    radius: 1.4,
+    armor: ArmorClass::Vehicle,
+    weapon: Some(ROCKET_SALVO),
+    has_turret: true,
+    producer: BuildingKind::Factory,
+    requires: Some(BuildingKind::TechCenter),
+    faction: Some(Faction::Syndicate),
+    heal_per_sec: 0.0,
+    sight: 14.0,
 };
 
 const COMMAND_CENTER: BuildingSpec = BuildingSpec {
@@ -694,6 +818,7 @@ const COMMAND_CENTER: BuildingSpec = BuildingSpec {
     prerequisites: &[],
     weapon: None,
     sight: 18.0,
+    faction: None,
 };
 
 const POWER_PLANT: BuildingSpec = BuildingSpec {
@@ -708,6 +833,7 @@ const POWER_PLANT: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::CommandCenter],
     weapon: None,
     sight: 10.0,
+    faction: None,
 };
 
 const REFINERY: BuildingSpec = BuildingSpec {
@@ -722,6 +848,7 @@ const REFINERY: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::PowerPlant],
     weapon: None,
     sight: 12.0,
+    faction: None,
 };
 
 const BARRACKS: BuildingSpec = BuildingSpec {
@@ -736,6 +863,7 @@ const BARRACKS: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::PowerPlant],
     weapon: None,
     sight: 10.0,
+    faction: None,
 };
 
 const FACTORY: BuildingSpec = BuildingSpec {
@@ -750,6 +878,7 @@ const FACTORY: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Refinery],
     weapon: None,
     sight: 12.0,
+    faction: None,
 };
 
 const GUN_TURRET: BuildingSpec = BuildingSpec {
@@ -764,6 +893,7 @@ const GUN_TURRET: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Barracks],
     weapon: Some(TURRET_CANNON),
     sight: 16.0,
+    faction: None,
 };
 
 const WALL: BuildingSpec = BuildingSpec {
@@ -778,6 +908,7 @@ const WALL: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Barracks],
     weapon: None,
     sight: 4.0,
+    faction: None,
 };
 
 const HELIPAD: BuildingSpec = BuildingSpec {
@@ -792,6 +923,7 @@ const HELIPAD: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Factory],
     weapon: None,
     sight: 12.0,
+    faction: None,
 };
 
 const FLAK_CANNON: BuildingSpec = BuildingSpec {
@@ -806,11 +938,12 @@ const FLAK_CANNON: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Barracks],
     weapon: Some(FLAK_GUNS),
     sight: 18.0,
+    faction: None,
 };
 
 const TECH_CENTER: BuildingSpec = BuildingSpec {
     name: "Tech Center",
-    role: "Research labs. Unlocks the Bulwark, the Howitzer and the Gunship.",
+    role: "Research labs. Unlocks heavy units: Bulwark or Missile Truck, Howitzer and Gunship.",
     model_id: "tech_center",
     footprint: IVec2::new(2, 2),
     cost: 1500,
@@ -820,6 +953,7 @@ const TECH_CENTER: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Factory],
     weapon: None,
     sight: 12.0,
+    faction: None,
 };
 
 const REPAIR_BAY: BuildingSpec = BuildingSpec {
@@ -834,6 +968,22 @@ const REPAIR_BAY: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Factory],
     weapon: None,
     sight: 10.0,
+    faction: None,
+};
+
+const ROCKET_BUNKER: BuildingSpec = BuildingSpec {
+    name: "Rocket Bunker",
+    role: "Concrete dome with a rocket launcher. Hits vehicles and aircraft alike.",
+    model_id: "rocket_bunker",
+    footprint: IVec2::new(1, 1),
+    cost: 800,
+    build_secs: 12.0,
+    max_health: 650.0,
+    power: -30,
+    prerequisites: &[BuildingKind::Barracks],
+    weapon: Some(BUNKER_ROCKETS),
+    sight: 15.0,
+    faction: Some(Faction::Syndicate),
 };
 
 pub const STARTING_CREDITS: i32 = 5000;

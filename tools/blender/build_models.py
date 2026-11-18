@@ -28,6 +28,7 @@ TEAM_MODELS = {
     "medic": (soldier.build_medic, UNIT_TRIANGLE_BUDGET),
     "engineer": (soldier.build_engineer, UNIT_TRIANGLE_BUDGET),
     "sniper": (soldier.build_sniper, UNIT_TRIANGLE_BUDGET),
+    "flame_trooper": (soldier.build_flame_trooper, UNIT_TRIANGLE_BUDGET),
     "scout": (units.build_scout, UNIT_TRIANGLE_BUDGET),
     "tank": (units.build_tank, UNIT_TRIANGLE_BUDGET),
     "bulwark": (units.build_bulwark, UNIT_TRIANGLE_BUDGET),
@@ -35,6 +36,7 @@ TEAM_MODELS = {
     "harvester": (units.build_harvester, UNIT_TRIANGLE_BUDGET),
     "gunship": (units.build_gunship, UNIT_TRIANGLE_BUDGET),
     "flak_track": (units.build_flak_track, UNIT_TRIANGLE_BUDGET),
+    "missile_truck": (units.build_missile_truck, UNIT_TRIANGLE_BUDGET),
     "command_center": (buildings.build_command_center, BUILDING_TRIANGLE_BUDGET),
     "power_plant": (buildings.build_power_plant, BUILDING_TRIANGLE_BUDGET),
     "refinery": (buildings.build_refinery, BUILDING_TRIANGLE_BUDGET),
@@ -45,6 +47,7 @@ TEAM_MODELS = {
     "flak_cannon": (buildings.build_flak_cannon, BUILDING_TRIANGLE_BUDGET),
     "tech_center": (buildings.build_tech_center, BUILDING_TRIANGLE_BUDGET),
     "repair_bay": (buildings.build_repair_bay, BUILDING_TRIANGLE_BUDGET),
+    "rocket_bunker": (buildings.build_rocket_bunker, BUILDING_TRIANGLE_BUDGET),
     "wall": (buildings.build_wall, 4_000),
 }
 NEUTRAL_MODELS = {
@@ -72,7 +75,7 @@ NEUTRAL_MODELS = {
     "bush_round": (vegetation.build_bush_round, 2_000),
     "bush_flowering": (vegetation.build_bush_flowering, 2_000),
 }
-MODELS_WITH_TURRET = {"tank", "artillery", "scout", "gun_turret", "bulwark", "flak_track", "flak_cannon"}
+MODELS_WITH_TURRET = {"tank", "artillery", "scout", "gun_turret", "bulwark", "flak_track", "flak_cannon", "missile_truck", "rocket_bunker"}
 INFANTRY_NODES = ("Rig", "Body", "hips", "chest", "head", "rifle", "hand.L", "hand.R")
 INFANTRY_CLIPS = {"Idle": None, "Walk": None, "KneelFire": None, "Death": None}
 REQUIRED_NODES = {
@@ -82,6 +85,7 @@ REQUIRED_NODES = {
     "medic": INFANTRY_NODES,
     "engineer": INFANTRY_NODES,
     "sniper": INFANTRY_NODES,
+    "flame_trooper": INFANTRY_NODES,
     "gunship": ("Rotor", "TailRotor"),
     "bulwark": ("Turret", "Barrel", "Sprocket_L", "Sprocket_R", "Idler_L", "Idler_R",
                 *(f"RoadWheel_{side}{index}" for side in "LR" for index in range(1, 8))),
@@ -93,6 +97,9 @@ REQUIRED_ANIMATIONS = {
     "medic": INFANTRY_CLIPS,
     "engineer": INFANTRY_CLIPS,
     "sniper": INFANTRY_CLIPS,
+    "flame_trooper": INFANTRY_CLIPS,
+    "missile_truck": {"Drive": None, "Fire": "Barrel"},
+    "rocket_bunker": {"Fire": "Barrel"},
     "bulwark": {"Drive": None, "Fire": "Barrel"},
     "scout": {"Drive": None},
     "tank": {"Drive": None, "Fire": "Barrel"},

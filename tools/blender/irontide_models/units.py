@@ -946,3 +946,45 @@ def _add_flak_radar(base):
         name="SearchRadar")
     box("TeamColor", (0.012, 0.6, 0.06), base + Vector((0.045, 0, 0.42)), (0, math.radians(-15), 0), bevel=0.0,
         name="RadarTeamStripe")
+
+
+MISSILE_TRUCK_RECOIL = 0.12
+MISSILE_RACK_ELEVATION = math.radians(30)
+
+
+def build_missile_truck():
+    """A six-wheeled truck with an armoured cab and a tilting rack of rockets on its bed."""
+    wheel_radius, wheel_width, track = 0.36, 0.28, 0.72
+    for x in (1.0, -0.3, -1.0):
+        for side in (-1, 1):
+            hub = Vector((x, side * track, wheel_radius))
+            name = f"Wheel_{'F' if x > 0 else 'M' if x > -0.5 else 'R'}{'L' if side > 0 else 'R'}"
+            with rolling_group(name, hub, wheel_radius):
+                make_wheel(hub, wheel_radius, wheel_width, side=side)
+    box("ArmorDark", (2.9, 1.0, 0.18), (0.0, 0.0, 0.52), bevel=0.02, name="Chassis")
+    cab = [(0.75, 0.62), (1.55, 0.62), (1.62, 1.2), (1.3, 1.45), (0.75, 1.45)]
+    prism("Armor", cab, 1.3, (0, 0, 0), bevel=0.02, name="Cab")
+    box(GLASS, (0.02, 1.0, 0.2), (1.47, 0.0, 1.3), (0, math.radians(-38), 0), bevel=0.0, name="Windscreen")
+    box("TeamColor", (0.5, 1.32, 0.04), (1.05, 0.0, 1.47), bevel=0.0, name="CabRoofTeamPanel")
+    for side in (-1, 1):
+        add_lamp((1.62, side * 0.45, 0.75), FACING_FRONT, radius=0.05, depth=0.05)
+    box("Armor", (1.6, 1.3, 0.12), (-0.25, 0.0, 0.67), bevel=0.02, name="Bed")
+    add_jerrycan((-1.1, 0.55, 0.73))
+    pivot = Vector((-0.35, 0.0, 0.73))
+    with group(TURRET, pivot):
+        cylinder("ArmorDark", 0.42, 0.1, pivot + Vector((0, 0, 0.05)), segments=20, name="RackRing")
+        rack_root = pivot + Vector((0.0, 0.0, 0.35))
+        with group(BARREL, rack_root, parent=TURRET):
+            tilt = (0.0, -MISSILE_RACK_ELEVATION, 0.0)
+            box("Armor", (1.3, 0.95, 0.4), rack_root, tilt, bevel=0.03, name="RocketRack")
+            box("TeamColor", (1.0, 0.02, 0.18), rack_root + Vector((0, 0.48, 0.05)), tilt, bevel=0.0,
+                name="RackTeamPanel")
+            for row in range(2):
+                for column in range(4):
+                    y = (column - 1.5) * 0.2
+                    z = (row - 0.5) * 0.18
+                    tip = rack_root + Vector((0.66 * math.cos(MISSILE_RACK_ELEVATION),
+                                              y, 0.66 * math.sin(MISSILE_RACK_ELEVATION) + z))
+                    cylinder("Gunmetal", 0.06, 0.04, tip, (0, math.pi / 2 - MISSILE_RACK_ELEVATION, 0),
+                             segments=8, name="TubeMouth")
+    animate_vehicle(ground_speed=4.0, recoil=Vector((-MISSILE_TRUCK_RECOIL, 0.0, 0.0)))

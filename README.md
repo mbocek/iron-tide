@@ -359,8 +359,12 @@ attack wave and its income (75 % / 100 % / 135 %).
   half the price and the structure sinks into the ground. The Command Center cannot be sold. The computer
   repairs its own structures below 60 % health when it has credits to spare.
 - **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Tech Center, Repair Bay,
-  Helipad; Barracks → Gun Turret, Flak Cannon, Wall. The Bulwark, the Howitzer and the Gunship also need a Tech
-  Center.
+  Helipad; Barracks → Gun Turret, Flak Cannon, Rocket Bunker, Wall. The Bulwark, the Missile Truck, the Howitzer
+  and the Gunship also need a Tech Center.
+- **Factions:** the Coalition and the Syndicate share most of the arsenal, but each has its own: only the
+  Coalition trains Snipers and builds Bulwarks; only the Syndicate trains Flame Troopers (short-range flamers that
+  burn infantry and buildings), builds Missile Trucks (wheeled rocket artillery, 18 m range) and Rocket Bunkers
+  (a defense that hits vehicles and aircraft). The build menu shows only your own faction's items.
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Sniper (long-range anti-infantry), Field Medic (heals
   nearby infantry), Engineer, Scout Buggy, Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range
   artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship, Harvester.

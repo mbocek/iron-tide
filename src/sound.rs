@@ -38,10 +38,11 @@ pub enum Sound {
     UnitPromoted,
     FlakShot,
     SniperShot,
+    FlameBurst,
 }
 
 impl Sound {
-    const ALL: [Sound; 24] = [
+    const ALL: [Sound; 25] = [
         Sound::RifleShot,
         Sound::MachineGunShot,
         Sound::CannonShot,
@@ -66,6 +67,7 @@ impl Sound {
         Sound::UnitPromoted,
         Sound::FlakShot,
         Sound::SniperShot,
+        Sound::FlameBurst,
     ];
 
     /// File variants; one is picked at random each time so repeats do not sound mechanical.
@@ -95,6 +97,7 @@ impl Sound {
             Sound::UnitPromoted => &["unit_promoted"],
             Sound::FlakShot => &["flak_shot"],
             Sound::SniperShot => &["sniper_shot"],
+            Sound::FlameBurst => &["flame_burst"],
         }
     }
 
@@ -106,7 +109,8 @@ impl Sound {
             | Sound::HeavyCannonShot
             | Sound::ShellExplosion
             | Sound::MissileLaunch
-            | Sound::FlakShot => 2,
+            | Sound::FlakShot
+            | Sound::FlameBurst => 2,
             _ => 1,
         }
     }

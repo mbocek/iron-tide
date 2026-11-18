@@ -811,9 +811,9 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Základní (bez těžkých jednotek)",
     ),
     (
-        "Standard (no Bulwark)",
-        "Štandardná (bez Bašty)",
-        "Standardní (bez Bašty)",
+        "Standard (no Bulwark or Missile Truck)",
+        "Štandardná (bez Bašty a raketometu)",
+        "Standardní (bez Bašty a raketometu)",
     ),
     ("Full arsenal", "Plný arzenál", "Plný arzenál"),
     ("South-west", "Juhozápad", "Jihozápad"),
@@ -990,9 +990,9 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Technologické centrum",
     ),
     (
-        "Research labs. Unlocks the Bulwark, the Howitzer and the Gunship.",
-        "Výskumné laboratóriá. Sprístupní Bulwark, húfnicu a bitevný vrtuľník.",
-        "Výzkumné laboratoře. Zpřístupní Bulwark, houfnici a bitevní vrtulník.",
+        "Research labs. Unlocks heavy units: Bulwark or Missile Truck, Howitzer and Gunship.",
+        "Výskumné laboratóriá. Sprístupní ťažkú techniku: Baštu alebo raketomet, húfnicu a bitevný vrtuľník.",
+        "Výzkumné laboratoře. Zpřístupní těžkou techniku: Baštu nebo raketomet, houfnici a bitevní vrtulník.",
     ),
     (
         "Flak Cannon",
@@ -1005,6 +1005,24 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Protiletadlové postavení. Na pozemní cíle střílet neumí.",
     ),
     ("Flak Track", "Protilietadlový tank", "Protiletadlový tank"),
+    ("Flame Trooper", "Plameňometčík", "Plamenometčík"),
+    (
+        "Burns out infantry and buildings at close range. Weak against armour.",
+        "Zblízka vypáli pechotu aj budovy. Proti pancieru je slabý.",
+        "Zblízka vypálí pěchotu i budovy. Proti pancíři je slabý.",
+    ),
+    ("Missile Truck", "Raketomet", "Raketomet"),
+    (
+        "Rocket artillery on wheels. Outranges defenses, fragile up close.",
+        "Raketové delostrelectvo na kolesách. Dostrelí ďalej než obrana, zblízka je zraniteľný.",
+        "Raketové dělostřelectvo na kolech. Dostřelí dál než obrana, zblízka je zranitelný.",
+    ),
+    ("Rocket Bunker", "Raketový bunker", "Raketový bunkr"),
+    (
+        "Concrete dome with a rocket launcher. Hits vehicles and aircraft alike.",
+        "Betónová kupola s raketometom. Zasiahne vozidlá aj lietadlá.",
+        "Betonová kupole s raketometem. Zasáhne vozidla i letadla.",
+    ),
     (
         "Mobile anti-aircraft gun. Shreds gunships, weak against armour.",
         "Pojazdný protilietadlový kanón. Rozstrieľa vrtuľníky, proti pancieru je slabý.",

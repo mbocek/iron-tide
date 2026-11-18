@@ -69,11 +69,12 @@ fn unpack(packed: [i16; 3]) -> Vec3 {
     Vec3::from_array(packed.map(f32::from)) / DECIMETRES_PER_METER
 }
 
-const SHOT_STYLES: [ProjectileStyle; 4] = [
+const SHOT_STYLES: [ProjectileStyle; 5] = [
     ProjectileStyle::Bullet,
     ProjectileStyle::Shell,
     ProjectileStyle::ArtilleryShell,
     ProjectileStyle::Missile,
+    ProjectileStyle::Flame,
 ];
 const BLAST_SIZES: [BlastSize; 3] = [
     BlastSize::ShellImpact,

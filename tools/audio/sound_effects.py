@@ -162,6 +162,28 @@ def howitzer_shot():
     return finished_effect(blast, duration, reverb_seconds=2.2, reverb_wet=0.3, end_fade=0.25)
 
 
+def flame_burst():
+    """A short roaring gush of burning fuel with a hiss of the nozzle and crackling droplets."""
+    rng = random.Random(1700)
+    duration = 0.6
+    length = samples(duration)
+    roar_center = segments([(0.0, 300.0), (0.08, 900.0), (0.6, 400.0)], length)
+    roar = biquad(white_noise(length, rng), "bandpass", roar_center, 0.8)
+    roar_envelope = segments([(0.0, 0.0), (0.03, 1.0), (0.3, 0.7), (0.6, 0.0)], length)
+    rumble = one_pole_lowpass(brown_noise(length, rng), 260.0)
+    hiss = biquad(white_noise(length, rng), "highpass", 4500.0)
+    hiss_envelope = segments([(0.0, 0.0), (0.01, 1.0), (0.1, 0.25), (0.6, 0.0)], length)
+    crackle = [n if rng.random() < 0.02 else 0.0 for n in white_noise(length, rng)]
+    crackle = multiplied(biquad(crackle, "bandpass", 1800.0, 0.7), roar_envelope)
+    burst = summed(
+        scaled(multiplied(roar, roar_envelope), 2.6),
+        scaled(multiplied(rumble, roar_envelope), 5.0),
+        scaled(multiplied(hiss, hiss_envelope), 0.4),
+        scaled(crackle, 1.6),
+    )
+    return finished_effect(soft_clip(burst, 1.6), duration, reverb_seconds=0.6, reverb_wet=0.15, end_fade=0.08)
+
+
 def missile_launch():
     rng = random.Random(1500)
     duration = 0.9
@@ -487,6 +509,7 @@ SOUND_EFFECTS = {
     "sfx/heavy_cannon_shot": heavy_cannon_shot,
     "sfx/howitzer_shot": howitzer_shot,
     "sfx/missile_launch": missile_launch,
+    "sfx/flame_burst": flame_burst,
     "sfx/impact_small_1": dirt_impact,
     "sfx/impact_small_2": metal_impact,
     "sfx/explosion_1": lambda: explosion(1),

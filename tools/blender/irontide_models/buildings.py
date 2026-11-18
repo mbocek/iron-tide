@@ -984,3 +984,29 @@ def _add_tool_rack(base):
             bevel=0.0, name="ToolDrawer")
     add_pipe_run([(base.x + 0.1, base.y - 0.45, base.z + 1.0), (base.x + 0.5, base.y - 0.7, base.z + 0.02)], 0.02,
                  material_name="Rubber")
+
+
+def build_rocket_bunker():
+    """A low concrete dome with firing slits and a rocket launcher turret on top."""
+    slab("ConcreteDark", chamfered_rect(2.0, 2.0, 0.5), 0.0, 0.1, bevel=0.0, name="BunkerFooting")
+    dome = [(0.95, 0.0), (0.93, 0.25), (0.82, 0.55), (0.6, 0.75), (0.0, 0.8)]
+    lathe("Concrete", dome, (0, 0, 0.1), segments=24, name="BunkerDome")
+    add_band_around(Vector((0, 0, 0.1)), dome, 0.18, 0.3, "TeamColor", segments=24)
+    for k in range(4):
+        angle = k * math.pi / 2 + math.pi / 4
+        box("HazardBlack", (0.05, 0.4, 0.08), (math.cos(angle) * 0.86, math.sin(angle) * 0.86, 0.45),
+            (0, 0, angle), bevel=0.0, name="FiringSlit")
+    add_sandbag_wall((-0.95, -0.95, 0.1), (-0.95, 0.2, 0.1), layers=2, bag_length=0.36, bag_width=0.22,
+                     bag_height=0.11)
+    pivot = Vector((0.0, 0.0, 0.9))
+    with group(TURRET, pivot):
+        cylinder("ArmorDark", 0.32, 0.08, pivot + Vector((0, 0, 0.04)), segments=16, name="LauncherRing")
+        box("Armor", (0.5, 0.5, 0.3), pivot + Vector((0, 0, 0.23)), bevel=0.03, name="LauncherHousing")
+        with group(BARREL, pivot + Vector((0.1, 0, 0.35)), parent=TURRET):
+            for side in (-1, 1):
+                cylinder_between("Gunmetal", pivot + Vector((-0.2, side * 0.17, 0.42)),
+                                 pivot + Vector((0.55, side * 0.17, 0.48)), 0.09, 12, name="RocketPod")
+                cylinder("TeamColor", 0.092, 0.08, pivot + Vector((0.2, side * 0.17, 0.45)),
+                         (0, math.pi / 2, 0), segments=12, name="PodTeamBand")
+    current_assembly().on_finalize(
+        lambda root, merged: add_recoil_animation(merged[BARREL], "Fire", Vector((-0.15, 0.0, 0.0))))

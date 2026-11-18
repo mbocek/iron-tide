@@ -186,6 +186,10 @@ impl EffectAssets {
                 Mesh3d(self.shell_mesh.clone()),
                 MeshMaterial3d(self.shell_material.clone()),
             ),
+            ProjectileStyle::Flame => (
+                Mesh3d(self.blast_mesh.clone()),
+                MeshMaterial3d(self.fire_material.clone()),
+            ),
         }
     }
 }

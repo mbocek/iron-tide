@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::assets::ModelLibrary;
 use crate::camera::Cursor;
-use crate::catalog::{BuildingKind, Team, UnitKind};
+use crate::catalog::{BuildingKind, Faction, Team, UnitKind};
 use crate::components::*;
 use crate::determinism::SimulationRng;
 use crate::economy::Economies;
@@ -83,6 +83,18 @@ impl BuildItem {
         }
     }
 
+    pub fn faction(self) -> Option<Faction> {
+        match self {
+            BuildItem::Structure(kind) => kind.spec().faction,
+            BuildItem::Unit(kind) => kind.spec().faction,
+        }
+    }
+
+    pub fn belongs_to(self, team: Team) -> bool {
+        self.faction()
+            .is_none_or(|faction| faction == team.faction())
+    }
+
     pub fn missing_requirement(self, owned: &[BuildingKind]) -> Option<BuildingKind> {
         match self {
             BuildItem::Structure(kind) => kind
@@ -154,7 +166,7 @@ impl Production {
     }
 
     pub fn allows(&self, team: Team, item: BuildItem) -> bool {
-        !self.forbidden[team.index()].contains(&item)
+        item.belongs_to(team) && !self.forbidden[team.index()].contains(&item)
     }
 
     pub fn lane(&self, team: Team, lane: Lane) -> &ProductionLane {

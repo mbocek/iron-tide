@@ -405,7 +405,10 @@ fn fire_projectile(
         arc_height = muzzle.distance(end) * MISSILE_ARC_PER_METER;
     }
 
-    let flash_size = if weapon.style == ProjectileStyle::Bullet {
+    let flash_size = if matches!(
+        weapon.style,
+        ProjectileStyle::Bullet | ProjectileStyle::Flame
+    ) {
         0.0
     } else {
         1.0
@@ -492,7 +495,7 @@ pub fn fly_projectiles(
             );
         }
         let blast = match weapon.style {
-            ProjectileStyle::Bullet => BlastSize::BulletImpact,
+            ProjectileStyle::Bullet | ProjectileStyle::Flame => BlastSize::BulletImpact,
             ProjectileStyle::Shell | ProjectileStyle::ArtilleryShell | ProjectileStyle::Missile => {
                 BlastSize::ShellImpact
             }
@@ -500,7 +503,9 @@ pub fn fly_projectiles(
         spawn_blast(&mut commands, &effects, impact, blast);
         let scorch_radius = match weapon.style {
             ProjectileStyle::Bullet => 0.0,
-            ProjectileStyle::Shell | ProjectileStyle::Missile => SHELL_SCORCH_RADIUS,
+            ProjectileStyle::Shell | ProjectileStyle::Missile | ProjectileStyle::Flame => {
+                SHELL_SCORCH_RADIUS
+            }
             ProjectileStyle::ArtilleryShell => weapon.splash_radius * 0.8,
         };
         if scorch_radius > 0.0 {
@@ -510,7 +515,7 @@ pub fn fly_projectiles(
             });
         }
         let impact_sound = match weapon.style {
-            ProjectileStyle::Bullet => Sound::BulletImpact,
+            ProjectileStyle::Bullet | ProjectileStyle::Flame => Sound::BulletImpact,
             ProjectileStyle::Shell | ProjectileStyle::ArtilleryShell | ProjectileStyle::Missile => {
                 Sound::ShellExplosion
             }

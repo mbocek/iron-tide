@@ -8,6 +8,7 @@ from mathutils import Euler, Matrix, Quaternion, Vector
 
 from . import geometry as geo
 from .animation import finish_rig_action, frames_for, start_rig_action
+from .details import add_pipe_run
 from .parts import BODY, box, current_assembly, cylinder, cylinder_between, group, lathe, sphere
 
 GLASS = "Glass"
@@ -416,6 +417,43 @@ def add_sniper_backpack():
             (math.radians(20 * k), math.radians(10), 0), bevel=0.02, name="GhillieTuft")
 
 
+def add_flamethrower():
+    """A wand along the rifle's line, fed by a hose from the fuel tanks on the back."""
+    axis = (RIFLE_MUZZLE - RIFLE_BUTT).normalized()
+    frame = Vector((1.0, 0.0, 0.0)).rotation_difference(axis).to_matrix().to_4x4()
+
+    def at(x, y=0.0, z=0.0, rotation=(0.0, 0.0, 0.0)):
+        return Matrix.Translation(RIFLE_BUTT) @ frame @ geo.placement((x, y, z), rotation)
+
+    length = (RIFLE_MUZZLE - RIFLE_BUTT).length
+    box("ArmorDark", (0.16, 0.05, 0.08), matrix=at(0.12, 0, -0.01), bevel=0.012, name="FlamerStock")
+    cylinder("Gunmetal", 0.035, length - 0.2, matrix=at(0.2 + (length - 0.2) / 2, 0, 0.0, FACING_FRONT),
+             segments=10, name="FlamerWand")
+    cylinder("Copper", 0.045, 0.1, matrix=at(length - 0.02, 0, 0.0, FACING_FRONT), segments=10,
+             name="FlamerNozzle")
+    cylinder("WarningLight", 0.02, 0.03, matrix=at(length + 0.04, 0, 0.0, FACING_FRONT), segments=8,
+             name="PilotFlame")
+    box("ArmorDark", (0.035, 0.035, 0.09), matrix=at(0.3, 0, -0.07, (0, math.radians(15), 0)), bevel=0.008,
+        name="FlamerGrip")
+    box("TeamColor", (0.12, 0.06, 0.06), matrix=at(0.5, 0, 0.03), bevel=0.01, name="FlamerTeamBand")
+
+
+def add_gas_mask_helmet():
+    add_combat_helmet(top_mark="HazardYellow")
+    box("ArmorDark", (0.08, 0.16, 0.1), (0.12, 0.0, 1.62), bevel=0.02, name="GasMask")
+    for side in (-1, 1):
+        cylinder("Gunmetal", 0.03, 0.04, (0.15, side * 0.06, 1.6), (0, math.pi / 2, 0), segments=8,
+                 name="MaskFilter")
+
+
+def add_fuel_tanks():
+    for side in (-1, 1):
+        cylinder("HazardYellow", 0.085, 0.42, (-0.22, side * 0.09, 1.3), segments=12, name="FuelTank")
+        cylinder("TeamColor", 0.087, 0.06, (-0.22, side * 0.09, 1.38), segments=12, name="FuelTankBand")
+    box("Webbing", (0.1, 0.3, 0.32), (-0.13, 0.0, 1.3), bevel=0.02, name="TankHarness")
+    add_pipe_run([(-0.22, -0.09, 1.08), (-0.1, -0.2, 1.0), (0.15, -0.2, 1.12)], 0.018, material_name="Rubber")
+
+
 def _elbows(hands, poles):
     return {side: rest_elbow(SHOULDER[side], hands[side], poles[side]) for side in "LR"}
 
@@ -465,6 +503,19 @@ SNIPER = SoldierKit(
 
 def build_sniper():
     SoldierBuild(SNIPER).build()
+
+
+FLAME_TROOPER = SoldierKit(
+    carry=CARRY_RIFLE, weapon_seat=RIFLE_BUTT, weapon_axis=RIFLE_MUZZLE - RIFLE_BUTT,
+    hand={"L": RIFLE_HANDGUARD, "R": RIFLE_GRIP},
+    elbow={"L": Vector((0.2, 0.15, 1.12)), "R": Vector((-0.02, -0.27, 1.13))},
+    add_weapon=add_flamethrower, add_helmet=add_gas_mask_helmet, add_backpack=add_fuel_tanks,
+    shouldered_offset=Vector((0.02, 0.05, -0.04)),
+)
+
+
+def build_flame_trooper():
+    SoldierBuild(FLAME_TROOPER).build()
 
 
 def build_engineer():

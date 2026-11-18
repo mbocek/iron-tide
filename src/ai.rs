@@ -43,7 +43,7 @@ const BACK_TO_THE_FRONT_HEALTH: f32 = 0.9;
 const FORTIFY_INTERVAL_SECS: f32 = 3.0;
 const ENGINEER_INTERVAL_SECS: f32 = 2.0;
 
-const BUILD_PLAN: [BuildingKind; 17] = [
+const BUILD_PLAN: [BuildingKind; 18] = [
     BuildingKind::PowerPlant,
     BuildingKind::Barracks,
     BuildingKind::Refinery,
@@ -57,6 +57,7 @@ const BUILD_PLAN: [BuildingKind; 17] = [
     BuildingKind::TechCenter,
     BuildingKind::Helipad,
     BuildingKind::FlakCannon,
+    BuildingKind::RocketBunker,
     BuildingKind::RepairBay,
     BuildingKind::GunTurret,
     BuildingKind::PowerPlant,
@@ -483,19 +484,21 @@ fn plan_next_structure(
 
 /// Weighted wish lists, reweighted by what counters the enemies seen lately; anything the mission
 /// forbids is skipped.
-const VEHICLE_MIX: [(UnitKind, f32); 6] = [
+const VEHICLE_MIX: [(UnitKind, f32); 7] = [
     (UnitKind::Tank, 5.0),
     (UnitKind::Bulwark, 2.0),
     (UnitKind::Artillery, 2.0),
     (UnitKind::Scout, 3.0),
     (UnitKind::Gunship, 2.0),
     (UnitKind::FlakTrack, 1.0),
+    (UnitKind::MissileTruck, 2.0),
 ];
-const INFANTRY_MIX: [(UnitKind, f32); 4] = [
+const INFANTRY_MIX: [(UnitKind, f32); 5] = [
     (UnitKind::Rifleman, 6.0),
     (UnitKind::Rocketeer, 3.0),
     (UnitKind::Medic, 1.0),
     (UnitKind::Sniper, 1.0),
+    (UnitKind::FlameTrooper, 2.0),
 ];
 const AIR_THREAT_SHARE: f32 = 0.25;
 const FLAK_CANNONS_UNDER_AIR_THREAT: usize = 2;
