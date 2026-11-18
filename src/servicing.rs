@@ -2,7 +2,8 @@ use bevy::prelude::*;
 
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
 use crate::components::{Building, Health, Mobile, Unit};
-use crate::map::footprint_center;
+use crate::map::{footprint_center, world_to_cell};
+use crate::spawn::exit_cell;
 
 const SERVICE_SHARE_PER_SEC: f32 = 0.04;
 const OVER_THE_PAD: f32 = 3.0;
@@ -15,6 +16,17 @@ pub fn service_radius(structure: BuildingKind, unit: UnitKind) -> Option<f32> {
         BuildingKind::Helipad if unit.flies() => Some(OVER_THE_PAD),
         BuildingKind::RepairBay if unit.spec().armor == ArmorClass::Vehicle => Some(BESIDE_THE_BAY),
         _ => None,
+    }
+}
+
+/// Where a unit waits to be serviced: on the pad for aircraft, at the bay's door for vehicles.
+pub fn waiting_spot(building: &Building) -> IVec2 {
+    match building.kind {
+        BuildingKind::RepairBay => exit_cell(building),
+        _ => world_to_cell(footprint_center(
+            building.origin,
+            building.kind.spec().footprint,
+        )),
     }
 }
 

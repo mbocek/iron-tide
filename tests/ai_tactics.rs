@@ -3,9 +3,10 @@ mod common;
 use bevy::prelude::*;
 use common::{Battle, BattleSetup};
 use iron_tide::catalog::{BuildingKind, Team, UnitKind};
-use iron_tide::components::{Building, Unit};
+use iron_tide::components::{Building, Health, Unit};
 use iron_tide::engineers::EngineerTask;
-use iron_tide::levels::LevelDefinition;
+use iron_tide::levels::{Difficulty, LevelDefinition};
+use iron_tide::map::{footprint_center, world_to_cell};
 
 fn fogless_match() -> Battle {
     Battle::new(BattleSetup {
@@ -83,7 +84,7 @@ fn the_computer_answers_enemy_gunships_with_flak() {
     let command_center = battle
         .building(Team::Player, BuildingKind::CommandCenter)
         .unwrap();
-    let home = iron_tide::map::world_to_cell(battle.position(command_center));
+    let home = world_to_cell(battle.position(command_center));
     for offset in 0..4 {
         battle.spawn_unit(
             UnitKind::Gunship,
@@ -99,4 +100,26 @@ fn the_computer_answers_enemy_gunships_with_flak() {
         "the computer built {} flak cannons against four gunships",
         crimson_buildings(&mut battle, BuildingKind::FlakCannon)
     );
+}
+
+#[test]
+fn the_computer_sends_badly_damaged_vehicles_to_its_repair_bay() {
+    let mut battle = Battle::sandbox();
+    let base = IVec2::new(40, 12);
+    battle.construct(BuildingKind::CommandCenter, Team::Crimson, base);
+    let bay_origin = base + IVec2::new(-5, 0);
+    battle.construct(BuildingKind::RepairBay, Team::Crimson, bay_origin);
+    battle.add_ai(Team::Crimson, base, Difficulty::Normal);
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Crimson, base + IVec2::new(-6, 12));
+    {
+        let mut health = battle.world().get_mut::<Health>(tank).unwrap();
+        health.current = health.max * 0.2;
+    }
+    let bay_centre = footprint_center(bay_origin, BuildingKind::RepairBay.spec().footprint);
+    let took = battle.run_until(60.0, |battle| {
+        let health = battle.world().get::<Health>(tank).unwrap();
+        health.current / health.max > 0.85
+    });
+    assert!(took.is_some(), "the tank was never repaired");
+    assert!(battle.position(tank).xz().distance(bay_centre.xz()) < 5.0);
 }

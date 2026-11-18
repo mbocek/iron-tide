@@ -20,6 +20,7 @@ use crate::production::{
     BuildItem, Lane, PlacementContext, Production, construct_building, owned_building_kinds,
     placement_context,
 };
+use crate::servicing::{service_radius, waiting_spot};
 use crate::structures::{BeingSold, Repairing, StructureOrder, StructureOrderKind};
 
 const MAX_WAVE_SIZE: usize = 16;
@@ -32,6 +33,8 @@ const CRYSTAL_SEARCH_RADIUS: i32 = 20;
 const HARVESTERS_PER_REFINERY: usize = 2;
 const COMBAT_UNIT_RESERVE: i32 = 400;
 const REPAIR_BELOW_HEALTH: f32 = 0.6;
+const RETREAT_BELOW_HEALTH: f32 = 0.35;
+const BACK_TO_THE_FRONT_HEALTH: f32 = 0.9;
 const FORTIFY_INTERVAL_SECS: f32 = 3.0;
 const ENGINEER_INTERVAL_SECS: f32 = 2.0;
 
@@ -94,6 +97,7 @@ type ArmyUnit<'a> = (
     &'a Unit,
     &'a Team,
     &'a Transform,
+    &'a Health,
     &'a mut Mobile,
     Option<&'a AttackTarget>,
     Option<&'a mut Orders>,
@@ -609,16 +613,37 @@ fn direct_army(
     let scout_alive = ai.scout.is_some_and(|scout| army.contains(scout));
     let needs_scout = known_objective.is_none() && !scout_alive;
 
+    let stations: Vec<&Building> = buildings
+        .iter()
+        .filter(|(_, owner)| **owner == team)
+        .map(|(building, _)| building)
+        .collect();
     let mut waiting_at_home = Vec::new();
-    for (entity, unit, &owner, transform, mobile, attack, orders) in army.iter_mut() {
-        let idle = !mobile.is_moving()
-            && attack.is_none_or(|a| a.target.is_none())
-            && orders.as_ref().is_none_or(|o| o.current.is_none());
+    for (entity, unit, &owner, transform, health, mobile, attack, orders) in army.iter_mut() {
         let is_soldier = owner == team && fights(unit.0);
-        let Some(orders) = orders.filter(|_| is_soldier && idle) else {
+        let Some(mut orders) = orders.filter(|_| is_soldier) else {
             continue;
         };
-        let at_home = near_base(transform.translation);
+        let position = transform.translation;
+        let station = nearest_station(&stations, unit.0, position);
+        let wounded = health.current / health.max;
+        if let Some((spot, in_reach)) = station {
+            let retreating = orders.current == Some(Order::Move(spot));
+            if wounded < RETREAT_BELOW_HEALTH && !in_reach && !retreating {
+                orders.replace_with(Order::Move(spot));
+                continue;
+            }
+            if in_reach && wounded < BACK_TO_THE_FRONT_HEALTH {
+                continue;
+            }
+        }
+        let idle = !mobile.is_moving()
+            && attack.is_none_or(|a| a.target.is_none())
+            && orders.current.is_none();
+        if !idle {
+            continue;
+        }
+        let at_home = near_base(position);
         let objective = if at_home {
             intruder
         } else {
@@ -656,6 +681,25 @@ fn direct_army(
         send(orders, objective);
     }
     ai.wave_size = (ai.wave_size + WAVE_GROWTH).min(MAX_WAVE_SIZE);
+}
+
+/// The closest own structure that services this kind of unit: where to wait there, and whether the unit is
+/// already within its reach.
+fn nearest_station(
+    stations: &[&Building],
+    kind: UnitKind,
+    position: Vec3,
+) -> Option<(IVec2, bool)> {
+    stations
+        .iter()
+        .filter_map(|building| {
+            let radius = service_radius(building.kind, kind)?;
+            let centre = footprint_center(building.origin, building.kind.spec().footprint);
+            let distance = centre.xz().distance(position.xz());
+            Some((waiting_spot(building), distance <= radius, distance))
+        })
+        .min_by(|a, b| a.2.total_cmp(&b.2))
+        .map(|(spot, in_reach, _)| (spot, in_reach))
 }
 
 /// The nearest enemy the commander knows of, preferring structures, which do not run away.

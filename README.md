@@ -284,7 +284,8 @@ attack wave and its income (75 % / 100 % / 135 %).
   engineer that follows their attack wave to capture it. They also count the enemy infantry, vehicles and
   aircraft they have seen lately (older sightings fade) and train more of whatever answers them best,
   judged by each unit's weapon against those armour classes; against aircraft they dig in up to two Flak
-  Cannons first. Levels can switch the fog off (`"fog_of_war": false`, or in the
+  Cannons first. Their vehicles below 35 % health fall back to a Repair Bay and their aircraft to a Helipad,
+  and rejoin the fight at 90 %. Levels can switch the fog off (`"fog_of_war": false`, or in the
   battle editor).
 
 ## Code layout
