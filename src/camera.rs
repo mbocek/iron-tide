@@ -1,3 +1,4 @@
+use crate::notifications::LastAlert;
 use bevy::anti_alias::smaa::Smaa;
 use bevy::camera::Hdr;
 use bevy::input::mouse::{AccumulatedMouseMotion, MouseScrollUnit, MouseWheel};
@@ -186,6 +187,7 @@ pub fn control_camera(
     mouse_motion: Res<AccumulatedMouseMotion>,
     mut wheel: MessageReader<MouseWheel>,
     cursor: Res<Cursor>,
+    alert: Option<Res<LastAlert>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     time: Res<Time>,
     mut cameras: Query<(&mut RtsCamera, &mut Transform)>,
@@ -200,6 +202,11 @@ pub fn control_camera(
 
     if settings.keys.just_pressed(&keys, Action::JumpHome) || keys.just_pressed(KeyCode::Home) {
         camera.focus = home_focus(&level, local.0);
+    }
+    if settings.keys.just_pressed(&keys, Action::JumpToAlert)
+        && let Some(spot) = alert.as_ref().and_then(|alert| alert.0)
+    {
+        camera.focus = spot;
     }
     if settings.keys.just_pressed(&keys, Action::ResetRotation) {
         camera.yaw = 0.0;

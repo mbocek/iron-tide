@@ -17,6 +17,7 @@ pub enum Action {
     JumpHome,
     Stop,
     LayMine,
+    JumpToAlert,
     RepairTool,
     SellTool,
     QuickSave,
@@ -27,7 +28,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 17] = [
+    pub const ALL: [Action; 18] = [
         Action::ScrollUp,
         Action::ScrollDown,
         Action::ScrollLeft,
@@ -38,6 +39,7 @@ impl Action {
         Action::JumpHome,
         Action::Stop,
         Action::LayMine,
+        Action::JumpToAlert,
         Action::RepairTool,
         Action::SellTool,
         Action::QuickSave,
@@ -59,6 +61,7 @@ impl Action {
             Action::JumpHome => tr("Jump to base"),
             Action::Stop => tr("Stop"),
             Action::LayMine => tr("Lay a mine (engineers)"),
+            Action::JumpToAlert => tr("Jump to the last attack"),
             Action::RepairTool => tr("Repair mode"),
             Action::SellTool => tr("Sell mode"),
             Action::QuickSave => tr("Quick save"),
@@ -81,6 +84,7 @@ impl Action {
             Action::JumpHome => KeyCode::Space,
             Action::Stop => KeyCode::KeyX,
             Action::LayMine => KeyCode::KeyM,
+            Action::JumpToAlert => KeyCode::KeyV,
             Action::RepairTool => KeyCode::KeyT,
             Action::SellTool => KeyCode::KeyY,
             Action::QuickSave => KeyCode::F5,

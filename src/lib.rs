@@ -171,6 +171,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<ai::AiCommanders>()
             .init_resource::<outcome::GameOutcome>()
             .init_resource::<notifications::Notifications>()
+            .init_resource::<notifications::LastAlert>()
             .init_resource::<control_groups::ControlGroups>()
             .init_resource::<match_flow::MatchClock>()
             .init_resource::<fog::FogOfWar>()

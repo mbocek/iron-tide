@@ -38,3 +38,26 @@ fn the_tally_counts_kills_losses_damage_and_new_units() {
     assert_eq!(player.units_trained, 2);
     assert_eq!(player.structures_built, 2);
 }
+
+#[test]
+fn an_attack_on_a_harvester_is_announced_with_its_place() {
+    use iron_tide::notifications::{LastAlert, Notifications};
+    let mut battle = Battle::sandbox();
+    let field = IVec2::new(24, 45);
+    battle.spawn_unit(UnitKind::Harvester, Team::Player, field);
+    battle.spawn_unit(UnitKind::Rifleman, Team::Crimson, field + IVec2::new(3, 0));
+    battle.run_for(4.0);
+    let world = battle.world();
+    let spot = world
+        .resource::<LastAlert>()
+        .0
+        .expect("no alert was recorded");
+    let first_shots_land_near_the_spawn = iron_tide::map::cell_center(field).distance(spot) < 8.0;
+    assert!(first_shots_land_near_the_spawn, "alert at {spot}");
+    assert!(
+        world
+            .resource::<Notifications>()
+            .visible()
+            .any(|(line, _)| line == "Our harvester is under attack!")
+    );
+}

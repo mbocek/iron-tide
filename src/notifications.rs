@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
-use crate::catalog::Team;
-use crate::components::{Building, Health};
+use crate::combat::DamageDealt;
+use crate::components::{Building, Harvester};
 use crate::economy::Economies;
 use crate::i18n::tr;
 use crate::player_commands::LocalTeam;
@@ -10,6 +10,10 @@ use crate::sound::{Sound, SoundCue};
 const MESSAGE_LIFETIME_SECS: f32 = 4.0;
 const MAX_VISIBLE_MESSAGES: usize = 4;
 const ATTACK_WARNING_COOLDOWN_SECS: f32 = 12.0;
+
+/// Where the latest attack on the local side was reported, for the jump-to-alert key.
+#[derive(Resource, Default)]
+pub struct LastAlert(pub Option<Vec3>);
 
 /// Short status lines for the player, shown at the top of the battlefield.
 #[derive(Resource, Default)]
@@ -43,9 +47,9 @@ impl Notifications {
 
 #[derive(Default)]
 pub struct BaseWatch {
-    previous_health: f32,
     low_power: bool,
     warning_cooldown: f32,
+    harvester_warning_cooldown: f32,
 }
 
 pub fn watch_base(
@@ -54,24 +58,33 @@ pub fn watch_base(
     time: Res<Time>,
     economies: Res<Economies>,
     mut notifications: ResMut<Notifications>,
+    mut alert: ResMut<LastAlert>,
     mut watch: Local<BaseWatch>,
-    buildings: Query<(&Health, &Team), With<Building>>,
+    mut hits: MessageReader<DamageDealt>,
+    victims: Query<(&Transform, Has<Building>, Has<Harvester>)>,
 ) {
     let dt = time.delta_secs();
     notifications.age(dt);
     watch.warning_cooldown -= dt;
+    watch.harvester_warning_cooldown -= dt;
 
-    let base_health: f32 = buildings
-        .iter()
-        .filter(|(_, team)| **team == local.0)
-        .map(|(health, _)| health.current)
-        .sum();
-    if base_health < watch.previous_health - 0.5 && watch.warning_cooldown <= 0.0 {
-        notifications.push(tr("Our base is under attack!"));
+    for hit in hits.read().filter(|hit| hit.team == local.0) {
+        let Ok((transform, is_building, is_harvester)) = victims.get(hit.victim) else {
+            continue;
+        };
+        let warning = if is_building && watch.warning_cooldown <= 0.0 {
+            watch.warning_cooldown = ATTACK_WARNING_COOLDOWN_SECS;
+            tr("Our base is under attack!")
+        } else if is_harvester && watch.harvester_warning_cooldown <= 0.0 {
+            watch.harvester_warning_cooldown = ATTACK_WARNING_COOLDOWN_SECS;
+            tr("Our harvester is under attack!")
+        } else {
+            continue;
+        };
+        notifications.push(warning);
         cues.write(SoundCue::interface(Sound::BaseAlert));
-        watch.warning_cooldown = ATTACK_WARNING_COOLDOWN_SECS;
+        alert.0 = Some(transform.translation);
     }
-    watch.previous_health = base_health;
 
     let low_power = economies.of(local.0).has_low_power();
     if low_power && !watch.low_power {

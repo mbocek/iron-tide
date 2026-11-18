@@ -672,6 +672,14 @@ fn controls_overview(keys: &KeyBindings) -> Vec<(&'static str, String)> {
             format!("{} / Esc", key(Action::Stop)),
         ),
         (
+            tr("All of one kind"),
+            tr_owned("double-click or Ctrl+click a unit"),
+        ),
+        (
+            tr("Last attack"),
+            tr_fmt("{} jumps there", &[&key(Action::JumpToAlert)]),
+        ),
+        (
             tr("Lay a mine"),
             tr_fmt(
                 "{} with engineers selected, ${} each",

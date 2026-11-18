@@ -458,5 +458,11 @@
   "Lay a mine": "Položit minu",
   "Lay a mine (engineers)": "Položit minu (ženisté)",
   "{} with engineers selected, ${} each": "{} u vybraných ženistů, ${} za kus",
-  "No mine: the cell has one or the credits ran out": "Mina nepoložena: políčko už jednu má nebo chybí kredity"
+  "No mine: the cell has one or the credits ran out": "Mina nepoložena: políčko už jednu má nebo chybí kredity",
+  "All of one kind": "Všechny stejného typu",
+  "double-click or Ctrl+click a unit": "dvojklik nebo Ctrl+klik na jednotku",
+  "Last attack": "Poslední útok",
+  "{} jumps there": "{} skočí tam",
+  "Jump to the last attack": "Skok na poslední útok",
+  "Our harvester is under attack!": "Náš sběrač je pod palbou!"
 }

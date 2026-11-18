@@ -124,6 +124,9 @@ bigger waves.
 | Mouse wheel / Q, E / R | zoom / rotate / reset rotation |
 | Space or Home | back to base |
 | X / Esc | stop / deselect, cancel placement |
+| double-click / Ctrl+click a unit | select every unit of that kind on screen |
+| M | engineers lay a mine ($100 each) |
+| V | jump to the last attack on your base or a harvester |
 | Ctrl+1-9 (Cmd+1-9) | save the selection as a group |
 | 1-9 / twice quickly | select a group / move the camera to it |
 | Shift+1-9 | add a group to the selection |

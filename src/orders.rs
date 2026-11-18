@@ -162,8 +162,13 @@ fn target_under(targets: &Targets, point: Vec3) -> Option<&TargetInfo> {
         })
 }
 
+/// A second click on a unit of the same kind within this time selects every one of them on screen.
+const DOUBLE_CLICK_SECS: f32 = 0.35;
+
 pub fn select_units(
     local: Res<LocalTeam>,
+    time: Res<Time<Real>>,
+    mut last_click: Local<Option<(UnitKind, f32)>>,
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -173,7 +178,7 @@ pub fn select_units(
     targets: Res<Targets>,
     mut drag: ResMut<DragSelection>,
     cameras: Query<(&Camera, &GlobalTransform), With<RtsCamera>>,
-    selectable: Query<(Entity, &Team, &Transform, Has<Unit>)>,
+    selectable: Query<(Entity, &Team, &Transform, Option<&Unit>)>,
     selected: Query<Entity, With<Selected>>,
     mut selection_box: Query<(&mut Node, &mut Visibility), With<SelectionBoxUi>>,
     mut counts: Query<&mut Text, With<SelectionCount>>,
@@ -219,11 +224,11 @@ pub fn select_units(
             .world_to_viewport(camera_transform, position)
             .is_ok_and(|projected| projected.cmpge(min).all() && projected.cmple(max).all())
     };
-    let own_units_inside = |selectable: &Query<(Entity, &Team, &Transform, Has<Unit>)>| {
+    let own_units_inside = |selectable: &Query<(Entity, &Team, &Transform, Option<&Unit>)>| {
         selectable
             .iter()
-            .filter(|(_, team, transform, is_unit)| {
-                **team == local.0 && *is_unit && inside_box(transform.translation)
+            .filter(|(_, team, transform, unit)| {
+                **team == local.0 && unit.is_some() && inside_box(transform.translation)
             })
             .map(|(entity, ..)| entity)
             .collect::<Vec<_>>()
@@ -264,6 +269,32 @@ pub fn select_units(
         && hit.team == local.0
     {
         commands.entity(hit.entity).insert(Selected);
+        let kind = selectable
+            .get(hit.entity)
+            .ok()
+            .and_then(|(.., unit)| unit.map(|unit| unit.0));
+        let now = time.elapsed_secs();
+        let double_click = kind.is_some()
+            && last_click.is_some_and(|(previous, at)| {
+                Some(previous) == kind && now - at < DOUBLE_CLICK_SECS
+            });
+        let whole_type =
+            keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]) || double_click;
+        if let (Some(kind), true) = (kind, whole_type) {
+            let on_screen = |position: Vec3| {
+                let size = camera.logical_viewport_size().unwrap_or_default();
+                camera
+                    .world_to_viewport(camera_transform, position)
+                    .is_ok_and(|point| point.cmpge(Vec2::ZERO).all() && point.cmple(size).all())
+            };
+            for (entity, team, transform, unit) in &selectable {
+                let same = unit.is_some_and(|unit| unit.0 == kind);
+                if *team == local.0 && same && on_screen(transform.translation) {
+                    commands.entity(entity).insert(Selected);
+                }
+            }
+        }
+        *last_click = kind.map(|kind| (kind, now));
     }
 }
 

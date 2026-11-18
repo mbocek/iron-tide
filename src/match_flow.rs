@@ -12,7 +12,7 @@ use crate::intel::Intel;
 use crate::levels::{ActiveLevel, ForceSetup};
 use crate::map::{GameMap, cell_center, in_far_half};
 use crate::match_stats::MatchStats;
-use crate::notifications::Notifications;
+use crate::notifications::{LastAlert, Notifications};
 use crate::outcome::GameOutcome;
 use crate::player_commands::{CommandQueue, SimulationTick};
 use crate::production::{BuildItem, Placement, PlacementContext, Production, construct_building};
@@ -73,6 +73,7 @@ pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
     commands.insert_resource(AiCommanders::default());
     commands.insert_resource(GameOutcome::default());
     commands.insert_resource(Notifications::default());
+    commands.insert_resource(LastAlert::default());
     commands.insert_resource(ControlGroups::default());
     commands.insert_resource(MatchClock::default());
 }
