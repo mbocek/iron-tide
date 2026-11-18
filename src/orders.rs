@@ -10,8 +10,11 @@ use crate::movement::order_move;
 use crate::production::Placement;
 use crate::sound::{Sound, SoundCue};
 use crate::structure_tools::StructureTool;
+use crate::ui::UiFonts;
 
 const DRAG_THRESHOLD_PX: f32 = 8.0;
+const SELECTION_CORNER_PX: f32 = 14.0;
+const SELECTION_CORNER_THICKNESS_PX: f32 = 3.0;
 const CLICK_SLACK: f32 = 0.6;
 const ORDER_MARKER_SECS: f32 = 0.6;
 
@@ -40,18 +43,98 @@ pub enum MarkerKind {
     Rally,
 }
 
-pub fn spawn_selection_box(mut commands: Commands) {
-    commands.spawn((
-        SelectionBoxUi,
-        Node {
-            position_type: PositionType::Absolute,
-            border: UiRect::all(Val::Px(1.5)),
-            ..default()
-        },
-        BorderColor::all(Color::srgb(0.4, 1.0, 0.5)),
-        BackgroundColor(Color::srgba(0.4, 1.0, 0.5, 0.08)),
-        Visibility::Hidden,
-    ));
+#[derive(Component)]
+pub struct SelectionCount;
+
+pub fn spawn_selection_box(mut commands: Commands, fonts: Res<UiFonts>) {
+    let corner = |placement: Node, border: UiRect| {
+        (
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Px(SELECTION_CORNER_PX),
+                height: Val::Px(SELECTION_CORNER_PX),
+                border,
+                ..placement
+            },
+            BorderColor::all(Color::WHITE),
+        )
+    };
+    let edge = Val::Px(-SELECTION_CORNER_THICKNESS_PX);
+    let thick = Val::Px(SELECTION_CORNER_THICKNESS_PX);
+    commands
+        .spawn((
+            SelectionBoxUi,
+            Pickable::IGNORE,
+            Node {
+                position_type: PositionType::Absolute,
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.55)),
+            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.05)),
+            Visibility::Hidden,
+        ))
+        .with_children(|frame| {
+            frame.spawn(corner(
+                Node {
+                    left: edge,
+                    top: edge,
+                    ..default()
+                },
+                UiRect {
+                    left: thick,
+                    top: thick,
+                    ..default()
+                },
+            ));
+            frame.spawn(corner(
+                Node {
+                    right: edge,
+                    top: edge,
+                    ..default()
+                },
+                UiRect {
+                    right: thick,
+                    top: thick,
+                    ..default()
+                },
+            ));
+            frame.spawn(corner(
+                Node {
+                    left: edge,
+                    bottom: edge,
+                    ..default()
+                },
+                UiRect {
+                    left: thick,
+                    bottom: thick,
+                    ..default()
+                },
+            ));
+            frame.spawn(corner(
+                Node {
+                    right: edge,
+                    bottom: edge,
+                    ..default()
+                },
+                UiRect {
+                    right: thick,
+                    bottom: thick,
+                    ..default()
+                },
+            ));
+            frame.spawn((
+                SelectionCount,
+                fonts.heading("", 15.0, Color::WHITE),
+                TextShadow::default(),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    top: Val::Px(-22.0),
+                    ..default()
+                },
+            ));
+        });
 }
 
 fn target_under(targets: &Targets, point: Vec3) -> Option<&TargetInfo> {
@@ -87,6 +170,7 @@ pub fn select_units(
     selectable: Query<(Entity, &Team, &Transform, Has<Unit>)>,
     selected: Query<Entity, With<Selected>>,
     mut selection_box: Query<(&mut Node, &mut Visibility), With<SelectionBoxUi>>,
+    mut counts: Query<&mut Text, With<SelectionCount>>,
 ) {
     let Some(screen) = cursor.screen else { return };
     let pointer_busy = placement.active.is_some() || tool.0.is_some();
@@ -121,6 +205,37 @@ pub fn select_units(
     node.width = Val::Px(max.x - min.x);
     node.height = Val::Px(max.y - min.y);
 
+    let Ok((camera, camera_transform)) = cameras.single() else {
+        return;
+    };
+    let inside_box = |position: Vec3| {
+        camera
+            .world_to_viewport(camera_transform, position)
+            .is_ok_and(|projected| projected.cmpge(min).all() && projected.cmple(max).all())
+    };
+    let own_units_inside = |selectable: &Query<(Entity, &Team, &Transform, Has<Unit>)>| {
+        selectable
+            .iter()
+            .filter(|(_, team, transform, is_unit)| {
+                **team == Team::Player && *is_unit && inside_box(transform.translation)
+            })
+            .map(|(entity, ..)| entity)
+            .collect::<Vec<_>>()
+    };
+    if dragging {
+        let count = own_units_inside(&selectable).len();
+        let label = match count {
+            0 => String::new(),
+            1 => "1 unit".to_string(),
+            n => format!("{n} units"),
+        };
+        for mut text in &mut counts {
+            if text.0 != label {
+                text.0 = label.clone();
+            }
+        }
+    }
+
     if !mouse.just_released(MouseButton::Left) {
         return;
     }
@@ -134,20 +249,8 @@ pub fn select_units(
         }
     }
     if dragging {
-        let Ok((camera, camera_transform)) = cameras.single() else {
-            return;
-        };
-        for (entity, &team, transform, is_unit) in &selectable {
-            if team != Team::Player || !is_unit {
-                continue;
-            }
-            let Ok(projected) = camera.world_to_viewport(camera_transform, transform.translation)
-            else {
-                continue;
-            };
-            if projected.cmpge(min).all() && projected.cmple(max).all() {
-                commands.entity(entity).insert(Selected);
-            }
+        for entity in own_units_inside(&selectable) {
+            commands.entity(entity).insert(Selected);
         }
     } else if let Some(hit) = cursor
         .ground

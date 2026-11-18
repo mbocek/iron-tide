@@ -10,7 +10,8 @@ use crate::fog_view::FogTexture;
 use crate::levels::ActiveLevel;
 use crate::scenery;
 use crate::terrain::{
-    Landscape, OUTLANDS_WIDTH, WATER_LEVEL, approximate_ground, build_terrain_mesh,
+    FAR_RING_WIDTH, Landscape, OUTLANDS_WIDTH, WATER_LEVEL, approximate_ground,
+    build_far_terrain_mesh, build_terrain_mesh,
 };
 use crate::terrain_material::{TerrainSurface, WaterMaterial, WaterSurface, water_material};
 
@@ -343,7 +344,18 @@ pub fn spawn_terrain_visuals(
         Transform::IDENTITY,
     ));
 
-    let water_span = MAP_WORLD_SIZE + 2.0 * OUTLANDS_WIDTH;
+    commands.spawn((
+        TerrainSurface,
+        Mesh3d(meshes.add(build_far_terrain_mesh(level.0.landscape))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.30, 0.36, 0.20),
+            perceptual_roughness: 0.95,
+            ..default()
+        })),
+        Transform::IDENTITY,
+    ));
+
+    let water_span = MAP_WORLD_SIZE + 2.0 * (OUTLANDS_WIDTH + FAR_RING_WIDTH);
     let water_mesh = Plane3d::default()
         .mesh()
         .size(water_span, water_span)

@@ -1,6 +1,6 @@
 use bevy::anti_alias::smaa::Smaa;
 use bevy::camera::Hdr;
-use bevy::input::mouse::{AccumulatedMouseMotion, MouseWheel};
+use bevy::input::mouse::{AccumulatedMouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::light::{CascadeShadowConfigBuilder, DirectionalLightShadowMap};
 use bevy::pbr::ScreenSpaceAmbientOcclusion;
 use bevy::pbr::{DistanceFog, FogFalloff};
@@ -23,10 +23,13 @@ const PAN_SPEED: f32 = 1.1;
 const FAST_PAN_MULTIPLIER: f32 = 2.2;
 const EDGE_PAN_MARGIN: f32 = 6.0;
 const ROTATE_SPEED: f32 = 1.6;
-const ZOOM_STEP: f32 = 5.0;
+/// Each mouse wheel notch moves the camera this share of its distance closer or farther.
+const ZOOM_PER_NOTCH: f32 = 0.1;
+/// Trackpads report scrolling in pixels, many small events per gesture; this many make one notch.
+const PIXELS_PER_NOTCH: f32 = 60.0;
 const ZOOM_SMOOTHING: f32 = 10.0;
 const MIN_DISTANCE: f32 = 12.0;
-const MAX_DISTANCE: f32 = 95.0;
+const MAX_DISTANCE: f32 = 160.0;
 const START_DISTANCE: f32 = 40.0;
 const PITCH: f32 = 0.95;
 const VERTICAL_FOV: f32 = std::f32::consts::FRAC_PI_4;
@@ -37,7 +40,7 @@ const SKY_COLOR: Color = Color::srgb(0.66, 0.74, 0.82);
 pub struct RtsCamera {
     pub focus: Vec3,
     pub distance: f32,
-    target_distance: f32,
+    pub target_distance: f32,
     yaw: f32,
 }
 
@@ -203,8 +206,13 @@ pub fn control_camera(
     }
     for event in wheel.read() {
         if !cursor.over_interface {
-            camera.target_distance = (camera.target_distance - event.y.signum() * ZOOM_STEP)
-                .clamp(MIN_DISTANCE, MAX_DISTANCE);
+            let notches = match event.unit {
+                MouseScrollUnit::Line => event.y,
+                MouseScrollUnit::Pixel => event.y / PIXELS_PER_NOTCH,
+            };
+            camera.target_distance = (camera.target_distance
+                * (1.0 - ZOOM_PER_NOTCH).powf(notches))
+            .clamp(MIN_DISTANCE, MAX_DISTANCE);
         }
     }
     camera.distance += (camera.target_distance - camera.distance) * (ZOOM_SMOOTHING * dt).min(1.0);

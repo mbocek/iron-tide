@@ -45,6 +45,10 @@ fn ground_circle(position: Vec3, radius: f32) -> (Isometry3d, f32) {
     )
 }
 
+const SELECTION_COLOR: Color = Color::WHITE;
+const SELECTION_MARGIN: f32 = 0.3;
+/// How much of each side the corner marks cover.
+const SELECTION_CORNER_SHARE: f32 = 0.3;
 const MOVE_COLOR: Color = Color::srgb(0.4, 1.0, 0.5);
 const ATTACK_COLOR: Color = Color::srgb(1.0, 0.35, 0.2);
 const PATROL_COLOR: Color = Color::srgb(0.35, 0.7, 1.0);
@@ -120,6 +124,17 @@ fn draw_chevrons(
     }
 }
 
+/// A square on the ground around a selected unit or structure, drawn only at its corners.
+fn draw_corner_brackets(gizmos: &mut Gizmos, center: Vec3, half_side: f32) {
+    let lifted = center + Vec3::Y * 0.08;
+    let arm = half_side * 2.0 * SELECTION_CORNER_SHARE;
+    for (sx, sz) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+        let corner = lifted + Vec3::new(sx * half_side, 0.0, sz * half_side);
+        gizmos.line(corner, corner - Vec3::X * sx * arm, SELECTION_COLOR);
+        gizmos.line(corner, corner - Vec3::Z * sz * arm, SELECTION_COLOR);
+    }
+}
+
 pub fn draw_overlays(
     mut gizmos: Gizmos,
     mut bars: Gizmos<HealthBarGizmos>,
@@ -150,16 +165,11 @@ pub fn draw_overlays(
         }
         let damaged = health.current < health.max;
         if selected {
-            let (isometry, circle_radius) = ground_circle(transform.translation, radius.0 + 0.25);
-            if is_building {
-                gizmos.rect(
-                    isometry,
-                    Vec2::splat(circle_radius * 2.0),
-                    Color::srgb(0.4, 1.0, 0.5),
-                );
-            } else {
-                gizmos.circle(isometry, circle_radius, Color::srgb(0.4, 1.0, 0.5));
-            }
+            draw_corner_brackets(
+                &mut gizmos,
+                transform.translation,
+                radius.0 + SELECTION_MARGIN,
+            );
         }
         let half_width = (radius.0 * 0.9).clamp(0.6, 3.0);
         let bar_span = screen_right * half_width * 2.0;

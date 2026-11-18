@@ -244,6 +244,7 @@ impl Plugin for GamePlugin {
             .insert_resource(settings::load_settings())
             .init_gizmo_group::<overlay::HealthBarGizmos>()
             .add_systems(Last, frame_pacing::pace_frames)
+            .add_systems(Update, graphics::fit_shadows_to_zoom)
             .add_systems(
                 Update,
                 (tutorial::follow_tutorial, tutorial::refresh_tutorial_panel)

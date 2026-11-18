@@ -11,6 +11,9 @@ pub const WATER_LEVEL: f32 = -0.45;
 pub const OUTLANDS_WIDTH: f32 = 44.0;
 
 const MESH_SPACING: f32 = 0.5;
+const FAR_MESH_SPACING: f32 = 2.0;
+/// How far beyond the detailed rim the coarse mountains reach, enough for the farthest zoom.
+pub const FAR_RING_WIDTH: f32 = 110.0;
 const RIVER_DEPTH: f32 = 1.5;
 const RIVER_HALF_WIDTH_CELLS: f32 = 1.7;
 const RIVER_FORD_COLUMNS: [(f32, f32); 3] = [(9.0, 14.0), (29.0, 34.0), (49.0, 54.0)];
@@ -423,7 +426,35 @@ fn layer_weights(
 pub fn build_terrain_mesh(landscape: Landscape, crystal_soil: impl Fn(IVec2) -> bool) -> Mesh {
     let start = -OUTLANDS_WIDTH;
     let span = MAP_WORLD_SIZE + 2.0 * OUTLANDS_WIDTH;
-    let vertices_per_side = (span / MESH_SPACING) as u32 + 1;
+    build_terrain_grid(landscape, start, span, MESH_SPACING, None, crystal_soil)
+}
+
+/// Coarse mountains beyond the rim, so the farthest zoom never looks past the edge of the world; it leaves
+/// out the area the detailed mesh already covers.
+pub fn build_far_terrain_mesh(landscape: Landscape) -> Mesh {
+    let start = -OUTLANDS_WIDTH - FAR_RING_WIDTH;
+    let span = MAP_WORLD_SIZE + 2.0 * (OUTLANDS_WIDTH + FAR_RING_WIDTH);
+    let covered =
+        -OUTLANDS_WIDTH + FAR_MESH_SPACING..MAP_WORLD_SIZE + OUTLANDS_WIDTH - FAR_MESH_SPACING;
+    build_terrain_grid(
+        landscape,
+        start,
+        span,
+        FAR_MESH_SPACING,
+        Some(covered),
+        |_| false,
+    )
+}
+
+fn build_terrain_grid(
+    landscape: Landscape,
+    start: f32,
+    span: f32,
+    spacing: f32,
+    hole: Option<std::ops::Range<f32>>,
+    crystal_soil: impl Fn(IVec2) -> bool,
+) -> Mesh {
+    let vertices_per_side = (span / spacing) as u32 + 1;
     let ground = GroundLayers::new(landscape);
     let mut positions = Vec::with_capacity((vertices_per_side * vertices_per_side) as usize);
     let mut colors = Vec::with_capacity(positions.capacity());
@@ -431,10 +462,7 @@ pub fn build_terrain_mesh(landscape: Landscape, crystal_soil: impl Fn(IVec2) -> 
 
     for zi in 0..vertices_per_side {
         for xi in 0..vertices_per_side {
-            let position = Vec2::new(
-                start + xi as f32 * MESH_SPACING,
-                start + zi as f32 * MESH_SPACING,
-            );
+            let position = Vec2::new(start + xi as f32 * spacing, start + zi as f32 * spacing);
             let cell = (position / CELL_SIZE).floor().as_ivec2();
             let soil = if crystal_soil(cell) { 1.0 } else { 0.0 };
             positions.push([
@@ -450,6 +478,16 @@ pub fn build_terrain_mesh(landscape: Landscape, crystal_soil: impl Fn(IVec2) -> 
     let mut indices = Vec::with_capacity(((vertices_per_side - 1).pow(2) * 6) as usize);
     for zi in 0..vertices_per_side - 1 {
         for xi in 0..vertices_per_side - 1 {
+            let corner =
+                |x: u32, z: u32| Vec2::new(start + x as f32 * spacing, start + z as f32 * spacing);
+            let inside_hole = hole.as_ref().is_some_and(|hole| {
+                [corner(xi, zi), corner(xi + 1, zi + 1)]
+                    .iter()
+                    .all(|point| hole.contains(&point.x) && hole.contains(&point.y))
+            });
+            if inside_hole {
+                continue;
+            }
             let top_left = zi * vertices_per_side + xi;
             let top_right = top_left + 1;
             let bottom_left = top_left + vertices_per_side;

@@ -7,6 +7,8 @@ use bevy::render::render_resource::TextureFormat;
 use bevy::window::{CursorOptions, PrimaryWindow};
 
 use crate::camera::RtsCamera;
+use crate::catalog::Team;
+use crate::components::{Selected, Unit};
 use crate::levels::{ActiveLevel, campaign};
 use crate::map::cell_center;
 use crate::match_flow::GameState;
@@ -20,6 +22,8 @@ const CAPTURE_SAVE_SLOT_VAR: &str = "IRON_TIDE_CAPTURE_SAVE_SLOT";
 const CAPTURE_LOAD_SLOT_VAR: &str = "IRON_TIDE_CAPTURE_LOAD_SLOT";
 const CAPTURE_MISSION_VAR: &str = "IRON_TIDE_CAPTURE_MISSION";
 const CAPTURE_REPLAY_VAR: &str = "IRON_TIDE_CAPTURE_REPLAY";
+const CAPTURE_SELECT_ALL_VAR: &str = "IRON_TIDE_CAPTURE_SELECT_ALL";
+const CAPTURE_ZOOM_VAR: &str = "IRON_TIDE_CAPTURE_ZOOM";
 const LOAD_AFTER_SECS: f32 = 1.5;
 const DEFAULT_CAPTURE_DELAY_SECS: f32 = 5.0;
 const FRAMES_TO_FLUSH_SCREENSHOT: u32 = 10;
@@ -69,7 +73,11 @@ impl Plugin for CapturePlugin {
             ),
         )
         .add_systems(PreUpdate, discard_keyboard.after(InputSystems))
-        .add_systems(Update, (follow_main_camera, capture_then_exit).chain());
+        .add_systems(Update, (follow_main_camera, capture_then_exit).chain())
+        .add_systems(
+            Update,
+            (select_all_own_units, zoom_camera).run_if(in_state(GameState::Playing)),
+        );
         if let Some(cell) = std::env::var(CAPTURE_FOCUS_VAR)
             .ok()
             .and_then(|value| parse_cell(&value))
@@ -180,6 +188,35 @@ fn parse_cell(value: &str) -> Option<IVec2> {
 fn focus_camera(focus: Res<CaptureFocus>, mut cameras: Query<&mut RtsCamera>) {
     for mut camera in &mut cameras {
         camera.focus = cell_center(focus.0);
+    }
+}
+
+/// `IRON_TIDE_CAPTURE_SELECT_ALL=1` selects every own unit, to show the selection marks.
+fn select_all_own_units(
+    mut commands: Commands,
+    units: Query<(Entity, &Team), (With<Unit>, Without<Selected>)>,
+) {
+    if std::env::var_os(CAPTURE_SELECT_ALL_VAR).is_none() {
+        return;
+    }
+    for (entity, team) in &units {
+        if *team == Team::Player {
+            commands.entity(entity).insert(Selected);
+        }
+    }
+}
+
+/// `IRON_TIDE_CAPTURE_ZOOM=150` sets the camera distance in meters.
+fn zoom_camera(mut cameras: Query<&mut RtsCamera>) {
+    let Some(distance) = std::env::var(CAPTURE_ZOOM_VAR)
+        .ok()
+        .and_then(|value| value.parse().ok())
+    else {
+        return;
+    };
+    for mut camera in &mut cameras {
+        camera.distance = distance;
+        camera.target_distance = distance;
     }
 }
 
