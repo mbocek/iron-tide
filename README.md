@@ -168,6 +168,11 @@ The game opens in a main menu:
   map variant and your starting corner. *Save as custom level* writes a JSON file to
   `~/.config/iron_tide/levels/`; every valid file there is listed under *Custom levels*.
 - **Continue:** resumes the quick save. Saves remember their level.
+- **Replays:** every match is recorded and saved when it ends (or as *Unfinished* when you leave it or close
+  the game). The newest 10 are listed under *Replays* and kept in `~/.config/iron_tide/replays/`. Watching one
+  rebuilds the map and shows every unit and structure where it was, without the fog of war: Space pauses,
+  `+` / `-` changes the speed (1x-8x), Esc returns to the menu. A replay stores snapshots twice a second
+  (about 3 MB for half an hour), not the inputs: the simulation is not deterministic enough to re-run them.
 
 A level file is plain JSON; omitted fields take defaults:
 
@@ -278,8 +283,9 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |
 | `outcome` | mission objectives, victory and defeat |
+| `replay` | recording matches, storing and listing replays, watching them |
 | `battlefield` | scorch marks, vehicle wrecks and rain |
-| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves) |
+| `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay) |
 
 ## Model contract (Blender → game)
 

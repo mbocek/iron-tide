@@ -8,6 +8,7 @@ use crate::levels::{
     save_custom_level,
 };
 use crate::match_flow::GameState;
+use crate::replay::{ReplayPlayback, ReplaySummary, list_replays, load_replay, replay_directory};
 use crate::savegame::{QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_summary};
 use crate::terrain::Landscape;
 use crate::ui::{ACCENT, FRAME, FRAME_BRIGHT, GOOD, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts};
@@ -25,11 +26,13 @@ const MAP_VARIANTS: u64 = 5;
 enum Selection {
     Level(usize),
     Editor,
+    Replay(usize),
 }
 
 #[derive(Resource)]
 pub struct MainMenu {
     entries: Vec<LevelEntry>,
+    replays: Vec<ReplaySummary>,
     selection: Selection,
     options: SkirmishOptions,
     message: Option<String>,
@@ -56,6 +59,7 @@ pub enum MenuCommand {
     StartSelected,
     StartEditorBattle,
     SaveEditorLevel,
+    WatchReplay,
     ContinueQuickSave,
     Quit,
 }
@@ -199,6 +203,10 @@ fn site_name(site: BaseSite) -> &'static str {
     }
 }
 
+fn minutes(secs: f32) -> String {
+    format!("{}:{:02}", secs as u32 / 60, secs as u32 % 60)
+}
+
 fn all_levels() -> Vec<LevelEntry> {
     let mut entries = campaign();
     entries.extend(custom_levels(&custom_levels_directory()));
@@ -212,6 +220,7 @@ pub fn build_main_menu(
 ) {
     let menu = MainMenu {
         entries: all_levels(),
+        replays: list_replays(&replay_directory()),
         selection: Selection::Level(0),
         options: SkirmishOptions::default(),
         message: None,
@@ -364,6 +373,13 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
         }
         list.spawn(fonts.heading("QUICK BATTLE", 15.0, TEXT_DIM));
         spawn_list_button(list, fonts, "Battle editor", Selection::Editor);
+        if !menu.replays.is_empty() {
+            list.spawn(fonts.heading("REPLAYS", 15.0, TEXT_DIM));
+        }
+        for (index, replay) in menu.replays.iter().enumerate() {
+            let label = format!("{}  ({})", replay.title, minutes(replay.recorded_secs));
+            spawn_list_button(list, fonts, &label, Selection::Replay(index));
+        }
     });
 }
 
@@ -419,6 +435,22 @@ fn rebuild_details(commands: &mut Commands, panel: Entity, fonts: &UiFonts, menu
                     panel.spawn(fonts.text(line, 17.0, color));
                 }
                 spawn_command_button(panel, fonts, "START MISSION", MenuCommand::StartSelected);
+            }
+            Selection::Replay(index) => {
+                let replay = &menu.replays[index];
+                panel.spawn(fonts.heading(&replay.title, 30.0, ACCENT));
+                panel.spawn(fonts.text(
+                    format!("{}  ·  {}", replay.outcome, minutes(replay.recorded_secs)),
+                    17.0,
+                    TEXT_MAIN,
+                ));
+                panel.spawn(fonts.text(
+                    "Watch the whole battle again without the fog of war. Space pauses, + and - change \
+                     the speed, Esc returns here.",
+                    15.0,
+                    TEXT_DIM,
+                ));
+                spawn_command_button(panel, fonts, "WATCH REPLAY", MenuCommand::WatchReplay);
             }
             Selection::Editor => {
                 panel.spawn(fonts.heading("Battle editor", 30.0, ACCENT));
@@ -546,6 +578,22 @@ fn run_command(
             );
             menu.entries = all_levels();
             menu.needs_rebuild = true;
+        }
+        MenuCommand::WatchReplay => {
+            let Selection::Replay(index) = menu.selection else {
+                return;
+            };
+            match load_replay(&menu.replays[index].path) {
+                Ok(replay) => {
+                    commands.insert_resource(ActiveLevel(replay.level.clone()));
+                    commands.insert_resource(ReplayPlayback::new(replay));
+                    next_state.set(GameState::Replay);
+                }
+                Err(error) => {
+                    menu.message = Some(format!("Could not open the replay: {error}"));
+                    menu.needs_rebuild = true;
+                }
+            }
         }
         MenuCommand::ContinueQuickSave => requests.load = Some(QUICK_SAVE_SLOT),
         MenuCommand::Quit => {

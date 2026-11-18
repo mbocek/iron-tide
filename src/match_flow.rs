@@ -26,6 +26,8 @@ pub enum GameState {
     Playing,
     /// Passes straight back to `Playing`; leaving `Playing` clears the old match first.
     Restarting,
+    /// Watching a recorded match.
+    Replay,
 }
 
 /// Entities that outlive matches: the camera and the sun.
@@ -82,8 +84,10 @@ pub fn continue_after_restart(mut next: ResMut<NextState<GameState>>) {
 }
 
 /// Everything spawned while a match runs goes away when it ends, except entities marked `Persistent`.
+/// Everything spawned during a match or a replay goes away when it ends.
 pub fn scope_match_entities(
     mut commands: Commands,
+    state: Res<State<GameState>>,
     unscoped: Query<
         Entity,
         (
@@ -95,9 +99,7 @@ pub fn scope_match_entities(
     >,
 ) {
     for entity in &unscoped {
-        commands
-            .entity(entity)
-            .insert(DespawnOnExit(GameState::Playing));
+        commands.entity(entity).insert(DespawnOnExit(*state.get()));
     }
 }
 

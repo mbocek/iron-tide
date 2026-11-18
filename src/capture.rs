@@ -1,3 +1,4 @@
+use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
 use bevy::camera::RenderTarget;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::input::InputSystems;
@@ -18,6 +19,7 @@ const CAPTURE_FOCUS_VAR: &str = "IRON_TIDE_CAPTURE_FOCUS_CELL";
 const CAPTURE_SAVE_SLOT_VAR: &str = "IRON_TIDE_CAPTURE_SAVE_SLOT";
 const CAPTURE_LOAD_SLOT_VAR: &str = "IRON_TIDE_CAPTURE_LOAD_SLOT";
 const CAPTURE_MISSION_VAR: &str = "IRON_TIDE_CAPTURE_MISSION";
+const CAPTURE_REPLAY_VAR: &str = "IRON_TIDE_CAPTURE_REPLAY";
 const LOAD_AFTER_SECS: f32 = 1.5;
 const DEFAULT_CAPTURE_DELAY_SECS: f32 = 5.0;
 const FRAMES_TO_FLUSH_SCREENSHOT: u32 = 10;
@@ -192,7 +194,17 @@ fn discard_keyboard(mut keys: ResMut<ButtonInput<KeyCode>>) {
 }
 
 /// `IRON_TIDE_CAPTURE_MISSION=2` starts the second campaign mission instead of waiting in the main menu.
+/// `IRON_TIDE_CAPTURE_REPLAY=1` watches the newest replay instead of playing.
 fn start_requested_mission(mut commands: Commands, mut next_state: ResMut<NextState<GameState>>) {
+    let newest_replay = std::env::var_os(CAPTURE_REPLAY_VAR)
+        .and_then(|_| list_replays(&replay_directory()).into_iter().next())
+        .and_then(|summary| load_replay(&summary.path).ok());
+    if let Some(replay) = newest_replay {
+        commands.insert_resource(ActiveLevel(replay.level.clone()));
+        commands.insert_resource(ReplayPlayback::new(replay));
+        next_state.set(GameState::Replay);
+        return;
+    }
     let Some(number) = std::env::var(CAPTURE_MISSION_VAR)
         .ok()
         .and_then(|value| value.parse::<usize>().ok())

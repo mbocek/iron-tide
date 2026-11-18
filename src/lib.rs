@@ -37,6 +37,7 @@ pub mod overlay;
 pub mod perf_overlay;
 pub mod production;
 pub mod queue_bar;
+pub mod replay;
 pub mod savegame;
 pub mod scenery;
 pub mod settings;
@@ -153,7 +154,10 @@ impl Plugin for SimulationPlugin {
             .add_systems(Update, savegame::begin_requested_load)
             .add_systems(
                 Last,
-                match_flow::scope_match_entities.run_if(in_state(match_flow::GameState::Playing)),
+                match_flow::scope_match_entities.run_if(
+                    in_state(match_flow::GameState::Playing)
+                        .or_else(in_state(match_flow::GameState::Replay)),
+                ),
             )
             .add_systems(
                 Update,
@@ -257,6 +261,51 @@ impl Plugin for GamePlugin {
             .add_systems(
                 Update,
                 (
+                    replay::record_replay_frame,
+                    replay::save_replay_when_decided,
+                )
+                    .chain()
+                    .in_set(FramePhase::Presentation),
+            )
+            .add_systems(
+                OnExit(match_flow::GameState::Playing),
+                replay::save_abandoned_replay,
+            )
+            .add_systems(
+                OnEnter(match_flow::GameState::Replay),
+                (
+                    match_flow::unpause,
+                    replay::clear_the_fog,
+                    map::generate_map,
+                    map::spawn_terrain_visuals,
+                    camera::focus_on_player_base,
+                    battlefield::set_the_weather,
+                    replay::spawn_replay_hud,
+                )
+                    .chain(),
+            )
+            .add_systems(
+                Update,
+                (
+                    camera::track_cursor,
+                    camera::control_camera,
+                    fog_view::paint_fog_texture,
+                    terrain_material::assemble_terrain_material,
+                    terrain_material::dress_terrain_surfaces,
+                    terrain_material::animate_water,
+                    battlefield::draw_rain,
+                    replay::control_replay,
+                    replay::play_replay,
+                    replay::refresh_replay_hud,
+                )
+                    .chain()
+                    .run_if(in_state(match_flow::GameState::Replay)),
+            )
+            .add_systems(OnExit(match_flow::GameState::Replay), replay::stop_watching)
+            .add_systems(Last, replay::save_replay_on_exit)
+            .add_systems(
+                Update,
+                (
                     battlefield::scorch_the_ground,
                     battlefield::fade_craters,
                     battlefield::leave_wrecks,
@@ -307,6 +356,7 @@ impl Plugin for GamePlugin {
                     structure_tools::prepare_structure_tools,
                     tutorial::start_tutorial,
                     battlefield::set_the_weather,
+                    replay::start_recording,
                     orders::spawn_selection_box,
                     ambience::light_crystal_fields,
                     ambience::index_trampleable_vegetation,

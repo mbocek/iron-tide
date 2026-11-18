@@ -308,7 +308,7 @@ pub fn direct_music(
         (GameState::MainMenu, _) => Some(MusicPiece::Menu),
         (GameState::Playing, GameOutcome::Victory) => Some(MusicPiece::Victory),
         (GameState::Playing, GameOutcome::Defeat) => Some(MusicPiece::Defeat),
-        (GameState::Playing, GameOutcome::Ongoing) => {
+        (GameState::Playing, GameOutcome::Ongoing) | (GameState::Replay, _) => {
             Some(MusicPiece::Battle(director.matches_started))
         }
         (GameState::Booting | GameState::Restarting, _) => None,
