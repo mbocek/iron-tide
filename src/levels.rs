@@ -9,11 +9,13 @@ use crate::settings::game_data_directory;
 use crate::terrain::Landscape;
 
 const CUSTOM_LEVELS_DIRECTORY: &str = "levels";
-const CAMPAIGN_SOURCES: [&str; 4] = [
+const CAMPAIGN_SOURCES: [&str; 6] = [
     include_str!("../assets/levels/01_bridgehead.json"),
     include_str!("../assets/levels/02_hold_the_ford.json"),
     include_str!("../assets/levels/03_iron_hammer.json"),
     include_str!("../assets/levels/04_three_fronts.json"),
+    include_str!("../assets/levels/05_silent_takeover.json"),
+    include_str!("../assets/levels/06_every_man_for_himself.json"),
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -96,8 +98,14 @@ impl Difficulty {
 pub enum Objective {
     DestroyAllEnemies,
     DestroyCommandCenters,
-    Survive { minutes: f32 },
-    ReachCredits { credits: i32 },
+    /// Own a Command Center that stands at an enemy base site.
+    CaptureCommandCenter,
+    Survive {
+        minutes: f32,
+    },
+    ReachCredits {
+        credits: i32,
+    },
 }
 
 impl Objective {
@@ -105,6 +113,9 @@ impl Objective {
         match self {
             Objective::DestroyAllEnemies => "Destroy every enemy unit and structure".into(),
             Objective::DestroyCommandCenters => "Destroy all enemy Command Centers".into(),
+            Objective::CaptureCommandCenter => {
+                "Capture an enemy Command Center with an engineer".into()
+            }
             Objective::Survive { minutes } => format!("Hold out for {minutes:.0} minutes"),
             Objective::ReachCredits { credits } => format!("Stockpile ${credits}"),
         }

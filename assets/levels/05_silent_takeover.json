@@ -1,0 +1,18 @@
+{
+  "name": "5. Silent Takeover",
+  "briefing": "The Syndicate has dug into the open plains behind walls and turrets. Do not level their headquarters - take it. Break a way in, then send an engineer into their Command Center and claim it for the Coalition.",
+  "map_seed": 5005,
+  "player": {
+    "site": "SouthWest",
+    "credits": 5000,
+    "buildings": ["PowerPlant", "Barracks", "Refinery"],
+    "units": ["Engineer", "Engineer", "Rifleman", "Rifleman", "Rifleman", "Rifleman", "Rocketeer", "Rocketeer", "Tank", "Tank"]
+  },
+  "enemies": [
+    { "site": "NorthEast", "credits": 4000, "difficulty": "Normal" }
+  ],
+  "objective": "CaptureCommandCenter",
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "Plains"
+}

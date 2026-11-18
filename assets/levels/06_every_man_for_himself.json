@@ -1,0 +1,22 @@
+{
+  "name": "6. Every Man for Himself",
+  "briefing": "The three cartels have turned on each other around the lake, and the rain hides their columns. Let them bleed each other dry, hold the causeway, and be the last commander standing.",
+  "map_seed": 6006,
+  "player": {
+    "site": "SouthWest",
+    "credits": 7000,
+    "buildings": ["PowerPlant", "Refinery"],
+    "units": ["Rifleman", "Rifleman", "Rifleman", "Rocketeer", "Engineer", "Tank", "Tank"]
+  },
+  "enemies": [
+    { "site": "NorthEast", "credits": 6000, "difficulty": "Hard" },
+    { "site": "NorthWest", "credits": 5000, "difficulty": "Normal" },
+    { "site": "SouthEast", "credits": 5000, "difficulty": "Normal" }
+  ],
+  "objective": "DestroyAllEnemies",
+  "available_units": [],
+  "available_buildings": [],
+  "free_for_all": true,
+  "landscape": "Lake",
+  "weather": "Rain"
+}

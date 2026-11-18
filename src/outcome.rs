@@ -46,6 +46,11 @@ pub fn decide_outcome(
         Objective::DestroyCommandCenters => !buildings
             .iter()
             .any(|(team, building)| hostile(team) && building.kind == BuildingKind::CommandCenter),
+        Objective::CaptureCommandCenter => buildings.iter().any(|(&team, building)| {
+            team == Team::Player
+                && building.kind == BuildingKind::CommandCenter
+                && building.origin != level.0.player.site.origin()
+        }),
         Objective::Survive { minutes } => clock.elapsed_secs >= minutes * 60.0,
         Objective::ReachCredits { credits } => economies.of(Team::Player).credits >= credits,
     };
@@ -65,7 +70,9 @@ pub fn objective_status(level: &ActiveLevel, clock: &MatchClock, economies: &Eco
         Objective::ReachCredits { credits } => {
             format!("  -  ${} / ${credits}", economies.of(Team::Player).credits)
         }
-        Objective::DestroyAllEnemies | Objective::DestroyCommandCenters => String::new(),
+        Objective::DestroyAllEnemies
+        | Objective::DestroyCommandCenters
+        | Objective::CaptureCommandCenter => String::new(),
     };
     format!("{}{progress}", objective.describe())
 }

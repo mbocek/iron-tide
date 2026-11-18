@@ -160,11 +160,13 @@ the menu's *Audio* tab.
 ## Missions and custom levels
 
 The game opens in a main menu:
-- **Campaign:** four missions (`assets/levels/*.json`), each with its own objective and unlocking new units.
+- **Campaign:** six missions (`assets/levels/*.json`), each with its own objective and unlocking new units.
   1. Bridgehead (1 enemy, destroy everything; with a step-by-step tutorial)
   2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics; in the rain)
   3. Iron Hammer (destroy both enemy Command Centers, introduces the Bulwark; on the lake)
   4. Three Fronts (three Hard enemies; on the plains)
+  5. Silent Takeover (capture the walled-in enemy Command Center with an engineer; on the plains)
+  6. Every Man for Himself (three cartels in a free-for-all; on the lake, in the rain)
 - **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard, starting credits, objective
   (destroy everything / destroy Command Centers / survive 10 minutes / stockpile credits), available units,
   map variant and your starting corner. *Save as custom level* writes a JSON file to
@@ -203,7 +205,7 @@ Landscapes: `River` (a winding river with three fords), `Lake` (a long lake betw
 causeway across its middle) and `Plains` (open ground without water); all of them are point-symmetric.
 Weather: `Clear` or `Rain` (falling rain, a dimmer sun and sky).
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
-`"DestroyCommandCenters"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
+`"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel
 (select, move, power plant, refinery, barracks, a rifleman, attack-move, destroy the enemy); each step
 completes as soon as the player does it, and the panel can be hidden. Difficulty changes how fast the AI thinks, the size of its first

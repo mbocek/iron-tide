@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use common::Battle;
 use iron_tide::catalog::{BuildingKind, Team, UnitKind};
 use iron_tide::components::*;
+use iron_tide::engineers::{EngineerJob, EngineerTask};
 use iron_tide::levels::{
     BaseSite, Difficulty, LevelDefinition, Objective, SkirmishOptions, campaign,
 };
@@ -261,4 +262,26 @@ fn walls_block_movement() {
     let wall = IVec2::new(25, 45);
     battle.construct(BuildingKind::Wall, Team::Player, wall);
     assert!(!battle.world().resource::<GameMap>().is_passable(wall));
+}
+
+#[test]
+fn capturing_the_enemy_command_center_wins_silent_takeover() {
+    let level = campaign()
+        .into_iter()
+        .map(|entry| entry.level)
+        .find(|level| level.objective == Objective::CaptureCommandCenter)
+        .expect("a campaign mission asks for a capture");
+    let mut battle = Battle::on_level(level);
+    battle.despawn_units(Team::Crimson);
+    let enemy_center = battle
+        .building(Team::Crimson, BuildingKind::CommandCenter)
+        .unwrap();
+    let origin = battle.world().get::<Building>(enemy_center).unwrap().origin;
+    let engineer = battle.spawn_unit(UnitKind::Engineer, Team::Player, origin + IVec2::new(-3, 1));
+    battle
+        .world()
+        .entity_mut(engineer)
+        .insert(EngineerTask::new(enemy_center, EngineerJob::Capture));
+    let took = battle.run_until(30.0, |battle| battle.outcome() == GameOutcome::Victory);
+    assert!(took.is_some(), "the capture did not win the mission");
 }
