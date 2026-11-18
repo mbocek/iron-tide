@@ -1,5 +1,7 @@
 use crate::map_editor::open_map_editor;
 use crate::map_preview::map_preview;
+use crate::network::NetSession;
+use crate::outcome::GameOutcome;
 use crate::random_battle::{
     self, CREDIT_CHOICES, DifficultyChoice, FactionChoice, RandomBattleOptions,
 };
@@ -34,6 +36,7 @@ const LIST_WIDTH: f32 = 330.0;
 const DETAIL_WIDTH: f32 = 640.0;
 const REPLAYS_LISTED: usize = 10;
 const LARGE_PREVIEW: f32 = 220.0;
+const FACT_LABEL_WIDTH: f32 = 130.0;
 const SMALL_PREVIEW: f32 = 170.0;
 const BODY_GAP: f32 = 14.0;
 const EDITOR_FIELD_WIDTH: f32 = 440.0;
@@ -42,6 +45,9 @@ const BUTTON_IDLE: Color = Color::srgb(0.13, 0.15, 0.17);
 const BUTTON_HOVERED: Color = Color::srgb(0.19, 0.22, 0.25);
 const BUTTON_SELECTED: Color = Color::srgb(0.17, 0.24, 0.32);
 const BACKDROP: Color = Color::srgb(0.035, 0.045, 0.055);
+/// A battle scene behind the menu, darkened by the backdrop colour at this opacity so text stays readable.
+const BACKDROP_IMAGE: &str = "ui/menu_backdrop.jpg";
+const BACKDROP_VEIL: f32 = 0.8;
 const PRIMARY_IDLE: Color = Color::srgb(0.62, 0.45, 0.10);
 const PRIMARY_HOVERED: Color = Color::srgb(0.76, 0.56, 0.14);
 const MAP_VARIANTS: u64 = 5;
@@ -110,6 +116,7 @@ pub struct MainMenu {
     random: RandomBattleOptions,
     /// The dice of the random battle on show; a new roll draws another.
     random_seed: u64,
+    completed_missions: Vec<String>,
     /// The map picture of the level last shown, kept until another level is shown.
     preview: Option<(LevelDefinition, Handle<Image>)>,
     message: Option<String>,
@@ -438,6 +445,7 @@ pub fn build_main_menu(
     mut commands: Commands,
     fonts: Res<UiFonts>,
     save_directory: Res<SaveDirectory>,
+    asset_server: Res<AssetServer>,
 ) {
     // The menu is built on the first frame, before the language from the saved settings is otherwise applied.
     set_language(settings.language);
@@ -448,11 +456,23 @@ pub fn build_main_menu(
         options: SkirmishOptions::default(),
         random: RandomBattleOptions::default(),
         random_seed: rand::rng().random(),
+        completed_missions: settings.completed_missions.clone(),
         preview: None,
         message: None,
         needs_rebuild: true,
     };
     let quick_save = slot_summary(&save_directory, QUICK_SAVE_SLOT);
+    commands.spawn((
+        DespawnOnExit(GameState::MainMenu),
+        ImageNode::new(asset_server.load(BACKDROP_IMAGE)),
+        Node {
+            position_type: PositionType::Absolute,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        GlobalZIndex(-1),
+    ));
     commands
         .spawn((
             MainMenuRoot,
@@ -469,7 +489,7 @@ pub fn build_main_menu(
                 row_gap: Val::Px(18.0),
                 ..default()
             },
-            BackgroundColor(BACKDROP),
+            BackgroundColor(BACKDROP.with_alpha(BACKDROP_VEIL)),
         ))
         .with_children(|root| {
             spawn_title_bar(root, &fonts, &settings);
@@ -756,16 +776,33 @@ fn spawn_list_button(
     label: &str,
     selection: Selection,
 ) {
+    spawn_list_button_with_badge(parent, fonts, label, selection, None);
+}
+
+/// A list entry with a short coloured note on its right, such as a won mission.
+fn spawn_list_button_with_badge(
+    parent: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    label: &str,
+    selection: Selection,
+    badge: Option<(&str, Color)>,
+) {
     parent
         .spawn((
             ListButton(selection),
             Hovered::default(),
-            button_node(Val::Percent(100.0)),
+            Node {
+                justify_content: JustifyContent::SpaceBetween,
+                ..button_node(Val::Percent(100.0))
+            },
             BackgroundColor(BUTTON_IDLE),
             BorderColor::all(FRAME),
         ))
         .with_children(|button| {
             button.spawn(fonts.heading(label, 17.0, TEXT_MAIN));
+            if let Some((badge, color)) = badge {
+                button.spawn(fonts.heading(badge, 13.0, color));
+            }
         })
         .observe(select_entry);
 }
@@ -786,11 +823,13 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
                         heading = Some(side);
                         list.spawn(fonts.heading(tr(side.title()), 15.0, TEXT_DIM));
                     }
-                    spawn_list_button(
+                    let won = menu.completed_missions.contains(&entry.level.name);
+                    spawn_list_button_with_badge(
                         list,
                         fonts,
                         &tr_owned(&entry.level.name),
                         Selection::Level(index),
+                        won.then_some((tr("WON"), GOOD)),
                     );
                 }
             }
@@ -832,48 +871,47 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
         });
 }
 
-fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
-    let mut lines = vec![
-        (tr_owned(&level.briefing), TEXT_MAIN),
-        (String::new(), TEXT_DIM),
+/// The facts of a level as label, value and colour, for a two-column table.
+fn level_facts(level: &LevelDefinition) -> Vec<(&'static str, String, Color)> {
+    let mut facts = vec![
+        (tr("Objective"), level.objective.describe(), ACCENT),
+        (
+            tr("Map"),
+            tr_fmt(
+                "{}, {}, {}, {} x {} cells",
+                &[
+                    &tr_owned(&format!("{:?}", level.landscape)),
+                    &tr_owned(&format!("{:?}", level.season)),
+                    &tr_owned(&format!("{:?}", level.weather)),
+                    &level.map_size.cells(),
+                    &level.map_size.cells(),
+                ],
+            ),
+            TEXT_MAIN,
+        ),
+        (
+            tr(Team::Player.name_in(level.player_faction)),
+            format!("{}  ·  ${}", level.player.site.name(), level.player.credits),
+            Team::Player.ui_color(),
+        ),
     ];
-    lines.push((
-        tr_fmt("Objective: {}", &[&level.objective.describe()]),
-        ACCENT,
-    ));
-    lines.push((
-        tr_fmt(
-            "Map: {}, {}, {} x {} cells",
-            &[
-                &tr_owned(&format!("{:?}", level.landscape)),
-                &tr_owned(&format!("{:?}", level.season)),
-                &level.map_size.cells(),
-                &level.map_size.cells(),
-            ],
-        ),
-        TEXT_MAIN,
-    ));
-    lines.push((
-        tr_fmt(
-            "{} base: {}  -  ${}",
-            &[
-                &tr(Team::Player.name_in(level.player_faction)),
-                &level.player.site.name(),
-                &level.player.credits,
-            ],
-        ),
-        Team::Player.ui_color(),
-    ));
     for (team, enemy) in level.opponents() {
-        lines.push((
+        facts.push((
+            tr(team.name_in(level.faction_of(team))),
             format!(
-                "{}: {}, {}, ${}",
-                tr(team.name_in(level.faction_of(team))),
+                "{}  ·  {}  ·  ${}",
                 enemy.force.site.name(),
                 tr_owned(&format!("{:?}", enemy.difficulty)),
                 enemy.force.credits
             ),
             team.ui_color(),
+        ));
+    }
+    if level.enemies.len() > 1 {
+        facts.push((
+            tr("Opponents"),
+            alliance_name(level.effective_alliance()).to_string(),
+            TEXT_MAIN,
         ));
     }
     let units = if level.available_units.is_empty() {
@@ -886,8 +924,35 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
             .collect::<Vec<_>>()
             .join(", ")
     };
-    lines.push((tr_fmt("Available: {}", &[&units]), TEXT_DIM));
-    lines
+    facts.push((tr("Units"), units, TEXT_DIM));
+    facts
+}
+
+fn spawn_level_facts(column: &mut ChildSpawnerCommands, fonts: &UiFonts, level: &LevelDefinition) {
+    for (label, value, color) in level_facts(level) {
+        column
+            .spawn(Node {
+                column_gap: Val::Px(10.0),
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn((
+                    fonts.heading(label, 14.0, TEXT_DIM),
+                    Node {
+                        width: Val::Px(FACT_LABEL_WIDTH),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ));
+                row.spawn((
+                    fonts.text(value, 16.0, color),
+                    Node {
+                        flex_shrink: 1.0,
+                        ..default()
+                    },
+                ));
+            });
+    }
 }
 
 const ADDRESS_CHARACTERS: &str = "0123456789.:-abcdefghijklmnopqrstuvwxyz";
@@ -1125,20 +1190,7 @@ fn spawn_random_battle_details(
     let level = menu.random_level();
     beside_preview(panel, preview, SMALL_PREVIEW, |column| {
         column.spawn(fonts.heading(&level.name, 20.0, TEXT_MAIN));
-        for (line, color) in describe_level(&level).into_iter().skip(3) {
-            column.spawn(fonts.text(line, 15.0, color));
-        }
-        column.spawn(fonts.text(
-            tr_fmt(
-                "Weather: {}  ·  Opponents: {}",
-                &[
-                    &tr_owned(&format!("{:?}", level.weather)),
-                    &alliance_name(level.effective_alliance()),
-                ],
-            ),
-            15.0,
-            TEXT_DIM,
-        ));
+        spawn_level_facts(column, fonts, &level);
     });
     spawn_command_button(
         panel,
@@ -1187,9 +1239,7 @@ fn spawn_network_details(
             .collect();
         spawn_editor_fields(panel, fonts, options, &while_hosting);
     } else if let Some(level) = lobby.offered_level() {
-        for (line, color) in describe_level(level).into_iter().skip(2) {
-            panel.spawn(fonts.text(line, 15.0, color));
-        }
+        spawn_level_facts(panel, fonts, level);
     }
     if lobby.has_partner() {
         spawn_chat(panel, fonts, lobby);
@@ -1289,9 +1339,12 @@ fn rebuild_details(
                 let level = &menu.entries[index].level;
                 panel.spawn(fonts.heading(tr_owned(&level.name), 30.0, ACCENT));
                 beside_preview(panel, preview, LARGE_PREVIEW, |column| {
-                    for (line, color) in describe_level(level) {
-                        column.spawn(fonts.text(line, 17.0, color));
-                    }
+                    column.spawn(fonts.text(tr_owned(&level.briefing), 17.0, TEXT_MAIN));
+                    column.spawn(Node {
+                        height: Val::Px(4.0),
+                        ..default()
+                    });
+                    spawn_level_facts(column, fonts, level);
                 });
                 spawn_command_button(panel, fonts, tr("START MISSION"), MenuCommand::StartSelected);
                 if matches!(menu.entries[index].source, LevelSource::Custom(_)) {
@@ -1396,6 +1449,23 @@ fn beside_preview(
                 ));
             }
         });
+}
+
+/// A campaign mission won on this computer is remembered and marked in the main menu.
+pub fn remember_won_missions(
+    outcome: Res<GameOutcome>,
+    level: Res<ActiveLevel>,
+    session: Option<Res<NetSession>>,
+    mut settings: ResMut<GameSettings>,
+) {
+    if !outcome.is_changed() || *outcome != GameOutcome::Victory || session.is_some() {
+        return;
+    }
+    let name = &level.0.name;
+    let is_campaign = campaign().iter().any(|entry| entry.level.name == *name);
+    if is_campaign && !settings.completed_missions.contains(name) {
+        settings.completed_missions.push(name.clone());
+    }
 }
 
 fn select_entry(click: On<PointerClick>, buttons: Query<&ListButton>, mut menu: ResMut<MainMenu>) {

@@ -503,6 +503,8 @@ impl Plugin for GamePlugin {
                 (
                     network::report_session_trouble,
                     network_hud::show_chat.run_if(in_state(match_flow::GameState::Playing)),
+                    main_menu::remember_won_missions
+                        .run_if(in_state(match_flow::GameState::Playing)),
                     network_hud::refresh_network_hud
                         .run_if(in_state(match_flow::GameState::Playing)),
                 ),
@@ -634,6 +636,7 @@ impl Plugin for GamePlugin {
                         perf_overlay::refresh_performance_overlay,
                         queue_bar::animate_queue_progress,
                         ui::refresh_notifications,
+                        ui::refresh_objective,
                         terrain_material::dress_terrain_surfaces,
                         fog_view::paint_fog_texture,
                         fog_view::reveal_explored_scenery,

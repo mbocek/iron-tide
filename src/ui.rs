@@ -48,9 +48,9 @@ pub(crate) const GOOD: Color = Color::srgb(0.35, 0.86, 0.42);
 const WARNING: Color = Color::srgb(0.95, 0.78, 0.22);
 const DANGER: Color = Color::srgb(1.0, 0.33, 0.28);
 const TILE_WIDTH: f32 = 88.0;
-const TILE_HEIGHT: f32 = 82.0;
-const TILE_ICON_SIZE: f32 = 46.0;
-const MINIMAP_SIZE: f32 = 276.0;
+const TILE_HEIGHT: f32 = 76.0;
+const TILE_ICON_SIZE: f32 = 42.0;
+const MINIMAP_SIZE: f32 = 236.0;
 const POWER_BAR_SCALE: i32 = 400;
 const SHIFT_CLICK_BATCH: u32 = 5;
 
@@ -101,6 +101,10 @@ pub struct InfoBody;
 
 #[derive(Component)]
 pub struct InfoHealthFill;
+
+/// Icons of the selected kinds with their counts, when several units are selected.
+#[derive(Component)]
+pub struct InfoRoster;
 
 #[derive(Component)]
 pub struct NotificationLine(usize);
@@ -237,6 +241,7 @@ pub fn build_interface(
             spawn_minimap(sidebar, &minimap);
             if !view.is_spectating() {
                 spawn_resources(sidebar, fonts);
+                spawn_objective(sidebar, fonts);
                 spawn_tabs(sidebar, fonts);
                 spawn_build_grid(sidebar, fonts, &asset_server, faction);
             }
@@ -293,7 +298,10 @@ fn spawn_header(
 fn spawn_minimap(sidebar: &mut ChildSpawnerCommands, minimap: &Minimap) {
     sidebar
         .spawn((
-            framed(Val::Px(MINIMAP_SIZE + 2.0), Val::Px(MINIMAP_SIZE + 2.0)),
+            Node {
+                align_self: AlignSelf::Center,
+                ..framed(Val::Px(MINIMAP_SIZE + 2.0), Val::Px(MINIMAP_SIZE + 2.0))
+            },
             BorderColor::all(FRAME_BRIGHT),
             BackgroundColor(Color::BLACK),
         ))
@@ -346,7 +354,7 @@ fn spawn_resources(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
                 .with_children(|row| {
                     row.spawn((
                         PowerText,
-                        fonts.text(tr_fmt("POWER {} / {}", &[&0, &0]), 14.0, TEXT_MAIN),
+                        fonts.text(tr_fmt("POWER {} used of {}", &[&0, &0]), 14.0, TEXT_MAIN),
                     ));
                     row.spawn((
                         Node {
@@ -496,6 +504,25 @@ fn spawn_build_tile(
     .observe(click_build_tile);
 }
 
+fn spawn_objective(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
+    sidebar
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::axes(Val::Px(8.0), Val::Px(5.0)),
+                row_gap: Val::Px(1.0),
+                border: UiRect::left(Val::Px(3.0)),
+                ..default()
+            },
+            BackgroundColor(PANEL_RAISED),
+            BorderColor::all(ACCENT),
+        ))
+        .with_children(|panel| {
+            panel.spawn(fonts.heading(tr("OBJECTIVE"), 12.0, TEXT_DIM));
+            panel.spawn((ObjectiveText, fonts.text("", 14.0, TEXT_MAIN)));
+        });
+}
+
 fn spawn_info_panel(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
     sidebar
         .spawn((
@@ -517,9 +544,9 @@ fn spawn_info_panel(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
                     width: Val::Px(64.0),
                     height: Val::Px(64.0),
                     flex_shrink: 0.0,
+                    display: Display::None,
                     ..default()
                 },
-                Visibility::Hidden,
             ));
             panel
                 .spawn(Node {
@@ -531,6 +558,15 @@ fn spawn_info_panel(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
                 .with_children(|column| {
                     column.spawn((InfoTitle, fonts.heading("", 18.0, TEXT_MAIN)));
                     column.spawn((InfoBody, fonts.text("", 14.0, TEXT_DIM)));
+                    column.spawn((
+                        InfoRoster,
+                        Node {
+                            flex_wrap: FlexWrap::Wrap,
+                            column_gap: Val::Px(4.0),
+                            row_gap: Val::Px(4.0),
+                            ..default()
+                        },
+                    ));
                     column
                         .spawn((
                             Node {
@@ -555,6 +591,36 @@ fn spawn_info_panel(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
         });
 }
 
+fn spawn_roster_chip(
+    row: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    asset_server: &AssetServer,
+    kind: UnitKind,
+    count: usize,
+) {
+    row.spawn((
+        Node {
+            align_items: AlignItems::Center,
+            padding: UiRect::right(Val::Px(5.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        },
+        BackgroundColor(TILE),
+        BorderColor::all(FRAME),
+    ))
+    .with_children(|chip| {
+        chip.spawn((
+            ImageNode::new(asset_server.load(format!("icons/{}.png", kind.spec().model_id))),
+            Node {
+                width: Val::Px(30.0),
+                height: Val::Px(30.0),
+                ..default()
+            },
+        ));
+        chip.spawn(fonts.heading(format!("{count}"), 15.0, TEXT_MAIN));
+    });
+}
+
 fn spawn_notification_feed(commands: &mut Commands, fonts: &UiFonts) {
     commands
         .spawn((
@@ -571,12 +637,6 @@ fn spawn_notification_feed(commands: &mut Commands, fonts: &UiFonts) {
             Pickable::IGNORE,
         ))
         .with_children(|feed| {
-            feed.spawn((
-                ObjectiveText,
-                fonts.heading("", 17.0, TEXT_MAIN),
-                TextShadow::default(),
-                Pickable::IGNORE,
-            ));
             for index in 0..4 {
                 feed.spawn((
                     NotificationLine(index),
@@ -1291,7 +1351,7 @@ pub fn refresh_resources(
     };
     if let Ok((mut text, mut color)) = power_text.single_mut() {
         text.set_if_neq(Text(tr_fmt(
-            "POWER {} / {}",
+            "POWER {} used of {}",
             &[&economy.power_demand, &economy.power_supply],
         )));
         color.set_if_neq(TextColor(if economy.has_low_power() {
@@ -1378,6 +1438,10 @@ fn describe_item(
 }
 
 pub fn refresh_info_panel(
+    mut commands: Commands,
+    fonts: Res<UiFonts>,
+    mut shown_roster: Local<Vec<(UnitKind, usize)>>,
+    rosters: Query<Entity, With<InfoRoster>>,
     local: Res<LocalTeam>,
     asset_server: Res<AssetServer>,
     production: Res<Production>,
@@ -1392,13 +1456,13 @@ pub fn refresh_info_panel(
         ),
         With<Selected>,
     >,
-    mut icon: Query<(&mut ImageNode, &mut Visibility), With<InfoIcon>>,
+    mut icon: Query<(&mut ImageNode, &mut Node), (With<InfoIcon>, Without<InfoHealthFill>)>,
     mut title: Query<&mut Text, (With<InfoTitle>, Without<InfoBody>)>,
     mut body: Query<&mut Text, (With<InfoBody>, Without<InfoTitle>)>,
     mut health_fill: Query<(&mut Node, &mut BackgroundColor), With<InfoHealthFill>>,
 ) {
     let (
-        Ok((mut icon_image, mut icon_visibility)),
+        Ok((mut icon_image, mut icon_node)),
         Ok(mut title),
         Ok(mut body),
         Ok((mut health_node, mut health_color)),
@@ -1417,6 +1481,7 @@ pub fn refresh_info_panel(
         .find(|(hovered, _)| hovered.get())
         .map(|(_, tile)| tile.0);
     let selection: Vec<_> = selected.iter().collect();
+    let mut roster: Vec<(UnitKind, usize)> = Vec::new();
 
     let (shown_icon, heading, details, health) = if let Some(item) = hovered {
         let (heading, details) = describe_item(item, &owned, &production, local.0);
@@ -1453,25 +1518,19 @@ pub fn refresh_info_panel(
                 (path, name.to_string(), details, Some(health.fraction()))
             }
             many => {
-                let mut counts: Vec<(&str, usize)> = Vec::new();
-                for (unit, ..) in many {
-                    let name = unit.map_or(tr("Structure"), |u| tr(u.0.spec().name));
-                    match counts.iter_mut().find(|(n, _)| *n == name) {
+                for kind in many.iter().filter_map(|(unit, ..)| unit.map(|unit| unit.0)) {
+                    match roster.iter_mut().find(|(listed, _)| *listed == kind) {
                         Some((_, count)) => *count += 1,
-                        None => counts.push((name, 1)),
+                        None => roster.push((kind, 1)),
                     }
                 }
-                let summary = counts
-                    .iter()
-                    .map(|(name, count)| format!("{count}x {name}"))
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                roster.sort_by_key(|(kind, _)| UnitKind::ALL.iter().position(|k| k == kind));
                 let average =
                     many.iter().map(|(_, _, h, _)| h.fraction()).sum::<f32>() / many.len() as f32;
                 (
                     None,
                     tr_fmt("{} units", &[&many.len()]),
-                    summary,
+                    String::new(),
                     Some(average),
                 )
             }
@@ -1480,6 +1539,17 @@ pub fn refresh_info_panel(
 
     title.set_if_neq(Text(heading));
     body.set_if_neq(Text(details));
+    if *shown_roster != roster
+        && let Ok(roster_node) = rosters.single()
+    {
+        commands.entity(roster_node).despawn_related::<Children>();
+        commands.entity(roster_node).with_children(|row| {
+            for &(kind, count) in &roster {
+                spawn_roster_chip(row, &fonts, &asset_server, kind, count);
+            }
+        });
+        *shown_roster = roster;
+    }
     match shown_icon {
         Some(path) => {
             set_field(
@@ -1487,10 +1557,10 @@ pub fn refresh_info_panel(
                 |icon| &mut icon.image,
                 asset_server.load(path),
             );
-            icon_visibility.set_if_neq(Visibility::Inherited);
+            set_field(&mut icon_node, |node| &mut node.display, Display::Flex);
         }
         None => {
-            icon_visibility.set_if_neq(Visibility::Hidden);
+            set_field(&mut icon_node, |node| &mut node.display, Display::None);
         }
     }
     let fraction = health.unwrap_or(0.0);
@@ -1586,10 +1656,7 @@ pub fn refresh_objective(
     economies: Res<Economies>,
     mut lines: Query<&mut Text, With<ObjectiveText>>,
 ) {
-    let status = tr_fmt(
-        "OBJECTIVE: {}",
-        &[&objective_status(&level, &clock, &economies, local.0)],
-    );
+    let status = objective_status(&level, &clock, &economies, local.0);
     for mut text in &mut lines {
         if text.0 != status {
             text.0 = status.clone();
