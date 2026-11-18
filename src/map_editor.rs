@@ -7,7 +7,8 @@ use crate::catalog::{BuildingKind, Team};
 use crate::i18n::{tr, tr_fmt};
 use crate::levels::{ActiveLevel, LevelDefinition, custom_levels_directory, save_custom_level};
 use crate::map::{
-    GameMap, cell_center, cells_by_distance, footprint_center, opposite_cell, world_to_cell,
+    GameMap, PlayfieldGround, cell_center, cells_by_distance, footprint_center, opposite_cell,
+    playfield_ground_mesh, world_to_cell,
 };
 use crate::map_edits::{Brush, Ground, MapEdit, MapPainter};
 use crate::match_flow::GameState;
@@ -261,6 +262,26 @@ fn brush_cells(center: IVec2, radius: i32, mirror: bool) -> Vec<IVec2> {
         cells.dedup();
     }
     cells
+}
+
+/// Rebuilds the ground once a stroke ends, so painted or cleared crystals get or lose their soil.
+pub fn resoil_after_stroke(
+    mut painted: Local<bool>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    level: Res<ActiveLevel>,
+    map: Res<GameMap>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    grounds: Query<&Mesh3d, With<PlayfieldGround>>,
+) {
+    *painted |= level.is_changed();
+    let stroke_ended = mouse.any_just_released([MouseButton::Left, MouseButton::Right]);
+    if !stroke_ended || !*painted {
+        return;
+    }
+    *painted = false;
+    for ground in &grounds {
+        let _ = meshes.insert(&ground.0, playfield_ground_mesh(level.0.landscape, &map));
+    }
 }
 
 pub fn draw_brush_outline(cursor: Res<Cursor>, editor: Res<MapEditor>, mut gizmos: Gizmos) {

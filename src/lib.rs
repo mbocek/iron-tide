@@ -415,6 +415,7 @@ impl Plugin for GamePlugin {
                     animation::attach_animation_players,
                     map_editor::choose_brush_by_key,
                     map_editor::paint_under_cursor,
+                    map_editor::resoil_after_stroke,
                     map_editor::draw_brush_outline,
                     map_editor::mark_base_sites,
                     map_editor::refresh_map_editor_panel,

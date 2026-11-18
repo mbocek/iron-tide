@@ -16,6 +16,7 @@ use crate::levels::{
 };
 use crate::map::cell_center;
 use crate::map_editor::open_map_editor;
+use crate::map_edits::Brush;
 use crate::match_flow::GameState;
 use crate::menu::MenuState;
 use crate::savegame::SaveRequests;
@@ -31,7 +32,8 @@ const CAPTURE_REPLAY_VAR: &str = "IRON_TIDE_CAPTURE_REPLAY";
 const CAPTURE_SELECT_ALL_VAR: &str = "IRON_TIDE_CAPTURE_SELECT_ALL";
 const CAPTURE_ZOOM_VAR: &str = "IRON_TIDE_CAPTURE_ZOOM";
 const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
-/// `IRON_TIDE_CAPTURE_EDITOR=1` opens the map editor on the chosen mission instead of playing it.
+/// `IRON_TIDE_CAPTURE_EDITOR=1` opens the map editor on the chosen mission instead of playing it;
+/// `IRON_TIDE_CAPTURE_EDITOR=paint` also drags each brush across the ground beside the player's base.
 const CAPTURE_EDITOR_VAR: &str = "IRON_TIDE_CAPTURE_EDITOR";
 /// `IRON_TIDE_CAPTURE_HOST=2` hosts a network battle for that many players and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`
 /// joins one.
@@ -88,6 +90,14 @@ impl Plugin for CapturePlugin {
         .add_systems(PreUpdate, discard_keyboard.after(InputSystems))
         .add_systems(Update, (follow_main_camera, capture_then_exit).chain())
         .add_systems(Update, accept_network_offer)
+        .add_systems(
+            Update,
+            drag_test_strokes
+                .after(crate::map_editor::choose_brush_by_key)
+                .before(crate::map_editor::paint_under_cursor)
+                .run_if(in_state(GameState::MapEditor))
+                .run_if(|| std::env::var(CAPTURE_EDITOR_VAR).is_ok_and(|value| value == "paint")),
+        )
         .add_systems(
             Update,
             (select_all_own_units, zoom_camera, open_requested_menu_page)
@@ -266,6 +276,48 @@ fn let_mouse_pass_through(mut cursors: Query<&mut CursorOptions, With<PrimaryWin
     for mut cursor in &mut cursors {
         cursor.hit_test = false;
     }
+}
+
+/// One row of cells per brush, painted a cell per frame, then the last row cleared halfway.
+fn drag_test_strokes(
+    mut frame: Local<i32>,
+    level: Res<ActiveLevel>,
+    mut editor: ResMut<crate::map_editor::MapEditor>,
+    mut cursor: ResMut<crate::camera::Cursor>,
+    mut mouse: ResMut<ButtonInput<MouseButton>>,
+    mut cameras: Query<&mut RtsCamera>,
+) {
+    const STROKE_CELLS: i32 = 10;
+    let strokes = [
+        (Brush::Crystal, MouseButton::Left),
+        (Brush::Forest, MouseButton::Left),
+        (Brush::Rock, MouseButton::Left),
+        (Brush::Rock, MouseButton::Right),
+    ];
+    mouse.release_all();
+    let stroke = (*frame / STROKE_CELLS) as usize;
+    let Some(&(brush, button)) = strokes.get(stroke) else {
+        return;
+    };
+    let step = *frame % STROKE_CELLS;
+    let row = stroke.min(2) as i32 * 4;
+    let length = if button == MouseButton::Right {
+        STROKE_CELLS / 2
+    } else {
+        STROKE_CELLS
+    };
+    *frame += 1;
+    if step >= length {
+        return;
+    }
+    let base = level.0.player.site.origin();
+    for mut camera in &mut cameras {
+        camera.focus = cell_center(base + IVec2::new(27, 0));
+    }
+    editor.brush = brush;
+    cursor.over_interface = false;
+    cursor.ground = Some(cell_center(base + IVec2::new(22 + step, -4 + row)));
+    mouse.press(button);
 }
 
 fn discard_keyboard(mut keys: ResMut<ButtonInput<KeyCode>>) {

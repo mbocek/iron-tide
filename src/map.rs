@@ -441,6 +441,14 @@ fn block_water(map: &mut GameMap, landscape: Landscape) {
     }
 }
 
+/// The ground inside the map, whose soil shows where crystals grow; the far ring around it never changes.
+#[derive(Component)]
+pub struct PlayfieldGround;
+
+pub fn playfield_ground_mesh(landscape: Landscape, map: &GameMap) -> Mesh {
+    build_terrain_mesh(landscape, |cell| map.crystal_at(cell) > 0)
+}
+
 /// The rendered ground and water; the simulation itself only needs the grid from `generate_map`.
 pub fn spawn_terrain_visuals(
     mut commands: Commands,
@@ -454,9 +462,8 @@ pub fn spawn_terrain_visuals(
 ) {
     commands.spawn((
         TerrainSurface,
-        Mesh3d(meshes.add(build_terrain_mesh(level.0.landscape, |cell| {
-            map.crystal_at(cell) > 0
-        }))),
+        PlayfieldGround,
+        Mesh3d(meshes.add(playfield_ground_mesh(level.0.landscape, &map))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(0.30, 0.36, 0.20),
             perceptual_roughness: 0.95,
