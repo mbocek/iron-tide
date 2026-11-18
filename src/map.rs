@@ -125,6 +125,11 @@ pub fn opposite_cell(cell: IVec2) -> IVec2 {
     IVec2::splat(mirror_sum()) - cell
 }
 
+/// The point the map is mirrored around, half a cell off the middle of the world.
+pub fn mirror_centre() -> Vec3 {
+    (cell_center(IVec2::ZERO) + cell_center(opposite_cell(IVec2::ZERO))) / 2.0
+}
+
 /// Where a structure of `footprint` starting at `origin` lands when the map is mirrored.
 pub fn opposite_origin(origin: IVec2, footprint: IVec2) -> IVec2 {
     opposite_cell(origin) - (footprint - IVec2::ONE)
@@ -287,7 +292,6 @@ fn octile_distance(a: IVec2, b: IVec2) -> u32 {
     DIAGONAL_COST * short + CARDINAL_COST * (long - short)
 }
 
-/// Ring by ring outward from `center`, nearest rings first, staying inside the map.
 fn walkable_neighbours(cell: IVec2, passable: impl Fn(IVec2) -> bool) -> Vec<(IVec2, u32)> {
     let mut neighbours = Vec::with_capacity(8);
     for dy in -1..=1 {
@@ -318,12 +322,16 @@ fn walkable_neighbours(cell: IVec2, passable: impl Fn(IVec2) -> bool) -> Vec<(IV
     neighbours
 }
 
+/// Ring by ring outward from `center`; around a centre in the far half each ring is walked in mirror
+/// image, so the first fitting cell (a crystal, a free site, an exit) is the twin of the near half's choice.
 pub fn cells_by_distance(center: IVec2, max_radius: i32) -> impl Iterator<Item = IVec2> {
+    let mirrored = center.x + center.y > mirror_sum();
+    let direction = if mirrored { -1 } else { 1 };
     (0..=max_radius).flat_map(move |radius| {
         (-radius..=radius).flat_map(move |dy| {
             (-radius..=radius).filter_map(move |dx| {
                 let on_ring = dx.abs() == radius || dy.abs() == radius;
-                let cell = center + IVec2::new(dx, dy);
+                let cell = center + IVec2::new(dx, dy) * direction;
                 (on_ring && GameMap::in_bounds(cell)).then_some(cell)
             })
         })
@@ -421,6 +429,7 @@ pub fn generate_map(mut commands: Commands, models: Res<ModelLibrary>, level: Re
     let mut map = GameMap::empty();
     let landscape = level.0.landscape;
     block_water(&mut map, landscape);
+    block_unmirrored_edge(&mut map);
     seed_crystal_fields(&mut commands, &models, &mut map, &mut rng);
     scenery::scatter(&mut commands, &models, landscape, &mut map, &mut rng);
     commands.insert_resource(map);
@@ -438,6 +447,16 @@ fn block_water(map: &mut GameMap, landscape: Landscape) {
                 map.terrain_blocked[(row * size + column) as usize] = true;
             }
         }
+    }
+}
+
+/// The last row and column would mirror to cells beyond the first ones, so leaving them open gives the
+/// north-east corner an extra lane behind its base.
+fn block_unmirrored_edge(map: &mut GameMap) {
+    let last = map_cells() - 1;
+    for along in 0..map_cells() {
+        map.set_obstacle(IVec2::new(last, along), true);
+        map.set_obstacle(IVec2::new(along, last), true);
     }
 }
 

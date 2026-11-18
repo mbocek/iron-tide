@@ -4,7 +4,7 @@ use crate::catalog::ArmorClass;
 use crate::components::*;
 use crate::determinism::SimId;
 use crate::levels::ActiveLevel;
-use crate::map::{GameMap, cell_center, world_to_cell};
+use crate::map::{GameMap, cell_center, in_far_half, world_to_cell};
 use crate::sim_math;
 
 const WAYPOINT_REACHED_DISTANCE: f32 = 0.2;
@@ -134,6 +134,17 @@ pub fn seat_new_buildings(
     }
 }
 
+/// Where a unit standing exactly on another one is pushed; in the far half the mirror image, so both
+/// corners spread their freshly built units the same way.
+fn stacked_unit_escape(id: SimId, position: Vec3) -> Vec3 {
+    let escape = Vec3::new((id.0 % 3) as f32 - 1.0, 0.0, 1.0).normalize();
+    if in_far_half(world_to_cell(position), IVec2::ONE) {
+        -escape
+    } else {
+        escape
+    }
+}
+
 pub fn separate_units(
     time: Res<Time>,
     map: Res<GameMap>,
@@ -157,8 +168,7 @@ pub fn separate_units(
             let offset = transform.translation - other_position;
             let overlap = radius.0 + other_radius - offset.length();
             if overlap > 0.0 {
-                let away =
-                    offset.normalize_or(Vec3::new((id.0 % 3) as f32 - 1.0, 0.0, 1.0).normalize());
+                let away = offset.normalize_or(stacked_unit_escape(id, transform.translation));
                 push += away * overlap;
             }
         }

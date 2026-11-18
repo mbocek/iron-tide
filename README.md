@@ -91,7 +91,10 @@ on its own map variant, once from each corner):
 The challenger plays the Coalition and the defender the Syndicate. The defender wins the Normal mirror more
 often, but it does the same with both sides on one faction or with the factions swapped, so that is the
 computer playing the player's team (which a person does in a real battle), not the factions. The south-west
-corner also wins somewhat more often; scouting ties were ruled out as the cause. A commander that picks a
+corner also wins more often (about 3:2 in 300-match runs, most clearly without fog). It is not the map: every
+open cell has a twin with the same ground and crystal, and both corners play the same opening move for move
+until the commanders' dice first differ (`tests/symmetry.rs`). Scouting ties, ring scans, stacked-unit pushes
+and the minefield direction were mirrored without changing it, so the cause lies later in the mid-game. A commander that picks a
 vehicle it cannot afford yet saves for it instead of choosing again, so the heavy units of the Tech Center
 (Bulwark, Missile Truck, Howitzer, Gunship) now appear in a long match. Every unit has a counter: riflemen beat rocketeers, flame troopers burn any infantry but melt before
 vehicles, scouts hunt infantry, rocketeers kill armour, tanks and the Bulwark beat light vehicles, and howitzers
@@ -455,7 +458,8 @@ attack wave and its income (75 % / 100 % / 135 %).
   the Flak Track ($700, War Factory) and the Flak Cannon ($700 structure, after the Barracks), whose bursting
   shells do double damage to aircraft; the Flak Cannon cannot shoot at the ground at all.
 - **Fair corners:** the map is point-symmetric around its centre: the river and its fords, the crystal fields
-  and every tree or rock that blocks movement have a twin in the opposite corner. Bases in the far half face
+  and every tree or rock that blocks movement have a twin in the opposite corner. The last row and column, which
+  would have no twin, are closed. Bases in the far half face
   the other way, so every base's doors, refinery dock and new units point towards the middle of the map.
 - **Veterancy:** units earn experience worth the price of every enemy unit or structure they destroy (the last
   hit counts). At their own price in experience they become Veterans (+20 % damage and health, one gold

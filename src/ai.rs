@@ -16,7 +16,7 @@ use crate::intel::Intel;
 use crate::levels::Difficulty;
 use crate::map::{
     CELL_SIZE, GameMap, cells_by_distance, footprint_cells, footprint_center, in_far_half,
-    opposite_cell, opposite_origin, world_to_cell,
+    mirror_centre, opposite_cell, opposite_origin, world_to_cell,
 };
 use crate::movement::order_move;
 use crate::production::{
@@ -946,8 +946,7 @@ pub fn mine_the_approaches(
             }
             continue;
         };
-        let middle = Vec2::splat(crate::map::map_world_size() / 2.0);
-        let toward_middle = (middle - home.xz()).normalize_or_zero();
+        let toward_middle = (mirror_centre().xz() - home.xz()).normalize_or_zero();
         let distance = rng.random_range(MINEFIELD_DISTANCE) * CELL_SIZE;
         let spot = home.xz() + toward_middle * distance;
         let sideways = IVec2::new(
