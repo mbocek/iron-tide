@@ -10,7 +10,7 @@ use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 use bevy::text::{FontSize, FontSource};
 
-use crate::catalog::{BuildingKind, HARVESTER_CAPACITY, Team, UnitKind};
+use crate::catalog::{BuildingKind, Faction, HARVESTER_CAPACITY, Team, UnitKind};
 use crate::components::*;
 use crate::control_groups::spawn_group_bar;
 use crate::economy::Economies;
@@ -156,7 +156,7 @@ pub(crate) fn icon_path(item: BuildItem) -> String {
     format!("icons/{model_id}.png")
 }
 
-fn lane_items(lane: Lane, team: Team) -> Vec<BuildItem> {
+fn lane_items(lane: Lane, faction: Faction) -> Vec<BuildItem> {
     let items = match lane {
         Lane::Structures => BuildingKind::CONSTRUCTIBLE
             .map(BuildItem::Structure)
@@ -167,7 +167,7 @@ fn lane_items(lane: Lane, team: Team) -> Vec<BuildItem> {
     };
     items
         .into_iter()
-        .filter(|item| item.belongs_to(team))
+        .filter(|item| item.available_to(faction))
         .collect()
 }
 
@@ -198,6 +198,7 @@ pub fn load_fonts(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 pub fn build_interface(
     local: Res<LocalTeam>,
+    production: Res<Production>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     fonts: Res<UiFonts>,
@@ -223,11 +224,12 @@ pub fn build_interface(
             BorderColor::all(FRAME_BRIGHT),
         ))
         .with_children(|sidebar| {
-            spawn_header(sidebar, fonts, local.0);
+            let faction = production.faction_of(local.0);
+            spawn_header(sidebar, fonts, local.0, faction);
             spawn_minimap(sidebar, &minimap);
             spawn_resources(sidebar, fonts);
             spawn_tabs(sidebar, fonts);
-            spawn_build_grid(sidebar, fonts, &asset_server, local.0);
+            spawn_build_grid(sidebar, fonts, &asset_server, faction);
             spawn_info_panel(sidebar, fonts);
         });
 
@@ -243,7 +245,7 @@ pub fn build_interface(
     commands.insert_resource(ActiveTab(Lane::Structures));
 }
 
-fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts, team: Team) {
+fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts, team: Team, faction: Faction) {
     sidebar
         .spawn(Node {
             flex_direction: FlexDirection::Row,
@@ -253,12 +255,7 @@ fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts, team: Team)
         })
         .with_children(|header| {
             header.spawn(fonts.heading("IRON TIDE", 30.0, ACCENT));
-            let side = if team == Team::Player {
-                tr("COALITION")
-            } else {
-                tr("SYNDICATE")
-            };
-            header.spawn(fonts.heading(side, 16.0, team.ui_color()));
+            header.spawn(fonts.heading(tr(faction.title()), 16.0, team.ui_color()));
             header
                 .spawn((
                     Node {
@@ -404,7 +401,7 @@ fn spawn_build_grid(
     sidebar: &mut ChildSpawnerCommands,
     fonts: &UiFonts,
     asset_server: &AssetServer,
-    team: Team,
+    faction: Faction,
 ) {
     sidebar
         .spawn(Node {
@@ -418,7 +415,7 @@ fn spawn_build_grid(
         .with_children(|grid| {
             for item in Lane::ALL
                 .into_iter()
-                .flat_map(|lane| lane_items(lane, team))
+                .flat_map(|lane| lane_items(lane, faction))
             {
                 spawn_build_tile(grid, fonts, asset_server, item);
             }
@@ -1219,7 +1216,7 @@ pub fn refresh_build_tiles(
         };
     }
     for (tab, hovered, mut background, mut border) in &mut tabs {
-        let has_ready = lane_items(tab.0, team)
+        let has_ready = lane_items(tab.0, production.faction_of(team))
             .into_iter()
             .any(|item| matches!(state_of(item), TileState::Ready));
         let selected = tab.0 == active.0;

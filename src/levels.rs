@@ -4,7 +4,7 @@ use crate::map_edits::MapEdit;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{Alliance, BuildingKind, Team, UnitKind};
+use crate::catalog::{Alliance, BuildingKind, Faction, Team, UnitKind};
 use crate::i18n::{tr, tr_fmt};
 use crate::map::{MapSize, base_sites};
 use crate::season::Season;
@@ -12,7 +12,7 @@ use crate::settings::game_data_directory;
 use crate::terrain::Landscape;
 
 const CUSTOM_LEVELS_DIRECTORY: &str = "levels";
-const CAMPAIGN_SOURCES: [&str; 10] = [
+const CAMPAIGN_SOURCES: [&str; 13] = [
     include_str!("../assets/levels/01_bridgehead.json"),
     include_str!("../assets/levels/02_hold_the_ford.json"),
     include_str!("../assets/levels/03_iron_hammer.json"),
@@ -23,6 +23,9 @@ const CAMPAIGN_SOURCES: [&str; 10] = [
     include_str!("../assets/levels/08_white_silence.json"),
     include_str!("../assets/levels/09_marksmen.json"),
     include_str!("../assets/levels/10_the_iron_tide.json"),
+    include_str!("../assets/levels/11_red_ledger.json"),
+    include_str!("../assets/levels/12_bunker_line.json"),
+    include_str!("../assets/levels/13_rocket_rain.json"),
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -216,6 +219,8 @@ pub struct LevelDefinition {
     pub map_size: MapSize,
     /// Cells repainted in the map editor, applied over the generated landscape in order.
     pub map_edits: Vec<MapEdit>,
+    /// The faction the player leads; every computer side fights for the other one.
+    pub player_faction: Faction,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -245,11 +250,16 @@ impl Default for LevelDefinition {
             season: Season::Summer,
             map_size: MapSize::Standard,
             map_edits: Vec::new(),
+            player_faction: Faction::Coalition,
         }
     }
 }
 
 impl LevelDefinition {
+    pub fn faction_of(&self, team: Team) -> Faction {
+        Faction::of(team, self.player_faction)
+    }
+
     pub fn effective_alliance(&self) -> Alliance {
         if self.free_for_all {
             Alliance::FreeForAll
@@ -518,6 +528,7 @@ impl SkirmishOptions {
             season: self.season,
             map_size: self.map_size,
             map_edits: Vec::new(),
+            player_faction: Faction::Coalition,
         }
     }
 }

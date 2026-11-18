@@ -270,7 +270,9 @@ effects volume live in the menu's *Audio* tab.
 ## Missions and custom levels
 
 The game opens in a main menu:
-- **Campaign:** ten missions (`assets/levels/*.json`), each with its own objective and unlocking new units.
+- **Campaign:** ten Coalition missions and three Syndicate missions (S1-S3) (`assets/levels/*.json`), each
+  with its own objective. A level's `player_faction` decides which armoury the player builds from; every computer
+  side fights for the other faction.
   1. Bridgehead (1 enemy, destroy everything; with a step-by-step tutorial)
   2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics; in the rain)
   3. Iron Hammer (destroy both enemy Command Centers, introduces the Bulwark; on the lake)
@@ -281,6 +283,10 @@ The game opens in a main menu:
   8. White Silence (destroy two Command Centers on a large winter plain in falling snow; snipers to scout)
   9. Marksmen (infantry only: snipers, medics and an engineer to capture the Crimson Command Center; autumn rain)
   10. The Iron Tide (two against two on a huge map: with Amber as an ally, destroy Crimson and Violet)
+  - S1. Red Ledger (Syndicate: burn out a small Coalition post with Flame Troopers)
+  - S2. Bunker Line (Syndicate: hold 12 minutes against Bulwarks and gunships behind Rocket Bunkers)
+  - S3. Rocket Rain (Syndicate: shell the defences with Missile Trucks and destroy both Command Centers; large
+    winter plain)
 - **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard, starting credits, objective
   (destroy everything / destroy Command Centers / survive 10 minutes / stockpile credits), available units,
   map variant and your starting corner. *Save as custom level* writes a JSON file to

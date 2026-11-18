@@ -1,0 +1,34 @@
+{
+  "name": "S3. Rocket Rain",
+  "briefing": "Syndicate campaign. The Coalition headquarters sit behind turrets on a wide snowy plain. Build a Tech Center, bring up Missile Trucks to shell the defences from beyond their reach, and level both Command Centers.",
+  "map_seed": 13013,
+  "player_faction": "Syndicate",
+  "player": {
+    "site": "SouthWest",
+    "credits": 8000,
+    "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory", "RocketBunker", "RocketBunker"],
+    "units": ["MissileTruck", "MissileTruck", "Tank", "Tank", "Tank", "FlameTrooper", "FlameTrooper", "Rocketeer", "Rocketeer", "Engineer"]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 5000,
+      "difficulty": "Normal",
+      "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory", "GunTurret", "GunTurret", "GunTurret"],
+      "units": ["Bulwark", "Tank", "Sniper", "Rifleman", "Rifleman"]
+    },
+    {
+      "site": "SouthEast",
+      "credits": 4000,
+      "difficulty": "Easy",
+      "buildings": ["PowerPlant", "Barracks", "GunTurret", "GunTurret"],
+      "units": ["Tank", "Rocketeer", "Rifleman", "Rifleman"]
+    }
+  ],
+  "objective": "DestroyCommandCenters",
+  "available_units": [],
+  "available_buildings": [],
+  "map_size": "Large",
+  "landscape": "Plains",
+  "season": "Winter"
+}

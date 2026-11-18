@@ -104,9 +104,8 @@ impl BuildItem {
         }
     }
 
-    pub fn belongs_to(self, team: Team) -> bool {
-        self.faction()
-            .is_none_or(|faction| faction == team.faction())
+    pub fn available_to(self, faction: Faction) -> bool {
+        self.faction().is_none_or(|own| own == faction)
     }
 
     pub fn missing_requirement(self, owned: &[BuildingKind]) -> Option<BuildingKind> {
@@ -172,12 +171,24 @@ impl ProductionLane {
     }
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct Production {
     lanes: [[ProductionLane; 4]; 4],
     /// Per team, the items the current mission does not allow.
     forbidden: [Vec<BuildItem>; 4],
     researched: [Vec<Upgrade>; 4],
+    factions: [Faction; 4],
+}
+
+impl Default for Production {
+    fn default() -> Self {
+        Self {
+            lanes: Default::default(),
+            forbidden: Default::default(),
+            researched: Default::default(),
+            factions: Team::ALL.map(|team| Faction::of(team, Faction::default())),
+        }
+    }
 }
 
 impl Production {
@@ -186,7 +197,15 @@ impl Production {
     }
 
     pub fn allows(&self, team: Team, item: BuildItem) -> bool {
-        item.belongs_to(team) && !self.forbidden[team.index()].contains(&item)
+        item.available_to(self.faction_of(team)) && !self.forbidden[team.index()].contains(&item)
+    }
+
+    pub fn faction_of(&self, team: Team) -> Faction {
+        self.factions[team.index()]
+    }
+
+    pub fn set_player_faction(&mut self, player_faction: Faction) {
+        self.factions = Team::ALL.map(|team| Faction::of(team, player_faction));
     }
 
     pub fn has_researched(&self, team: Team, upgrade: Upgrade) -> bool {

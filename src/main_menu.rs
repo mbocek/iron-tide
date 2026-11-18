@@ -525,8 +525,12 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
     ));
     lines.push((
         tr_fmt(
-            "Your base: {}  -  ${}",
-            &[&level.player.site.name(), &level.player.credits],
+            "{} base: {}  -  ${}",
+            &[
+                &tr(Team::Player.name_in(level.player_faction)),
+                &level.player.site.name(),
+                &level.player.credits,
+            ],
         ),
         Team::Player.ui_color(),
     ));
@@ -534,7 +538,7 @@ fn describe_level(level: &LevelDefinition) -> Vec<(String, Color)> {
         lines.push((
             format!(
                 "{}: {}, {}, ${}",
-                tr(team.name()),
+                tr(team.name_in(level.faction_of(team))),
                 enemy.force.site.name(),
                 tr_owned(&format!("{:?}", enemy.difficulty)),
                 enemy.force.credits

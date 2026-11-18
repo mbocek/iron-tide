@@ -1,0 +1,26 @@
+{
+  "name": "S1. Red Ledger",
+  "briefing": "Syndicate campaign. The Coalition has planted a listening post on our crystal fields and bills us for every harvester it lets through. Burn it out: Flame Troopers clear trenches and barracks alike, but keep them away from its tank.",
+  "map_seed": 11011,
+  "player_faction": "Syndicate",
+  "player": {
+    "site": "SouthWest",
+    "credits": 5000,
+    "buildings": ["PowerPlant", "Barracks", "Refinery"],
+    "units": ["FlameTrooper", "FlameTrooper", "FlameTrooper", "Rifleman", "Rifleman", "Rocketeer", "Scout"]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 1500,
+      "difficulty": "Easy",
+      "buildings": ["PowerPlant", "Barracks", "GunTurret"],
+      "units": ["Rifleman", "Rifleman", "Rifleman", "Sniper", "Tank"]
+    }
+  ],
+  "objective": "DestroyAllEnemies",
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "River",
+  "season": "Autumn"
+}

@@ -1,0 +1,32 @@
+{
+  "name": "S2. Bunker Line",
+  "briefing": "Syndicate campaign. Two Coalition battle groups are coming for our refinery, with gunships overhead and Bulwarks on the ground. Rocket Bunkers hit both. Dig in along the approaches and hold for twelve minutes until the cartels send help.",
+  "map_seed": 12012,
+  "player_faction": "Syndicate",
+  "player": {
+    "site": "SouthWest",
+    "credits": 7000,
+    "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory"],
+    "units": ["Rocketeer", "Rocketeer", "Rocketeer", "FlameTrooper", "FlameTrooper", "Tank", "FlakTrack"]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 7000,
+      "difficulty": "Normal",
+      "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory", "TechCenter", "Helipad"],
+      "units": ["Bulwark", "Tank", "Rifleman", "Rifleman", "Gunship"]
+    },
+    {
+      "site": "NorthWest",
+      "credits": 5000,
+      "difficulty": "Normal",
+      "units": ["Sniper", "Sniper", "Rifleman", "Rifleman", "Tank"]
+    }
+  ],
+  "objective": { "Survive": { "minutes": 12.0 } },
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "Lake",
+  "season": "Summer"
+}

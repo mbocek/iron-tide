@@ -738,11 +738,6 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "ULOŽIT JAKO VLASTNÍ MAPU",
     ),
     ("Objective: {}", "Cieľ: {}", "Cíl: {}"),
-    (
-        "Your base: {}  -  ${}",
-        "Vaša základňa: {}  -  ${}",
-        "Vaše základna: {}  -  ${}",
-    ),
     ("every unit", "všetky jednotky", "všechny jednotky"),
     ("Available: {}", "K dispozícii: {}", "K dispozici: {}"),
     (
@@ -833,6 +828,19 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Jantarový syndikát",
     ),
     ("Violet Syndicate", "Fialový syndikát", "Fialový syndikát"),
+    ("Syndicate", "Syndikát", "Syndikát"),
+    (
+        "Crimson Coalition",
+        "Karmínová koalícia",
+        "Karmínová koalice",
+    ),
+    ("Amber Coalition", "Jantárová koalícia", "Jantarová koalice"),
+    ("Violet Coalition", "Fialová koalícia", "Fialová koalice"),
+    (
+        "{} base: {}  -  ${}",
+        "Základňa ({}): {}  -  ${}",
+        "Základna ({}): {}  -  ${}",
+    ),
     // Units
     ("Rifleman", "Strelec", "Střelec"),
     (

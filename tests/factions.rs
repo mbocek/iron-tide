@@ -98,3 +98,19 @@ fn a_missile_truck_outranges_a_gun_turret() {
     let truck_range = UnitKind::MissileTruck.spec().weapon.unwrap().range;
     assert!(truck_range > turret_range + 4.0);
 }
+
+#[test]
+fn a_syndicate_campaign_level_swaps_the_armouries() {
+    let level = iron_tide::levels::campaign()
+        .into_iter()
+        .map(|entry| entry.level)
+        .find(|level| level.player_faction == iron_tide::catalog::Faction::Syndicate)
+        .expect("the campaign has Syndicate missions");
+    let mut battle = Battle::on_level(level);
+    battle.set_credits(Team::Player, 20_000);
+    battle.set_credits(Team::Crimson, 20_000);
+    assert!(battle.enqueue(Team::Player, BuildItem::Unit(UnitKind::FlameTrooper)));
+    assert!(!battle.enqueue(Team::Player, BuildItem::Unit(UnitKind::Sniper)));
+    assert!(battle.enqueue(Team::Crimson, BuildItem::Unit(UnitKind::Sniper)));
+    assert!(!battle.enqueue(Team::Crimson, BuildItem::Unit(UnitKind::FlameTrooper)));
+}

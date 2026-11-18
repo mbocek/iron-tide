@@ -195,6 +195,7 @@ pub fn deploy_level_forces(
     for team in Team::ALL {
         production.forbid(team, forbidden.clone());
     }
+    production.set_player_faction(level.player_faction);
     if pending_load.is_some() {
         return;
     }

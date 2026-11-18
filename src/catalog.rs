@@ -25,19 +25,21 @@ impl Team {
         }
     }
 
+    /// The name in the usual line-up, where the player leads the Coalition.
     pub fn name(self) -> &'static str {
-        match self {
-            Team::Player => "Coalition",
-            Team::Crimson => "Crimson Syndicate",
-            Team::Amber => "Amber Syndicate",
-            Team::Violet => "Violet Syndicate",
-        }
+        self.name_in(Faction::default_of(self))
     }
 
-    pub fn faction(self) -> Faction {
-        match self {
-            Team::Player => Faction::Coalition,
-            Team::Crimson | Team::Amber | Team::Violet => Faction::Syndicate,
+    pub fn name_in(self, faction: Faction) -> &'static str {
+        match (self, faction) {
+            (Team::Player, Faction::Coalition) => "Coalition",
+            (Team::Player, Faction::Syndicate) => "Syndicate",
+            (Team::Crimson, Faction::Syndicate) => "Crimson Syndicate",
+            (Team::Amber, Faction::Syndicate) => "Amber Syndicate",
+            (Team::Violet, Faction::Syndicate) => "Violet Syndicate",
+            (Team::Crimson, Faction::Coalition) => "Crimson Coalition",
+            (Team::Amber, Faction::Coalition) => "Amber Coalition",
+            (Team::Violet, Faction::Coalition) => "Violet Coalition",
         }
     }
 
@@ -61,10 +63,40 @@ impl Team {
 }
 
 /// Whose armoury a team builds from; each side has units and structures the other cannot order.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum Faction {
+    #[default]
     Coalition,
     Syndicate,
+}
+
+impl Faction {
+    pub fn opposite(self) -> Faction {
+        match self {
+            Faction::Coalition => Faction::Syndicate,
+            Faction::Syndicate => Faction::Coalition,
+        }
+    }
+
+    /// The player leads the level's chosen faction and every computer side the other one.
+    pub fn of(team: Team, player_faction: Faction) -> Faction {
+        if team == Team::Player {
+            player_faction
+        } else {
+            player_faction.opposite()
+        }
+    }
+
+    fn default_of(team: Team) -> Faction {
+        Faction::of(team, Faction::default())
+    }
+
+    pub fn title(self) -> &'static str {
+        match self {
+            Faction::Coalition => "COALITION",
+            Faction::Syndicate => "SYNDICATE",
+        }
+    }
 }
 
 /// Which teams fight on the same side.
