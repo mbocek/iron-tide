@@ -419,5 +419,14 @@
   "Real-time strategy": "Strategická hra v reálném čase",
   "Every battle is recorded here.": "Každá bitva se tu nahraje.",
   "Levels saved from the battle editor or the map editor appear here. Open the battle editor, set up a battle and save it, or edit its map.": "Zde se zobrazí úrovně uložené z editoru bitvy nebo editoru mapy. Otevři editor bitvy, nastav bitvu a ulož ji, nebo uprav její mapu.",
-  "Finish or leave a battle and its replay appears here.": "Dohraj nebo opusť bitvu a její záznam se zobrazí zde."
+  "Finish or leave a battle and its replay appears here.": "Dohraj nebo opusť bitvu a její záznam se zobrazí zde.",
+  "RANDOM BATTLE": "NÁHODNÁ BITVA",
+  "Random battle": "Náhodná bitva",
+  "Random battle {}": "Náhodná bitva {}",
+  "Mixed": "Smíšená",
+  "Random": "Náhodně",
+  "NEW MAP": "NOVÁ MAPA",
+  "A battlefield rolled by the dice. Destroy every enemy.": "Bojiště podle hodu kostkou. Znič všechny nepřátele.",
+  "Choose the opponents, map size and credits; the landscape, season, weather, corners, alliances and the forests, rocks and crystals are rolled. New map rolls them again.": "Zvol protivníky, velikost mapy a kredity; krajina, roční období, počasí, rohy, spojenectví i lesy, skály a krystaly se vylosují. Nová mapa je vylosuje znovu.",
+  "Weather: {}  ·  Opponents: {}": "Počasí: {}  ·  Protivníci: {}"
 }

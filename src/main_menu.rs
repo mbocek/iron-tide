@@ -1,10 +1,14 @@
 use crate::map_editor::open_map_editor;
+use crate::random_battle::{
+    self, CREDIT_CHOICES, DifficultyChoice, FactionChoice, RandomBattleOptions,
+};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
+use rand::RngExt;
 
-use crate::catalog::Alliance;
 use crate::catalog::Team;
+use crate::catalog::{Alliance, Faction};
 use crate::i18n::{Language, set_language, tr, tr_fmt, tr_owned};
 use crate::levels::{
     ActiveLevel, BaseSite, Difficulty, LevelDefinition, LevelEntry, LevelSource, ObjectiveKind,
@@ -37,7 +41,6 @@ const BUTTON_SELECTED: Color = Color::srgb(0.17, 0.24, 0.32);
 const BACKDROP: Color = Color::srgb(0.035, 0.045, 0.055);
 const PRIMARY_IDLE: Color = Color::srgb(0.62, 0.45, 0.10);
 const PRIMARY_HOVERED: Color = Color::srgb(0.76, 0.56, 0.14);
-const CREDIT_CHOICES: [i32; 4] = [3000, 5000, 8000, 12000];
 const MAP_VARIANTS: u64 = 5;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -46,6 +49,7 @@ enum Selection {
     Editor,
     Network,
     Replay(usize),
+    Random,
     /// A section with nothing in it yet.
     Nothing(MenuSection),
 }
@@ -54,6 +58,7 @@ enum Selection {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MenuSection {
     Campaign,
+    Random,
     Custom,
     Editor,
     Network,
@@ -61,8 +66,9 @@ pub enum MenuSection {
 }
 
 impl MenuSection {
-    const ALL: [MenuSection; 5] = [
+    const ALL: [MenuSection; 6] = [
         MenuSection::Campaign,
+        MenuSection::Random,
         MenuSection::Custom,
         MenuSection::Editor,
         MenuSection::Network,
@@ -72,6 +78,7 @@ impl MenuSection {
     fn label(self) -> &'static str {
         match self {
             MenuSection::Campaign => tr("CAMPAIGN"),
+            MenuSection::Random => tr("RANDOM BATTLE"),
             MenuSection::Custom => tr("CUSTOM LEVELS"),
             MenuSection::Editor => tr("BATTLE EDITOR"),
             MenuSection::Network => tr("NETWORK BATTLE"),
@@ -81,7 +88,10 @@ impl MenuSection {
 
     /// Sections that are a single page need no list beside them.
     fn has_list(self) -> bool {
-        !matches!(self, MenuSection::Editor | MenuSection::Network)
+        !matches!(
+            self,
+            MenuSection::Random | MenuSection::Editor | MenuSection::Network
+        )
     }
 }
 
@@ -94,6 +104,9 @@ pub struct MainMenu {
     replays: Vec<ReplaySummary>,
     selection: Selection,
     options: SkirmishOptions,
+    random: RandomBattleOptions,
+    /// The dice of the random battle on show; a new roll draws another.
+    random_seed: u64,
     message: Option<String>,
     needs_rebuild: bool,
 }
@@ -117,6 +130,86 @@ pub struct ListButton(Selection);
 pub struct EditorOption(EditorField);
 
 #[derive(Component)]
+pub struct RandomOption(RandomField);
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RandomField {
+    Opponents,
+    Difficulty,
+    MapSize,
+    Credits,
+    Faction,
+}
+
+impl RandomField {
+    const ALL: [RandomField; 5] = [
+        RandomField::Opponents,
+        RandomField::Difficulty,
+        RandomField::MapSize,
+        RandomField::Credits,
+        RandomField::Faction,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            RandomField::Opponents => tr("Enemy commanders"),
+            RandomField::Difficulty => tr("Difficulty"),
+            RandomField::MapSize => tr("Map size"),
+            RandomField::Credits => tr("Starting credits"),
+            RandomField::Faction => tr("Your faction"),
+        }
+    }
+
+    fn value(self, options: &RandomBattleOptions) -> String {
+        match self {
+            RandomField::Opponents => options.opponents.to_string(),
+            RandomField::Difficulty => match options.difficulty {
+                DifficultyChoice::Fixed(difficulty) => tr_owned(&format!("{difficulty:?}")),
+                DifficultyChoice::Mixed => tr("Mixed").into(),
+            },
+            RandomField::MapSize => tr_fmt(
+                "{} ({} x {} cells)",
+                &[
+                    &tr_owned(&format!("{:?}", options.map_size)),
+                    &options.map_size.cells(),
+                    &options.map_size.cells(),
+                ],
+            ),
+            RandomField::Credits => format!("${}", options.credits),
+            RandomField::Faction => match options.faction {
+                FactionChoice::Fixed(faction) => tr(Team::Player.name_in(faction)).into(),
+                FactionChoice::Random => tr("Random").into(),
+            },
+        }
+    }
+
+    fn change(self, options: &mut RandomBattleOptions, forward: bool) {
+        match self {
+            RandomField::Opponents => {
+                options.opponents = cycle(&[1, 2, 3], options.opponents, forward)
+            }
+            RandomField::Difficulty => {
+                options.difficulty = cycle(&DifficultyChoice::ALL, options.difficulty, forward)
+            }
+            RandomField::MapSize => {
+                options.map_size = cycle(&MapSize::ALL, options.map_size, forward)
+            }
+            RandomField::Credits => {
+                options.credits = cycle(&CREDIT_CHOICES, options.credits, forward)
+            }
+            RandomField::Faction => {
+                let choices = [
+                    FactionChoice::Fixed(Faction::Coalition),
+                    FactionChoice::Fixed(Faction::Syndicate),
+                    FactionChoice::Random,
+                ];
+                options.faction = cycle(&choices, options.faction, forward);
+            }
+        }
+    }
+}
+
+#[derive(Component)]
 pub struct JoinAddressText;
 
 #[derive(Component)]
@@ -131,6 +224,7 @@ pub enum MenuCommand {
     StartEditorBattle,
     SaveEditorLevel,
     EditMap,
+    RerollRandomBattle,
     WatchReplay,
     CycleLanguage,
     ContinueQuickSave,
@@ -246,12 +340,7 @@ impl EditorField {
                 tr("Off")
             }
             .into(),
-            EditorField::Alliance => match options.alliance {
-                Alliance::CoalitionAgainstSyndicate => tr("Allied"),
-                Alliance::FreeForAll => tr("Free-for-all"),
-                Alliance::TwoAgainstTwo => tr("Two against two"),
-            }
-            .into(),
+            EditorField::Alliance => alliance_name(options.alliance).into(),
             EditorField::Landscape => tr_owned(&format!("{:?}", options.landscape)),
             EditorField::Weather => tr_owned(&format!("{:?}", options.weather)),
             EditorField::Season => tr_owned(&format!("{:?}", options.season)),
@@ -350,6 +439,8 @@ pub fn build_main_menu(
         replays: list_replays(&replay_directory()),
         selection: Selection::Level(0),
         options: SkirmishOptions::default(),
+        random: RandomBattleOptions::default(),
+        random_seed: rand::rng().random(),
         message: None,
         needs_rebuild: true,
     };
@@ -715,7 +806,7 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
                     list.spawn(fonts.text(tr("Every battle is recorded here."), 15.0, TEXT_DIM));
                 }
             }
-            MenuSection::Editor | MenuSection::Network => {}
+            MenuSection::Random | MenuSection::Editor | MenuSection::Network => {}
         });
 }
 
@@ -790,6 +881,7 @@ impl MainMenu {
             Selection::Editor => MenuSection::Editor,
             Selection::Network => MenuSection::Network,
             Selection::Replay(_) => MenuSection::Replays,
+            Selection::Random => MenuSection::Random,
             Selection::Nothing(section) => section,
         }
     }
@@ -805,6 +897,7 @@ impl MainMenu {
         let first = match section {
             MenuSection::Campaign => first_level(false),
             MenuSection::Custom => first_level(true),
+            MenuSection::Random => Some(Selection::Random),
             MenuSection::Editor => Some(Selection::Editor),
             MenuSection::Network => Some(Selection::Network),
             MenuSection::Replays => (!self.replays.is_empty()).then_some(Selection::Replay(0)),
@@ -816,6 +909,7 @@ impl MainMenu {
     pub fn open_section_named(&mut self, name: &str) {
         let section = match name {
             "custom" => MenuSection::Custom,
+            "random" => MenuSection::Random,
             "editor" => MenuSection::Editor,
             "network" => MenuSection::Network,
             "replays" => MenuSection::Replays,
@@ -824,6 +918,18 @@ impl MainMenu {
         if self.section() != section {
             self.selection = self.first_in(section);
             self.needs_rebuild = true;
+        }
+    }
+
+    fn random_level(&self) -> LevelDefinition {
+        random_battle::generate(&self.random, self.random_seed)
+    }
+
+    /// The battle the editor-like pages describe right now.
+    fn level_on_page(&self) -> LevelDefinition {
+        match self.selection {
+            Selection::Random => self.random_level(),
+            _ => self.options.to_level(),
         }
     }
 
@@ -897,6 +1003,18 @@ fn spawn_editor_fields(
     options: &SkirmishOptions,
     fields: &[EditorField],
 ) {
+    let rows = fields
+        .iter()
+        .map(|&field| (field.label(), field.value(options), EditorOption(field)));
+    spawn_option_grid(panel, fonts, rows);
+}
+
+/// Labelled values in two columns; clicking a value cycles it forward, right-clicking back.
+fn spawn_option_grid<M: Component>(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    rows: impl IntoIterator<Item = (&'static str, String, M)>,
+) {
     panel
         .spawn(Node {
             flex_wrap: FlexWrap::Wrap,
@@ -905,7 +1023,7 @@ fn spawn_editor_fields(
             ..default()
         })
         .with_children(|grid| {
-            for &field in fields {
+            for (label, value, marker) in rows {
                 grid.spawn(Node {
                     width: Val::Px(EDITOR_FIELD_WIDTH),
                     justify_content: JustifyContent::SpaceBetween,
@@ -913,21 +1031,76 @@ fn spawn_editor_fields(
                     ..default()
                 })
                 .with_children(|row| {
-                    row.spawn(fonts.text(field.label(), 17.0, TEXT_MAIN));
+                    row.spawn(fonts.text(label, 17.0, TEXT_MAIN));
                     row.spawn((
-                        EditorOption(field),
+                        marker,
                         Hovered::default(),
                         button_node(Val::Px(EDITOR_VALUE_WIDTH)),
                         BackgroundColor(BUTTON_IDLE),
                         BorderColor::all(FRAME),
                     ))
                     .with_children(|button| {
-                        button.spawn(fonts.heading(field.value(options), 16.0, ACCENT));
+                        button.spawn(fonts.heading(value, 16.0, ACCENT));
                     })
                     .observe(change_option);
                 });
             }
         });
+}
+
+fn alliance_name(alliance: Alliance) -> &'static str {
+    match alliance {
+        Alliance::CoalitionAgainstSyndicate => tr("Allied"),
+        Alliance::FreeForAll => tr("Free-for-all"),
+        Alliance::TwoAgainstTwo => tr("Two against two"),
+    }
+}
+
+fn spawn_random_battle_details(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, menu: &MainMenu) {
+    panel.spawn(fonts.heading(tr("Random battle"), 30.0, ACCENT));
+    panel.spawn(fonts.text(
+        tr("Choose the opponents, map size and credits; the landscape, season, weather, corners, alliances and the forests, rocks and crystals are rolled. New map rolls them again."),
+        15.0,
+        TEXT_DIM,
+    ));
+    let rows = RandomField::ALL.map(|field| {
+        (
+            field.label(),
+            field.value(&menu.random),
+            RandomOption(field),
+        )
+    });
+    spawn_option_grid(panel, fonts, rows);
+    let level = menu.random_level();
+    panel.spawn(fonts.heading(&level.name, 20.0, TEXT_MAIN));
+    for (line, color) in describe_level(&level).into_iter().skip(3) {
+        panel.spawn(fonts.text(line, 15.0, color));
+    }
+    panel.spawn(fonts.text(
+        tr_fmt(
+            "Weather: {}  ·  Opponents: {}",
+            &[
+                &tr_owned(&format!("{:?}", level.weather)),
+                &alliance_name(level.effective_alliance()),
+            ],
+        ),
+        15.0,
+        TEXT_DIM,
+    ));
+    spawn_command_button(
+        panel,
+        fonts,
+        tr("START BATTLE"),
+        MenuCommand::StartEditorBattle,
+    );
+    spawn_command_button(panel, fonts, tr("NEW MAP"), MenuCommand::RerollRandomBattle);
+    spawn_command_button(
+        panel,
+        fonts,
+        tr("SAVE AS CUSTOM LEVEL"),
+        MenuCommand::SaveEditorLevel,
+    );
+    spawn_command_button(panel, fonts, tr("EDIT MAP"), MenuCommand::EditMap);
 }
 
 fn spawn_network_details(
@@ -1089,6 +1262,7 @@ fn rebuild_details(
             Selection::Network => {
                 spawn_network_details(panel, fonts, join_address, lobby, &menu.options)
             }
+            Selection::Random => spawn_random_battle_details(panel, fonts, menu),
             Selection::Nothing(section) => {
                 panel.spawn(fonts.heading(section.label(), 30.0, ACCENT));
                 let hint = match section {
@@ -1140,13 +1314,20 @@ fn select_entry(click: On<PointerClick>, buttons: Query<&ListButton>, mut menu: 
 fn change_option(
     click: On<PointerClick>,
     fields: Query<&EditorOption>,
+    random_fields: Query<&RandomOption>,
     mut menu: ResMut<MainMenu>,
     mut lobby: ResMut<NetLobby>,
 ) {
+    let forward = click.button != PointerButton::Secondary;
+    if let Ok(field) = random_fields.get(click.entity) {
+        field.0.change(&mut menu.random, forward);
+        menu.message = None;
+        menu.needs_rebuild = true;
+        return;
+    }
     let Ok(field) = fields.get(click.entity) else {
         return;
     };
-    let forward = click.button != PointerButton::Secondary;
     field.0.change(&mut menu.options, forward);
     if lobby.is_hosting() {
         let players = menu.options.network_players;
@@ -1194,10 +1375,15 @@ fn run_command(
             }
         }
         MenuCommand::StartEditorBattle => {
-            start_level(&mut commands, &mut next_state, menu.options.to_level())
+            start_level(&mut commands, &mut next_state, menu.level_on_page())
+        }
+        MenuCommand::RerollRandomBattle => {
+            menu.random_seed = rand::rng().random();
+            menu.message = None;
+            menu.needs_rebuild = true;
         }
         MenuCommand::SaveEditorLevel => {
-            let level = menu.options.to_level();
+            let level = menu.level_on_page();
             menu.message = Some(
                 match save_custom_level(&custom_levels_directory(), &level) {
                     Ok(path) => tr_fmt(
@@ -1220,7 +1406,7 @@ fn run_command(
                     };
                     (entry.level.clone(), file)
                 }
-                _ => (menu.options.to_level(), None),
+                _ => (menu.level_on_page(), None),
             };
             open_map_editor(&mut commands, &mut next_state, level, file);
         }

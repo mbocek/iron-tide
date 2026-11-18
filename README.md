@@ -293,6 +293,12 @@ The game opens in a main menu:
   - S2. Bunker Line (Syndicate: hold 12 minutes against Bulwarks and gunships behind Rocket Bunkers)
   - S3. Rocket Rain (Syndicate: shell the defences with Missile Trucks and destroy both Command Centers; large
     winter plain)
+- **Random battle:** choose 1-3 computer opponents, their difficulty (or *Mixed*, a roll for each), the map size,
+  the starting credits (the same for every side) and your faction (or a random one). The dice pick the landscape,
+  season, weather, the corners, the alliances between several opponents, and scatter extra forests, rock
+  outcrops and crystal fields, each mirrored in the opposite half so neither corner is favoured. *New map* rolls
+  again; changing the options keeps the map. The rolled battle can be played, saved as a custom level or opened
+  in the map editor.
 - **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard, starting credits, objective
   (destroy everything / destroy Command Centers / survive 10 minutes / stockpile credits), available units,
   map variant and your starting corner. *Save as custom level* writes a JSON file to
