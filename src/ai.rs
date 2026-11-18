@@ -34,7 +34,7 @@ const REPAIR_BELOW_HEALTH: f32 = 0.6;
 const FORTIFY_INTERVAL_SECS: f32 = 3.0;
 const ENGINEER_INTERVAL_SECS: f32 = 2.0;
 
-const BUILD_PLAN: [BuildingKind; 16] = [
+const BUILD_PLAN: [BuildingKind; 17] = [
     BuildingKind::PowerPlant,
     BuildingKind::Barracks,
     BuildingKind::Refinery,
@@ -48,6 +48,7 @@ const BUILD_PLAN: [BuildingKind; 16] = [
     BuildingKind::TechCenter,
     BuildingKind::Helipad,
     BuildingKind::FlakCannon,
+    BuildingKind::RepairBay,
     BuildingKind::GunTurret,
     BuildingKind::PowerPlant,
     BuildingKind::GunTurret,

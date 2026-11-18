@@ -931,3 +931,56 @@ def _add_tech_cooling(base):
         cylinder("TeamColor", 0.245, 0.1, centre + Vector((0, 0, 0.7)), segments=14, name="CoolantTeamBand")
     add_pipe_run([(base.x - 0.25, base.y - 0.3, base.z + 0.7), (base.x - 0.6, base.y - 0.3, base.z + 0.7),
                   (base.x - 0.6, base.y - 0.3, base.z + 1.2)], 0.04, material_name="Copper")
+
+
+def build_repair_bay():
+    """An open service apron under a yellow gantry, with welding arms, a tool rack and spare parts."""
+    add_foundation(4.0, 4.0)
+    base_z = FOUNDATION_HEIGHT
+    slab("ConcreteDark", chamfered_rect(3.2, 3.2, 0.2), base_z, base_z + 0.05, bevel=0.0, name="ServiceApron")
+    for along in (-1.45, 1.45):
+        add_hazard_stripes((along, 0.0, base_z + 0.05), 2.9, 0.16, rotation=(0, 0, math.pi / 2), stripe_width=0.16)
+    add_outline_band(chamfered_rect(2.6, 2.6, 0.15), chamfered_rect(2.4, 2.4, 0.14), base_z + 0.05, base_z + 0.06,
+                     "TeamColor", name="ApronTeamBorder")
+    gantry_top = base_z + 2.6
+    for x in (-1.6, 1.6):
+        for y in (-1.6, 1.6):
+            box("HazardYellow", (0.18, 0.18, gantry_top - base_z), (x, y, (base_z + gantry_top) / 2), bevel=0.015,
+                name="GantryLeg")
+        box("HazardYellow", (0.2, 3.4, 0.22), (x, 0.0, gantry_top), bevel=0.015, name="GantryRail")
+    box("HazardYellow", (3.4, 0.24, 0.24), (0.0, 0.3, gantry_top + 0.2), bevel=0.015, name="GantryBridge")
+    box("TeamColor", (2.4, 0.02, 0.14), (0.0, 0.17, gantry_top + 0.2), bevel=0.0, name="BridgeTeamPanel")
+    box("ArmorDark", (0.4, 0.4, 0.3), (0.4, 0.3, gantry_top), bevel=0.02, name="Hoist")
+    cylinder_between("Steel", (0.4, 0.3, gantry_top - 0.15), (0.4, 0.3, base_z + 1.3), 0.012, 4, name="HoistCable")
+    box("Gunmetal", (0.14, 0.2, 0.16), (0.4, 0.3, base_z + 1.25), bevel=0.02, name="HoistHook")
+    for side in (-1, 1):
+        _add_welding_arm(Vector((side * 1.25, -1.25, base_z + 0.05)), side)
+    _add_tool_rack(Vector((-1.75, 0.6, base_z)))
+    add_crate((1.55, 1.55, base_z), (0.4, 0.35, 0.3), 0.2, material_name="ArmorLight")
+    add_drum((1.75, 1.0, base_z), radius=0.16, height=0.5)
+    for k, y in enumerate((-0.6, -0.95)):
+        cylinder("Rubber", 0.28, 0.14, (1.8, y, base_z + 0.07 + k * 0.0), segments=14, name="SpareTyre")
+    for corner in ((1.6, -1.6), (-1.6, -1.6)):
+        add_beacon((corner[0], corner[1], gantry_top + 0.11), radius=0.05)
+    add_lamp((0.0, 0.3, gantry_top + 0.06), (math.pi, 0.0, 0.0), radius=0.09, depth=0.08)
+
+
+def _add_welding_arm(base, side):
+    cylinder("ArmorDark", 0.16, 0.25, base + Vector((0, 0, 0.125)), segments=12, name="ArmBase")
+    shoulder = base + Vector((0, 0, 0.3))
+    elbow = shoulder + Vector((-side * 0.3, 0.35, 0.65))
+    tip = elbow + Vector((-side * 0.35, 0.2, -0.35))
+    cylinder_between("HazardYellow", shoulder, elbow, 0.06, 8, name="ArmUpper")
+    cylinder_between("HazardYellow", elbow, tip, 0.045, 8, name="ArmLower")
+    cylinder("Gunmetal", 0.07, 0.1, elbow, (math.pi / 2, 0, 0), segments=10, name="ArmJoint")
+    cylinder("Copper", 0.025, 0.12, tip + Vector((0, 0, -0.06)), segments=8, name="WeldingTorch")
+    add_beacon(tip + Vector((0, 0, -0.14)), radius=0.025, lens="ReactorGlow")
+
+
+def _add_tool_rack(base):
+    box("Gunmetal", (0.3, 0.9, 1.2), base + Vector((0, 0, 0.6)), bevel=0.02, name="ToolCabinet")
+    for k in range(4):
+        box("ArmorLight" if k % 2 else "TeamColor", (0.02, 0.8, 0.22), base + Vector((0.16, 0, 0.2 + k * 0.27)),
+            bevel=0.0, name="ToolDrawer")
+    add_pipe_run([(base.x + 0.1, base.y - 0.45, base.z + 1.0), (base.x + 0.5, base.y - 0.7, base.z + 0.02)], 0.02,
+                 material_name="Rubber")

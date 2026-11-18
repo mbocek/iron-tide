@@ -1,17 +1,20 @@
 use bevy::prelude::*;
 
-use crate::catalog::{BuildingKind, Team, UnitKind};
+use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
 use crate::components::{Building, Health, Mobile, Unit};
 use crate::map::footprint_center;
 
-const SERVICE_RADIUS: f32 = 3.0;
 const SERVICE_SHARE_PER_SEC: f32 = 0.04;
+const OVER_THE_PAD: f32 = 3.0;
+/// Reaches every cell touching a 2x2 footprint, diagonal corners included.
+const BESIDE_THE_BAY: f32 = 4.5;
 
-/// Which units a structure mends when they wait next to it (or above it).
-pub fn services(structure: BuildingKind, unit: UnitKind) -> bool {
+/// How far from its centre a structure mends units of a kind it services; `None` when it does not.
+pub fn service_radius(structure: BuildingKind, unit: UnitKind) -> Option<f32> {
     match structure {
-        BuildingKind::Helipad => unit.flies(),
-        _ => false,
+        BuildingKind::Helipad if unit.flies() => Some(OVER_THE_PAD),
+        BuildingKind::RepairBay if unit.spec().armor == ArmorClass::Vehicle => Some(BESIDE_THE_BAY),
+        _ => None,
     }
 }
 
@@ -38,7 +41,9 @@ pub fn service_waiting_units(
         }
         let position = transform.translation.xz();
         let serviced = stations.iter().any(|&(kind, owner, centre)| {
-            owner == team && services(kind, unit.0) && position.distance(centre) <= SERVICE_RADIUS
+            owner == team
+                && service_radius(kind, unit.0)
+                    .is_some_and(|radius| position.distance(centre) <= radius)
         });
         if serviced {
             let mended = health.max * SERVICE_SHARE_PER_SEC * time.delta_secs();

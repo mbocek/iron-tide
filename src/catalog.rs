@@ -222,6 +222,7 @@ pub enum BuildingKind {
     Helipad,
     FlakCannon,
     TechCenter,
+    RepairBay,
 }
 
 pub struct BuildingSpec {
@@ -240,12 +241,13 @@ pub struct BuildingSpec {
 }
 
 impl BuildingKind {
-    pub const CONSTRUCTIBLE: [BuildingKind; 9] = [
+    pub const CONSTRUCTIBLE: [BuildingKind; 10] = [
         BuildingKind::PowerPlant,
         BuildingKind::Refinery,
         BuildingKind::Barracks,
         BuildingKind::Factory,
         BuildingKind::TechCenter,
+        BuildingKind::RepairBay,
         BuildingKind::Helipad,
         BuildingKind::GunTurret,
         BuildingKind::FlakCannon,
@@ -269,6 +271,7 @@ impl BuildingKind {
             BuildingKind::Helipad => &HELIPAD,
             BuildingKind::FlakCannon => &FLAK_CANNON,
             BuildingKind::TechCenter => &TECH_CENTER,
+            BuildingKind::RepairBay => &REPAIR_BAY,
         }
     }
 }
@@ -794,6 +797,20 @@ const TECH_CENTER: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Factory],
     weapon: None,
     sight: 12.0,
+};
+
+const REPAIR_BAY: BuildingSpec = BuildingSpec {
+    name: "Repair Bay",
+    role: "Repairs vehicles that wait next to it.",
+    model_id: "repair_bay",
+    footprint: IVec2::new(2, 2),
+    cost: 800,
+    build_secs: 12.0,
+    max_health: 700.0,
+    power: -20,
+    prerequisites: &[BuildingKind::Factory],
+    weapon: None,
+    sight: 10.0,
 };
 
 pub const STARTING_CREDITS: i32 = 5000;

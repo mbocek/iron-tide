@@ -2,7 +2,7 @@ mod common;
 
 use bevy::prelude::*;
 use common::Battle;
-use iron_tide::catalog::{BuildingKind, Team};
+use iron_tide::catalog::{BuildingKind, Team, UnitKind};
 use iron_tide::components::Health;
 use iron_tide::levels::LevelDefinition;
 use iron_tide::map::{GameMap, footprint_cells};
@@ -168,4 +168,25 @@ fn saves_remember_running_repairs() {
         .building(Team::Player, BuildingKind::CommandCenter)
         .unwrap();
     assert!(battle.world().get::<Repairing>(restored).is_some());
+}
+
+#[test]
+fn a_repair_bay_mends_vehicles_parked_beside_it_but_not_infantry() {
+    let mut battle = Battle::sandbox();
+    let bay_origin = IVec2::new(14, 50);
+    battle.construct(BuildingKind::RepairBay, Team::Player, bay_origin);
+    let beside = bay_origin + IVec2::new(2, 0);
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Player, beside);
+    let rifleman = battle.spawn_unit(UnitKind::Rifleman, Team::Player, beside + IVec2::new(0, 1));
+    for unit in [tank, rifleman] {
+        let mut health = battle.world().get_mut::<Health>(unit).unwrap();
+        health.current = health.max * 0.5;
+    }
+    battle.run_for(5.0);
+    let share = |battle: &mut Battle, unit| {
+        let health = battle.world().get::<Health>(unit).unwrap();
+        health.current / health.max
+    };
+    assert!(share(&mut battle, tank) > 0.65, "the tank was not repaired");
+    assert_eq!(share(&mut battle, rifleman), 0.5);
 }

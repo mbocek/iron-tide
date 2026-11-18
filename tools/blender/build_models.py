@@ -44,6 +44,7 @@ TEAM_MODELS = {
     "helipad": (buildings.build_helipad, BUILDING_TRIANGLE_BUDGET),
     "flak_cannon": (buildings.build_flak_cannon, BUILDING_TRIANGLE_BUDGET),
     "tech_center": (buildings.build_tech_center, BUILDING_TRIANGLE_BUDGET),
+    "repair_bay": (buildings.build_repair_bay, BUILDING_TRIANGLE_BUDGET),
     "wall": (buildings.build_wall, 4_000),
 }
 NEUTRAL_MODELS = {

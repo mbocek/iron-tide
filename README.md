@@ -247,11 +247,14 @@ attack wave and its income (75 % / 100 % / 135 %).
   while the credits run out and stop at full health; a green cross turns above it meanwhile. Selling refunds
   half the price and the structure sinks into the ground. The Command Center cannot be sold. The computer
   repairs its own structures below 60 % health when it has credits to spare.
-- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Tech Center, Helipad; Barracks →
-  Gun Turret, Flak Cannon, Wall. The Bulwark, the Howitzer and the Gunship also need a Tech Center.
-- **Units:** Rifleman, Rocketeer (anti-armour missiles), Sniper (long-range anti-infantry), Field Medic (heals nearby infantry), Engineer, Scout Buggy,
-  Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship,
-  Harvester.
+- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Tech Center, Repair Bay,
+  Helipad; Barracks → Gun Turret, Flak Cannon, Wall. The Bulwark, the Howitzer and the Gunship also need a Tech
+  Center.
+- **Units:** Rifleman, Rocketeer (anti-armour missiles), Sniper (long-range anti-infantry), Field Medic (heals
+  nearby infantry), Engineer, Scout Buggy, Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range
+  artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship, Harvester.
+- **Field repairs:** a vehicle standing still on a cell touching its own Repair Bay ($800, after the War Factory)
+  regains 4 % of its health per second for free.
 - **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over
   water, walls and units, and tears through armour with its rocket pods. An aircraft hovering over its own
   Helipad (within 3 m of the pad's centre, not moving) regains 4 % of its health per second for free. Tank cannons and howitzers cannot shoot upwards at all;

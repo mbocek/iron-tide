@@ -788,6 +788,12 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Betonová bariéra. Tažením postavíte řadu; každý díl se platí při položení.",
     ),
     ("Helipad", "Heliport", "Heliport"),
+    ("Repair Bay", "Opravovňa", "Opravna"),
+    (
+        "Repairs vehicles that wait next to it.",
+        "Opravuje vozidlá, ktoré čakajú vedľa nej.",
+        "Opravuje vozidla, která čekají vedle ní.",
+    ),
     ("Sniper", "Ostreľovač", "Odstřelovač"),
     (
         "Marksman who drops infantry from far away. Useless against armour.",
