@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
+use crate::map::set_map_size;
 use crate::map_edits::MapEdit;
+use crate::terrain::set_terrain_seed;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -221,6 +223,8 @@ pub struct LevelDefinition {
     pub map_edits: Vec<MapEdit>,
     /// The faction the player leads; every computer side fights for the other one.
     pub player_faction: Faction,
+    /// Varies the river's course, the fords, the lake and the hills; none keeps the classic landscape.
+    pub terrain_seed: Option<u64>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -251,11 +255,18 @@ impl Default for LevelDefinition {
             map_size: MapSize::Standard,
             map_edits: Vec::new(),
             player_faction: Faction::Coalition,
+            terrain_seed: None,
         }
     }
 }
 
 impl LevelDefinition {
+    /// Sets the map size and landscape shape that every map query on this thread uses.
+    pub fn shape_the_world(&self) {
+        set_map_size(self.map_size);
+        set_terrain_seed(self.terrain_seed);
+    }
+
     pub fn faction_of(&self, team: Team) -> Faction {
         Faction::of(team, self.player_faction)
     }
@@ -531,6 +542,7 @@ impl SkirmishOptions {
             map_size: self.map_size,
             map_edits: Vec::new(),
             player_faction: self.player_faction,
+            terrain_seed: None,
         }
     }
 }

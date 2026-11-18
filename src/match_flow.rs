@@ -10,7 +10,6 @@ use crate::economy::Economies;
 use crate::fog::FogOfWar;
 use crate::intel::Intel;
 use crate::levels::{ActiveLevel, ForceSetup};
-use crate::map::set_map_size;
 use crate::map::{GameMap, cell_center, in_far_half};
 use crate::match_stats::MatchStats;
 use crate::notifications::Notifications;
@@ -54,7 +53,7 @@ pub struct MatchClock {
 }
 
 pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
-    set_map_size(level.0.map_size);
+    level.0.shape_the_world();
     commands.insert_resource(SimulationRng::seeded(level.0.map_seed));
     commands.insert_resource(SimIds::default());
     commands.insert_resource(SimEntities::default());

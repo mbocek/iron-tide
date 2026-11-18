@@ -12,7 +12,7 @@ use crate::map::{
 };
 use crate::map_edits::{Brush, MapEdit};
 use crate::season::Season;
-use crate::terrain::Landscape;
+use crate::terrain::{Landscape, set_terrain_seed};
 
 pub const CREDIT_CHOICES: [i32; 5] = [3000, 5000, 8000, 12_000, 20_000];
 const FOREST_CLUMPS: usize = 6;
@@ -80,7 +80,7 @@ pub fn generate(options: &RandomBattleOptions, seed: u64) -> LevelDefinition {
     } else {
         Weather::Clear
     };
-    let map_edits = scatter_clumps(&mut rng, options.map_size);
+    let map_edits = scatter_clumps(&mut rng, options.map_size, seed);
     let mut corners = BaseSite::ALL.to_vec();
     shuffle(&mut corners, &mut sides);
     let opponents = options.opponents.clamp(1, 3);
@@ -132,6 +132,7 @@ pub fn generate(options: &RandomBattleOptions, seed: u64) -> LevelDefinition {
         map_size: options.map_size,
         map_edits,
         player_faction,
+        terrain_seed: Some(seed),
         ..default()
     }
 }
@@ -148,8 +149,9 @@ fn shuffle<T>(items: &mut [T], rng: &mut StdRng) {
 
 /// Forests, rock outcrops and extra crystal fields, each with a twin in the opposite half so neither corner
 /// is favoured; the map editor's painter later skips water and base sites.
-fn scatter_clumps(rng: &mut StdRng, map_size: MapSize) -> Vec<MapEdit> {
+fn scatter_clumps(rng: &mut StdRng, map_size: MapSize, terrain_seed: u64) -> Vec<MapEdit> {
     set_map_size(map_size);
+    set_terrain_seed(Some(terrain_seed));
     let by_area = |count: usize| (count as f32 * map_spread() * map_spread()).round() as usize;
     let mut edits = Vec::new();
     for (brush, clumps, radius) in [

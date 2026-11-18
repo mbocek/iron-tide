@@ -17,17 +17,90 @@ const FAR_MESH_SPACING: f32 = 2.0;
 pub const FAR_RING_WIDTH: f32 = 110.0;
 const RIVER_DEPTH: f32 = 1.5;
 const RIVER_HALF_WIDTH_CELLS: f32 = 1.7;
-/// Where the river can be crossed on the standard map; bigger maps spread the fords apart.
-const STANDARD_FORD_COLUMNS: [(f32, f32); 3] = [(9.0, 14.0), (29.0, 34.0), (49.0, 54.0)];
-/// The river winds point-symmetrically around the map centre, like everything else that blocks units.
+/// Half the width of a ford, where the river can be crossed.
+const FORD_HALF_WIDTH_CELLS: f32 = 2.5;
 const STANDARD_MAP_CENTER_CELLS: f32 = 31.5;
 const ROLLING_HILLS_HEIGHT: f32 = 1.1;
 const MOUNTAIN_HEIGHT: f32 = 16.0;
 const MOUNTAIN_RISE_DISTANCE: f32 = 26.0;
 const BASE_FLAT_RADIUS_CELLS: f32 = 9.0;
 const BASE_PAD_RADIUS_CELLS: f32 = 4.5;
-const LAKE_LENGTH_CELLS: f32 = 13.0;
-const LAKE_WIDTH_CELLS: f32 = 5.5;
+
+/// The parts of a landscape that a level's terrain seed varies; everything stays point-symmetric around the
+/// map centre, so neither corner is favoured.
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct TerrainShape {
+    /// Amplitude (cells) and frequency of two waves; sines are odd functions, which keeps the river symmetric.
+    river_waves: [(f32, f32); 2],
+    /// How far the outer fords lie from the middle one on the standard map.
+    side_ford_offset: f32,
+    lake_length: f32,
+    lake_width: f32,
+    hills_seed: u32,
+    mountains_seed: u32,
+    /// Ponds on the plains, as an offset from the map centre in standard cells and a radius; each has a twin
+    /// on the other side of the centre.
+    ponds: [Option<(Vec2, f32)>; 2],
+}
+
+/// The landscape every level had before terrain seeds; levels without one keep it.
+const CLASSIC_SHAPE: TerrainShape = TerrainShape {
+    river_waves: [(5.0, 0.13), (2.0, 0.31)],
+    side_ford_offset: 20.0,
+    lake_length: 13.0,
+    lake_width: 5.5,
+    hills_seed: 11,
+    mountains_seed: 71,
+    ponds: [None, None],
+};
+
+impl TerrainShape {
+    fn rolled(seed: u64) -> TerrainShape {
+        use rand::rngs::StdRng;
+        use rand::{RngExt, SeedableRng};
+        let mut rng = StdRng::seed_from_u64(seed);
+        let sign = |rng: &mut StdRng| if rng.random_bool(0.5) { 1.0 } else { -1.0 };
+        TerrainShape {
+            river_waves: [
+                (
+                    sign(&mut rng) * rng.random_range(3.0..6.5),
+                    rng.random_range(0.08..0.17),
+                ),
+                (
+                    sign(&mut rng) * rng.random_range(0.5..3.0),
+                    rng.random_range(0.24..0.42),
+                ),
+            ],
+            side_ford_offset: rng.random_range(15.0..24.0),
+            lake_length: rng.random_range(10.0..16.0),
+            lake_width: rng.random_range(4.5..7.0),
+            hills_seed: rng.random_range(1000..u32::MAX / 2),
+            mountains_seed: rng.random_range(1000..u32::MAX / 2),
+            ponds: std::array::from_fn(|_| {
+                rng.random_bool(0.7).then(|| {
+                    let angle = rng.random_range(0.0..std::f32::consts::TAU);
+                    let reach = rng.random_range(6.0..14.0);
+                    let offset = Vec2::new(sim_math::cos(angle), sim_math::sin(angle)) * reach;
+                    (offset, rng.random_range(2.5..4.5))
+                })
+            }),
+        }
+    }
+}
+
+// Kept per thread like the map size, and set from the level together with it.
+thread_local! {
+    static ACTIVE_SHAPE: std::cell::Cell<TerrainShape> = const { std::cell::Cell::new(CLASSIC_SHAPE) };
+}
+
+/// Shapes the landscape for a level: `None` keeps the classic river, lake and hills.
+pub fn set_terrain_seed(seed: Option<u64>) {
+    ACTIVE_SHAPE.set(seed.map_or(CLASSIC_SHAPE, TerrainShape::rolled));
+}
+
+fn shape() -> TerrainShape {
+    ACTIVE_SHAPE.get()
+}
 const CAUSEWAY_HALF_WIDTH_CELLS: f32 = 1.2;
 const ROAD_HALF_WIDTH: f32 = 1.4;
 const ROAD_SHOULDER: f32 = 1.6;
@@ -75,20 +148,30 @@ fn map_center_cells() -> f32 {
 
 pub fn river_centerline(column: f32) -> f32 {
     let offset = column - map_center_cells();
-    map_center_cells() + 5.0 * sim_math::sin(offset * 0.13) + 2.0 * sim_math::sin(offset * 0.31)
+    let [(first, first_frequency), (second, second_frequency)] = shape().river_waves;
+    map_center_cells()
+        + first * sim_math::sin(offset * first_frequency)
+        + second * sim_math::sin(offset * second_frequency)
 }
 
-/// The middle column of a ford authored at `standard_column` on the standard map.
+/// The middle column of a ford authored at `standard_column` on the standard map: the middle ford, or an
+/// outer one moved to where this terrain puts it.
 fn ford_column(standard_column: f32) -> f32 {
-    map_center_cells() + (standard_column - STANDARD_MAP_CENTER_CELLS) * map_spread()
+    let authored = standard_column - STANDARD_MAP_CENTER_CELLS;
+    let classic_side_offset = CLASSIC_SHAPE.side_ford_offset;
+    let offset = authored * shape().side_ford_offset / classic_side_offset;
+    map_center_cells() + offset * map_spread()
+}
+
+fn ford_columns() -> [f32; 3] {
+    let side = CLASSIC_SHAPE.side_ford_offset;
+    [-side, 0.0, side].map(|offset| ford_column(STANDARD_MAP_CENTER_CELLS + offset))
 }
 
 fn is_ford(column: f32) -> bool {
-    STANDARD_FORD_COLUMNS.iter().any(|&(start, end)| {
-        let middle = ford_column((start + end) / 2.0);
-        let half_width = (end - start) / 2.0;
-        (column - middle).abs() <= half_width
-    })
+    ford_columns()
+        .iter()
+        .any(|&middle| (column - middle).abs() <= FORD_HALF_WIDTH_CELLS)
 }
 
 /// Depth of the riverbed below the surrounding ground at a point in cell units; zero away from the river.
@@ -126,7 +209,7 @@ fn mountain_height(position: Vec2, gorge: f32) -> f32 {
         return 0.0;
     }
     let rise = smoothstep(0.0, MOUNTAIN_RISE_DISTANCE, outside);
-    let massif = 0.65 + 0.35 * fractal_noise(position * 0.03, 3, 71);
+    let massif = 0.65 + 0.35 * fractal_noise(position * 0.03, 3, shape().mountains_seed);
     let crags = fractal_noise(position * 0.11, 3, 97).abs() * 0.25;
     MOUNTAIN_HEIGHT * rise * (massif + crags) * (1.0 - gorge)
 }
@@ -138,7 +221,7 @@ fn rolling_hills(position: Vec2) -> f32 {
         BASE_FLAT_RADIUS_CELLS,
         distance_to_bases_cells(column, row),
     );
-    let hill_shape = fractal_noise(position * 0.03, 3, 11) * 0.5 + 0.5;
+    let hill_shape = fractal_noise(position * 0.03, 3, shape().hills_seed) * 0.5 + 0.5;
     hill_shape * ROLLING_HILLS_HEIGHT * calm_near_bases
 }
 
@@ -146,6 +229,22 @@ fn rolling_hills(position: Vec2) -> f32 {
 /// onto the real surface afterwards.
 pub fn approximate_ground(position: Vec3) -> Vec3 {
     position.with_y(rolling_hills(position.xz()))
+}
+
+/// Signed distance in cells from the nearest pond's shore, negative inside; `f32::MAX` without ponds.
+fn distance_to_pond_shore(column: f32, row: f32) -> f32 {
+    let point = Vec2::new(column, row);
+    let center = Vec2::splat(map_center_cells());
+    shape()
+        .ponds
+        .iter()
+        .flatten()
+        .flat_map(|&(offset, radius)| {
+            let offset = offset * map_spread();
+            [(center + offset, radius), (center - offset, radius)]
+        })
+        .map(|(middle, radius)| point.distance(middle) - radius)
+        .fold(f32::MAX, f32::min)
 }
 
 /// Where the lake sits: `along` runs from the north-west to the south-east site, `across` from base to base.
@@ -159,8 +258,8 @@ fn lake_coordinates(column: f32, row: f32) -> (f32, f32) {
 /// 0 at the lake's middle, 1 on its shore.
 fn lake_ellipse(column: f32, row: f32) -> f32 {
     let (along, across) = lake_coordinates(column, row);
-    let length = LAKE_LENGTH_CELLS * map_spread();
-    let (along, across) = (along / length, across / LAKE_WIDTH_CELLS);
+    let length = shape().lake_length * map_spread();
+    let (along, across) = (along / length, across / shape().lake_width);
     (along * along + across * across).sqrt()
 }
 
@@ -192,7 +291,9 @@ impl Landscape {
                 );
                 RIVER_DEPTH * smoothstep(1.0, 0.7, lake_ellipse(column, row)) * causeway_bank
             }
-            Landscape::Plains => 0.0,
+            Landscape::Plains => {
+                RIVER_DEPTH * smoothstep(0.0, 1.2, -distance_to_pond_shore(column, row).min(1.2))
+            }
         }
     }
 
@@ -200,8 +301,8 @@ impl Landscape {
     fn distance_to_water(self, column: f32, row: f32) -> f32 {
         match self {
             Landscape::River => distance_to_river_cells(column, row),
-            Landscape::Lake => (lake_ellipse(column, row) - 0.7).max(0.0) * LAKE_WIDTH_CELLS,
-            Landscape::Plains => f32::MAX,
+            Landscape::Lake => (lake_ellipse(column, row) - 0.7).max(0.0) * shape().lake_width,
+            Landscape::Plains => distance_to_pond_shore(column, row).max(0.0),
         }
     }
 
@@ -239,7 +340,7 @@ impl Landscape {
         let shore_band = match self {
             Landscape::River => RIVER_HALF_WIDTH_CELLS + 0.2..RIVER_HALF_WIDTH_CELLS + 0.9,
             Landscape::Lake => 1.6..2.4,
-            Landscape::Plains => return false,
+            Landscape::Plains => 0.2..0.9,
         };
         self.water_depth(column, row) == 0.0
             && shore_band.contains(&self.distance_to_water(column, row))
@@ -545,6 +646,33 @@ mod tests {
         for column in [5.0, 22.0, 42.0, 60.0] {
             assert!(river_depth(column, river_centerline(column)) > 1.0);
         }
+    }
+
+    #[test]
+    fn every_rolled_terrain_keeps_dry_fords_and_its_point_symmetry() {
+        let mirror = |value: f32| 2.0 * map_center_cells() - value;
+        for seed in 0..40 {
+            set_terrain_seed(Some(seed));
+            for middle in ford_columns() {
+                assert_eq!(
+                    river_depth(middle, river_centerline(middle)),
+                    0.0,
+                    "seed {seed}"
+                );
+            }
+            for landscape in Landscape::ALL {
+                for (column, row) in [(7.3, 20.1), (25.0, 33.5), (40.2, 12.7), (31.0, 29.0)] {
+                    let here = landscape.water_depth(column, row);
+                    let there = landscape.water_depth(mirror(column), mirror(row));
+                    assert!(
+                        (here - there).abs() < 1e-3,
+                        "seed {seed}: {landscape:?} at {column},{row}"
+                    );
+                }
+            }
+        }
+        set_terrain_seed(None);
+        assert_eq!(shape(), CLASSIC_SHAPE);
     }
 
     #[test]

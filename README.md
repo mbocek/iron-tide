@@ -299,8 +299,11 @@ The game opens in a main menu:
     winter plain)
 - **Random battle:** choose 1-3 computer opponents, their difficulty (or *Mixed*, a roll for each), the map size,
   the starting credits (the same for every side) and your faction (or a random one). The dice pick the landscape,
-  season, weather, the corners, the alliances between several opponents, and scatter extra forests, rock
-  outcrops and crystal fields, each mirrored in the opposite half so neither corner is favoured. *New map* rolls
+  season, weather, the corners, the alliances between several opponents and the shape of the land: how the
+  river winds and where its outer fords lie, the lake's size, ponds on the plains, the hills and mountains. They
+  also scatter extra forests, rock outcrops and crystal fields. Everything is point-symmetric around the map
+  centre, so neither corner is favoured. A level's `terrain_seed` shapes the land; levels without one keep the
+  classic landscape. *New map* rolls
   again; changing the options keeps the map. The rolled battle can be played, saved as a custom level or opened
   in the map editor.
 - **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard, starting credits, objective

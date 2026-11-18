@@ -36,6 +36,9 @@ const CAPTURE_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MENU";
 /// `IRON_TIDE_CAPTURE_EDITOR=paint` also drags each brush across the ground beside the player's base, and
 /// `IRON_TIDE_CAPTURE_EDITOR=level` shows the level settings page.
 const CAPTURE_EDITOR_VAR: &str = "IRON_TIDE_CAPTURE_EDITOR";
+/// `IRON_TIDE_CAPTURE_RANDOM=42` plays the random battle rolled from that seed with default options, without
+/// fog so the whole map shows.
+const CAPTURE_RANDOM_VAR: &str = "IRON_TIDE_CAPTURE_RANDOM";
 /// `IRON_TIDE_CAPTURE_HOST=2` hosts a network battle for that many players and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`
 /// joins one.
 const CAPTURE_HOST_VAR: &str = "IRON_TIDE_CAPTURE_HOST";
@@ -386,7 +389,19 @@ fn start_requested_mission(
                 .chain(custom_levels(&custom_levels_directory()))
                 .nth(number.saturating_sub(1))
         });
-    let level = requested_mission.map_or_else(LevelDefinition::default, |mission| mission.level);
+    let rolled = std::env::var(CAPTURE_RANDOM_VAR)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .map(|seed| LevelDefinition {
+            fog_of_war: false,
+            ..crate::random_battle::generate(
+                &crate::random_battle::RandomBattleOptions::default(),
+                seed,
+            )
+        });
+    let level = rolled
+        .or(requested_mission.map(|mission| mission.level))
+        .unwrap_or_default();
     if std::env::var_os(CAPTURE_EDITOR_VAR).is_some() {
         open_map_editor(&mut commands, &mut next_state, level, None);
         if std::env::var(CAPTURE_EDITOR_VAR).is_ok_and(|value| value == "level") {
