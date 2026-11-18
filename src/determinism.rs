@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hasher;
 
-use bevy::ecs::schedule::{ScheduleLabel, SingleThreadedExecutor};
+use bevy::ecs::schedule::SingleThreadedExecutor;
 use bevy::prelude::*;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -16,26 +16,13 @@ use crate::economy::Economies;
 const CHECKSUM_POSITION_SCALE: f32 = 1000.0;
 
 /// One thread runs the systems in one fixed order, so entities are spawned, and therefore numbered and
-/// iterated, the same way every time. It is also cheaper: most systems are chained, and the multi-threaded
-/// executor spent more on waking worker threads than it saved (about 13 % more CPU per frame).
+/// iterated, the same way every time, and per-thread state such as the map size is always the app's own.
+/// It is also cheaper: most systems are chained, and the multi-threaded executor spent more on waking
+/// worker threads than it saved (about 13 % more CPU per frame). Call it once every plugin has been added.
 pub fn run_schedules_on_one_thread(app: &mut App) {
-    let schedules = [
-        First.intern(),
-        PreUpdate.intern(),
-        RunFixedMainLoop.intern(),
-        FixedFirst.intern(),
-        FixedPreUpdate.intern(),
-        FixedUpdate.intern(),
-        FixedPostUpdate.intern(),
-        FixedLast.intern(),
-        Update.intern(),
-        PostUpdate.intern(),
-        Last.intern(),
-    ];
-    for schedule in schedules {
-        app.edit_schedule(schedule, |schedule| {
-            schedule.set_executor(SingleThreadedExecutor::new());
-        });
+    let mut schedules = app.world_mut().resource_mut::<Schedules>();
+    for (_, schedule) in schedules.iter_mut() {
+        schedule.set_executor(SingleThreadedExecutor::new());
     }
 }
 

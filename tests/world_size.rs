@@ -1,4 +1,3 @@
-//! Map size is global to the process, so every size is exercised from this one test, in sequence.
 mod common;
 
 use bevy::prelude::*;

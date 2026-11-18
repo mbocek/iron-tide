@@ -25,6 +25,14 @@ fn quiet_level(objective: Objective) -> LevelDefinition {
     level
 }
 
+/// Every refinery comes with a harvester.
+fn free_harvesters(buildings: &[BuildingKind]) -> usize {
+    buildings
+        .iter()
+        .filter(|&&kind| kind == BuildingKind::Refinery)
+        .count()
+}
+
 #[test]
 fn every_campaign_mission_sets_up_its_battle() {
     for mission in campaign() {
@@ -52,18 +60,15 @@ fn every_campaign_mission_sets_up_its_battle() {
                 "{}: {team:?}",
                 level.name
             );
-            assert_eq!(battle.units(team, None).len(), enemy.force.units.len());
+            assert_eq!(
+                battle.units(team, None).len(),
+                enemy.force.units.len() + free_harvesters(&enemy.force.buildings)
+            );
             assert_eq!(battle.credits(team), enemy.force.credits);
         }
         assert_eq!(
             battle.units(Team::Player, None).len(),
-            level.player.units.len()
-                + level
-                    .player
-                    .buildings
-                    .iter()
-                    .filter(|&&k| k == BuildingKind::Refinery)
-                    .count()
+            level.player.units.len() + free_harvesters(&level.player.buildings)
         );
         battle.run_for(30.0);
         assert_eq!(

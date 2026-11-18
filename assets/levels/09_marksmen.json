@@ -1,0 +1,20 @@
+{
+  "name": "9. Marksmen",
+  "briefing": "No vehicles can cross the flooded fords this season. It is an infantry war: snipers pick off their riflemen, medics keep ours standing, and an engineer must walk into the Crimson Command Center and take it.",
+  "map_seed": 9009,
+  "player": {
+    "site": "SouthWest",
+    "credits": 5000,
+    "buildings": ["PowerPlant", "Refinery", "Barracks"],
+    "units": ["Sniper", "Sniper", "Rifleman", "Rifleman", "Rifleman", "Rifleman", "Medic", "Engineer", "Engineer"]
+  },
+  "enemies": [
+    { "site": "NorthEast", "credits": 5000, "difficulty": "Normal" }
+  ],
+  "objective": "CaptureCommandCenter",
+  "available_units": ["Rifleman", "Rocketeer", "Sniper", "Medic", "Engineer", "Harvester"],
+  "available_buildings": ["PowerPlant", "Refinery", "Barracks", "GunTurret", "Wall"],
+  "landscape": "River",
+  "weather": "Rain",
+  "season": "Autumn"
+}

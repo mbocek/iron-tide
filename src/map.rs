@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::cell::Cell;
 
 use bevy::prelude::*;
 use pathfinding::prelude::astar;
@@ -44,16 +44,19 @@ impl MapSize {
     }
 }
 
-/// The size of the map being played. Cell maths runs everywhere, so it is global; a process plays one
-/// match at a time, and tests of other sizes live in their own test binary.
-static ACTIVE_MAP_CELLS: AtomicI32 = AtomicI32::new(STANDARD_MAP_CELLS);
+// The size of the map being played. Cell maths runs everywhere, so it is ambient rather than passed
+// around; it is kept per thread because every schedule runs on the thread that updates the app, and tests
+// that play several battles at once each run on their own thread.
+thread_local! {
+    static ACTIVE_MAP_CELLS: Cell<i32> = const { Cell::new(STANDARD_MAP_CELLS) };
+}
 
 pub fn set_map_size(size: MapSize) {
-    ACTIVE_MAP_CELLS.store(size.cells(), Ordering::Relaxed);
+    ACTIVE_MAP_CELLS.set(size.cells());
 }
 
 pub fn map_cells() -> i32 {
-    ACTIVE_MAP_CELLS.load(Ordering::Relaxed)
+    ACTIVE_MAP_CELLS.get()
 }
 
 pub fn map_world_size() -> f32 {

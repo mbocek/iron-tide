@@ -11,13 +11,17 @@ use crate::settings::game_data_directory;
 use crate::terrain::Landscape;
 
 const CUSTOM_LEVELS_DIRECTORY: &str = "levels";
-const CAMPAIGN_SOURCES: [&str; 6] = [
+const CAMPAIGN_SOURCES: [&str; 10] = [
     include_str!("../assets/levels/01_bridgehead.json"),
     include_str!("../assets/levels/02_hold_the_ford.json"),
     include_str!("../assets/levels/03_iron_hammer.json"),
     include_str!("../assets/levels/04_three_fronts.json"),
     include_str!("../assets/levels/05_silent_takeover.json"),
     include_str!("../assets/levels/06_every_man_for_himself.json"),
+    include_str!("../assets/levels/07_rotor_storm.json"),
+    include_str!("../assets/levels/08_white_silence.json"),
+    include_str!("../assets/levels/09_marksmen.json"),
+    include_str!("../assets/levels/10_the_iron_tide.json"),
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]

@@ -266,13 +266,17 @@ effects volume live in the menu's *Audio* tab.
 ## Missions and custom levels
 
 The game opens in a main menu:
-- **Campaign:** six missions (`assets/levels/*.json`), each with its own objective and unlocking new units.
+- **Campaign:** ten missions (`assets/levels/*.json`), each with its own objective and unlocking new units.
   1. Bridgehead (1 enemy, destroy everything; with a step-by-step tutorial)
   2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics; in the rain)
   3. Iron Hammer (destroy both enemy Command Centers, introduces the Bulwark; on the lake)
   4. Three Fronts (three Hard enemies; on the plains)
   5. Silent Takeover (capture the walled-in enemy Command Center with an engineer; on the plains)
   6. Every Man for Himself (three cartels in a free-for-all; on the lake, in the rain)
+  7. Rotor Storm (survive 12 minutes against a Crimson air force of gunships; flak and rocketeers; autumn)
+  8. White Silence (destroy two Command Centers on a large winter plain in falling snow; snipers to scout)
+  9. Marksmen (infantry only: snipers, medics and an engineer to capture the Crimson Command Center; autumn rain)
+  10. The Iron Tide (two against two on a huge map: with Amber as an ally, destroy Crimson and Violet)
 - **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard, starting credits, objective
   (destroy everything / destroy Command Centers / survive 10 minutes / stockpile credits), available units,
   map variant and your starting corner. *Save as custom level* writes a JSON file to
@@ -319,12 +323,12 @@ in the battle editor. Landscapes, roads and crystal fields are authored for the 
 the bases stay in the corners, crystal fields and road bends near a base keep their distance from it, and
 everything else spreads out from the centre (the fords move apart, the lake grows longer), while the river
 keeps its width. Forests, rocks and meadows grow with the area, so a Huge map has about 2.5 times as much
-scenery and costs more to draw. The map size is a process-wide setting chosen when a match starts.
+scenery and costs more to draw. The map size is chosen when a match starts and kept per thread: every schedule runs on the thread that updates the app, so tests can play battles of different sizes side by side.
 Seasons: `Summer`, `Autumn` (birches turn yellow, broadleaf trees orange, shrubs red, grass straw; pines stay
 green; a warmer sun) or `Winter` (snow on open flat ground and on top of rocks, trees and logs, frosted
 leaves, a colder sun, and rain falls as snow). Each scenery model's colours are turned once per season when
-it is loaded, so seasons cost nothing while playing. The campaign's third mission is fought in winter and its
-fifth in autumn.
+it is loaded, so seasons cost nothing while playing. The campaign's third and eighth missions are fought in winter, its fifth, seventh and
+ninth in autumn.
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel

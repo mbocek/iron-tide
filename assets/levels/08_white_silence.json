@@ -1,0 +1,22 @@
+{
+  "name": "8. White Silence",
+  "briefing": "Snow has buried the northern plains and both Syndicate headquarters sit far apart on a wide map. Scout with snipers, keep the harvesters moving between the drifts, and destroy both Command Centers.",
+  "map_seed": 8008,
+  "player": {
+    "site": "SouthWest",
+    "credits": 7000,
+    "buildings": ["PowerPlant", "Refinery", "Barracks"],
+    "units": ["Sniper", "Sniper", "Rifleman", "Rifleman", "Rifleman", "Engineer", "Tank", "Tank", "Scout"]
+  },
+  "enemies": [
+    { "site": "NorthEast", "credits": 6000, "difficulty": "Hard" },
+    { "site": "SouthEast", "credits": 5000, "difficulty": "Normal" }
+  ],
+  "objective": "DestroyCommandCenters",
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "Plains",
+  "weather": "Rain",
+  "season": "Winter",
+  "map_size": "Large"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "10. The Iron Tide",
+  "briefing": "Amber has broken with the Syndicate and holds the north-west corner beside us. Crimson and Violet have pooled everything they have on the far side of a huge valley. Together with Amber, destroy them both and end this war.",
+  "map_seed": 10010,
+  "player": {
+    "site": "SouthWest",
+    "credits": 9000,
+    "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory"],
+    "units": ["Rifleman", "Rifleman", "Rocketeer", "Sniper", "Engineer", "Tank", "Tank", "FlakTrack"]
+  },
+  "enemies": [
+    { "site": "NorthEast", "credits": 9000, "difficulty": "Hard" },
+    { "site": "NorthWest", "credits": 7000, "difficulty": "Normal" },
+    { "site": "SouthEast", "credits": 9000, "difficulty": "Hard" }
+  ],
+  "objective": "DestroyAllEnemies",
+  "available_units": [],
+  "available_buildings": [],
+  "alliance": "TwoAgainstTwo",
+  "landscape": "River",
+  "map_size": "Huge"
+}

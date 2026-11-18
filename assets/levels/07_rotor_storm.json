@@ -1,0 +1,26 @@
+{
+  "name": "7. Rotor Storm",
+  "briefing": "Crimson has bought gunships and means to clear the river valley from the air. Dig in flak, keep rocketeers close to the refinery, and hold out until our relief column arrives.",
+  "map_seed": 7007,
+  "player": {
+    "site": "SouthWest",
+    "credits": 6000,
+    "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory"],
+    "units": ["Rocketeer", "Rocketeer", "Rocketeer", "Rifleman", "Rifleman", "FlakTrack", "Tank"]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 7000,
+      "difficulty": "Hard",
+      "buildings": ["PowerPlant", "PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory", "TechCenter", "Helipad"],
+      "units": ["Gunship", "Gunship", "Tank", "Rifleman", "Rifleman"]
+    },
+    { "site": "NorthWest", "credits": 5000, "difficulty": "Normal" }
+  ],
+  "objective": { "Survive": { "minutes": 12.0 } },
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "River",
+  "season": "Autumn"
+}
