@@ -67,6 +67,23 @@ def rifle_shot(variant):
     return finished_effect(soft_clip(shot, 2.2), duration, reverb_seconds=0.5, reverb_wet=0.18)
 
 
+def sniper_shot():
+    """A heavy rifle crack with a long echo rolling back from the far side of the battlefield."""
+    rng = random.Random(1050)
+    duration = 1.2
+    length = samples(duration)
+    shot = gunshot_layers(
+        rng, length,
+        crack_cutoff=2000.0, crack_decay=0.008,
+        body_hz=700.0, body_decay=0.035,
+        thump_hz=140.0, thump_decay=0.06,
+        tail_decay=0.12,
+    )
+    echo = one_pole_lowpass(decaying_noise(rng, samples(0.5), 0.12, "brown"), 1200.0)
+    mix_into(shot, echo, samples(0.35), 0.5)
+    return finished_effect(soft_clip(shot, 2.4), duration, reverb_seconds=1.4, reverb_wet=0.3, end_fade=0.12)
+
+
 def machine_gun_shot():
     rng = random.Random(1100)
     duration = 0.15
@@ -464,6 +481,7 @@ SOUND_EFFECTS = {
     "sfx/rifle_shot_2": lambda: rifle_shot(1),
     "sfx/rifle_shot_3": lambda: rifle_shot(2),
     "sfx/mg_shot": machine_gun_shot,
+    "sfx/sniper_shot": sniper_shot,
     "sfx/flak_shot": flak_shot,
     "sfx/cannon_shot": cannon_shot,
     "sfx/heavy_cannon_shot": heavy_cannon_shot,

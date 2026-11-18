@@ -249,7 +249,7 @@ attack wave and its income (75 % / 100 % / 135 %).
   repairs its own structures below 60 % health when it has credits to spare.
 - **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Tech Center, Helipad; Barracks →
   Gun Turret, Flak Cannon, Wall. The Bulwark, the Howitzer and the Gunship also need a Tech Center.
-- **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Engineer, Scout Buggy,
+- **Units:** Rifleman, Rocketeer (anti-armour missiles), Sniper (long-range anti-infantry), Field Medic (heals nearby infantry), Engineer, Scout Buggy,
   Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship,
   Harvester.
 - **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over

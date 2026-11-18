@@ -67,7 +67,11 @@ fn authored_drive_speed(kind: UnitKind) -> f32 {
         UnitKind::Artillery => 2.5,
         UnitKind::Scout => 5.0,
         UnitKind::Harvester => 2.0,
-        UnitKind::Rifleman | UnitKind::Rocketeer | UnitKind::Medic | UnitKind::Engineer => 2.4,
+        UnitKind::Rifleman
+        | UnitKind::Rocketeer
+        | UnitKind::Medic
+        | UnitKind::Engineer
+        | UnitKind::Sniper => 2.4,
         UnitKind::Bulwark => 2.2,
         UnitKind::Gunship => 6.5,
         UnitKind::FlakTrack => 3.2,

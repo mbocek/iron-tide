@@ -430,10 +430,11 @@ const VEHICLE_MIX: [(UnitKind, u32); 6] = [
     (UnitKind::Gunship, 2),
     (UnitKind::FlakTrack, 1),
 ];
-const INFANTRY_MIX: [(UnitKind, u32); 3] = [
+const INFANTRY_MIX: [(UnitKind, u32); 4] = [
     (UnitKind::Rifleman, 6),
     (UnitKind::Rocketeer, 3),
     (UnitKind::Medic, 1),
+    (UnitKind::Sniper, 1),
 ];
 
 fn pick_weighted(mix: &[(UnitKind, u32)], allowed: impl Fn(UnitKind) -> bool) -> Option<UnitKind> {

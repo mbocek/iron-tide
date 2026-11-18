@@ -131,6 +131,7 @@ pub enum UnitKind {
     Harvester,
     Gunship,
     FlakTrack,
+    Sniper,
 }
 
 pub struct UnitSpec {
@@ -156,9 +157,10 @@ pub struct UnitSpec {
 }
 
 impl UnitKind {
-    pub const INFANTRY: [UnitKind; 4] = [
+    pub const INFANTRY: [UnitKind; 5] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
+        UnitKind::Sniper,
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
@@ -171,7 +173,7 @@ impl UnitKind {
         UnitKind::Gunship,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 11] = [
+    pub const ALL: [UnitKind; 12] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -183,6 +185,7 @@ impl UnitKind {
         UnitKind::Harvester,
         UnitKind::Gunship,
         UnitKind::FlakTrack,
+        UnitKind::Sniper,
     ];
 
     pub fn flies(self) -> bool {
@@ -202,6 +205,7 @@ impl UnitKind {
             UnitKind::Engineer => &ENGINEER,
             UnitKind::Bulwark => &BULWARK,
             UnitKind::FlakTrack => &FLAK_TRACK,
+            UnitKind::Sniper => &SNIPER,
         }
     }
 }
@@ -366,6 +370,20 @@ const FLAK_AUTOCANNON: WeaponSpec = WeaponSpec {
     versus_structure: 0.15,
     versus_aircraft: 1.8,
     report: Sound::FlakShot,
+};
+
+const SNIPER_RIFLE: WeaponSpec = WeaponSpec {
+    range: 16.0,
+    damage: 60.0,
+    reload_secs: 2.5,
+    projectile_speed: 120.0,
+    splash_radius: 0.0,
+    style: ProjectileStyle::Bullet,
+    versus_infantry: 1.5,
+    versus_vehicle: 0.05,
+    versus_structure: 0.05,
+    versus_aircraft: 0.0,
+    report: Sound::SniperShot,
 };
 
 const RIFLEMAN: UnitSpec = UnitSpec {
@@ -617,6 +635,25 @@ const FLAK_TRACK: UnitSpec = UnitSpec {
     requires: None,
     heal_per_sec: 0.0,
     sight: 16.0,
+};
+
+const SNIPER: UnitSpec = UnitSpec {
+    name: "Sniper",
+    role: "Marksman who drops infantry from far away. Useless against armour.",
+    model_id: "sniper",
+    cost: 500,
+    build_secs: 9.0,
+    max_health: 60.0,
+    speed: 2.3,
+    turn_rate: 6.0,
+    radius: 0.4,
+    armor: ArmorClass::Infantry,
+    weapon: Some(SNIPER_RIFLE),
+    has_turret: false,
+    producer: BuildingKind::Barracks,
+    requires: None,
+    heal_per_sec: 0.0,
+    sight: 20.0,
 };
 
 const COMMAND_CENTER: BuildingSpec = BuildingSpec {

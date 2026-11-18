@@ -375,6 +375,47 @@ def add_engineer_extras(build):
                              name="HazardSleeveStripe")
 
 
+def add_sniper_rifle():
+    """The rifleman's rifle grown into a marksman's weapon: long barrel, big scope, folded bipod."""
+    axis = (RIFLE_MUZZLE - RIFLE_BUTT).normalized()
+    frame = Vector((1.0, 0.0, 0.0)).rotation_difference(axis).to_matrix().to_4x4()
+
+    def at(x, y=0.0, z=0.0, rotation=(0.0, 0.0, 0.0)):
+        return Matrix.Translation(RIFLE_BUTT) @ frame @ geo.placement((x, y, z), rotation)
+
+    barrel_end = (RIFLE_MUZZLE - RIFLE_BUTT).length + 0.3
+    box("Wood", (0.22, 0.045, 0.1), matrix=at(0.1, 0, -0.015), bevel=0.015, name="SniperStock")
+    box("Gunmetal", (0.24, 0.05, 0.07), matrix=at(0.33, 0, 0.0), bevel=0.01, name="SniperReceiver")
+    box("Wood", (0.26, 0.05, 0.06), matrix=at(0.58, 0, -0.005), bevel=0.012, name="SniperForend")
+    box("ArmorDark", (0.035, 0.035, 0.08), matrix=at(0.24, 0, -0.07, (0, math.radians(15), 0)), bevel=0.008,
+        name="SniperGrip")
+    cylinder("Gunmetal", 0.011, barrel_end - 0.6, matrix=at(0.6 + (barrel_end - 0.6) / 2, 0, 0.0, FACING_FRONT),
+             segments=8, name="SniperBarrel")
+    cylinder("Gunmetal", 0.018, 0.07, matrix=at(barrel_end - 0.03, 0, 0.0, FACING_FRONT), segments=8,
+             name="SniperMuzzleBrake")
+    cylinder("ArmorDark", 0.026, 0.26, matrix=at(0.38, 0, 0.07, FACING_FRONT), segments=10, name="SniperScope")
+    cylinder("ArmorDark", 0.032, 0.04, matrix=at(0.5, 0, 0.07, FACING_FRONT), segments=10, name="SniperScopeBell")
+    box(GLASS, (0.005, 0.045, 0.045), matrix=at(0.522, 0, 0.07), bevel=0.0, name="SniperScopeLens")
+    for side in (-1, 1):
+        cylinder("Gunmetal", 0.006, 0.22, matrix=at(0.78, side * 0.015, -0.02, FACING_FRONT), segments=4,
+                 name="FoldedBipodLeg")
+
+
+def add_boonie_hat():
+    lathe("Uniform", [(0.2, 0.0), (0.19, 0.012), (0.12, 0.02), (0.115, 0.1), (0.07, 0.14), (0.0, 0.145)],
+          (0.0, 0.0, 1.62), segments=16, name="BoonieHat")
+    lathe("TeamColor", [(0.121, 0.03), (0.118, 0.06)], (0.0, 0.0, 1.62), segments=16, cap_start=False,
+          cap_end=False, name="HatTeamBand")
+
+
+def add_sniper_backpack():
+    box("Webbing", (0.16, 0.28, 0.3), (-0.2, 0.0, 1.27), bevel=0.04, name="SlimPack")
+    box("TeamColor", (0.012, 0.2, 0.08), (-0.285, 0.0, 1.34), bevel=0.0, name="PackTeamFlash")
+    for k, (y, z) in enumerate(((-0.14, 1.48), (0.12, 1.46), (0.0, 1.5), (-0.2, 1.3), (0.2, 1.32))):
+        box("Foliage" if k % 2 == 0 else "FoliageDark", (0.14, 0.1, 0.06), (-0.12, y, z),
+            (math.radians(20 * k), math.radians(10), 0), bevel=0.02, name="GhillieTuft")
+
+
 def _elbows(hands, poles):
     return {side: rest_elbow(SHOULDER[side], hands[side], poles[side]) for side in "LR"}
 
@@ -411,6 +452,19 @@ ENGINEER = SoldierKit(
     add_weapon=lambda: None, add_helmet=add_hard_hat, add_backpack=add_tool_backpack,
     add_extras=add_engineer_extras,
 )
+
+
+SNIPER = SoldierKit(
+    carry=CARRY_RIFLE, weapon_seat=RIFLE_BUTT, weapon_axis=RIFLE_MUZZLE - RIFLE_BUTT,
+    hand={"L": RIFLE_HANDGUARD, "R": RIFLE_GRIP},
+    elbow={"L": Vector((0.2, 0.15, 1.12)), "R": Vector((-0.02, -0.27, 1.13))},
+    add_weapon=add_sniper_rifle, add_helmet=add_boonie_hat, add_backpack=add_sniper_backpack,
+    shouldered_offset=Vector((0.02, 0.05, -0.04)),
+)
+
+
+def build_sniper():
+    SoldierBuild(SNIPER).build()
 
 
 def build_engineer():
