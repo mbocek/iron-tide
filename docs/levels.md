@@ -107,5 +107,7 @@ Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"Destroy
 `"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel
 (select, move, power plant, refinery, barracks, a rifleman, attack-move, destroy the enemy); each step
-completes as soon as the player does it, and the panel can be hidden. Difficulty changes how fast the AI thinks, the size of its first
-attack wave and its income (75 % / 100 % / 135 %).
+completes as soon as the player does it, and the panel can be hidden. In every level a field tip explains
+mines, research and camouflage the first time the player selects an engineer, owns a Tech Center or meets a
+sniper; each shows once and is remembered in the settings. Difficulty changes how fast the AI thinks, the size of its first
+attack wave and its income (75 % / 100 % / 125 %).

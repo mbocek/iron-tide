@@ -20,6 +20,7 @@ pub mod determinism;
 pub mod economy;
 pub mod effects;
 pub mod engineers;
+pub mod field_tips;
 pub mod flat_scenery;
 pub mod fog;
 pub mod fog_view;
@@ -336,7 +337,11 @@ impl Plugin for GamePlugin {
             )
             .add_systems(
                 Update,
-                (tutorial::follow_tutorial, tutorial::refresh_tutorial_panel)
+                (
+                    tutorial::follow_tutorial,
+                    tutorial::refresh_tutorial_panel,
+                    field_tips::offer_field_tips.run_if(in_state(match_flow::GameState::Playing)),
+                )
                     .chain()
                     .in_set(FramePhase::Presentation),
             )
@@ -496,6 +501,7 @@ impl Plugin for GamePlugin {
                     ui::build_interface,
                     structure_tools::prepare_structure_tools,
                     tutorial::start_tutorial,
+                    field_tips::spawn_tip_panel,
                     battlefield::set_the_weather,
                     replay::start_recording,
                     orders::spawn_selection_box,

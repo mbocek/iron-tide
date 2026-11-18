@@ -4,7 +4,8 @@
 
 Settings (graphics: preset, shadows, AO, bloom, SMAA, vegetation, wind, VSync, frame rate limit, fullscreen;
 gameplay: language, game speed, edge scrolling, scroll speed, damage numbers, health bars, overlay; key
-bindings, stored by key name and only where they differ from the defaults) are saved
+bindings, stored by key name and only where they differ from the defaults; won missions and field tips
+already read) are saved
 automatically to `~/.config/iron_tide/settings.json` (Windows: `%APPDATA%\iron_tide`). Saved games live in
 the `saves/` directory next to it: a quick save plus 3 slots.
 

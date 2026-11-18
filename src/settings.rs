@@ -106,6 +106,8 @@ pub struct GameSettings {
     pub join_address: String,
     /// Names of the campaign missions the player has won.
     pub completed_missions: Vec<String>,
+    /// Field tips the player has already read, by their stored name.
+    pub seen_tips: Vec<String>,
 }
 
 impl Default for GameSettings {
@@ -135,6 +137,7 @@ impl Default for GameSettings {
             check_for_updates: true,
             join_address: "127.0.0.1".to_string(),
             completed_missions: Vec::new(),
+            seen_tips: Vec::new(),
         };
         settings.apply_preset(QualityPreset::High);
         settings
