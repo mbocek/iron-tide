@@ -1,7 +1,7 @@
 # Missions and custom levels
 
 The game opens in a main menu:
-- **Campaign:** ten Coalition missions and three Syndicate missions (S1-S3) (`assets/levels/*.json`), each
+- **Campaign:** ten Coalition missions and six Syndicate missions (S1-S6) (`assets/levels/*.json`), each
   with its own objective. A level's `player_faction` decides which armoury the player builds from; every computer
   side fights for the other faction.
   1. Bridgehead (1 enemy, destroy everything; with a step-by-step tutorial)
@@ -18,6 +18,10 @@ The game opens in a main menu:
   - S2. Bunker Line (Syndicate: hold 12 minutes against Bulwarks and gunships behind Rocket Bunkers)
   - S3. Rocket Rain (Syndicate: shell the defences with Missile Trucks and destroy both Command Centers; large
     winter plain)
+  - S4. Salted Earth (Syndicate: engineers mine the causeway over the lake; hold 10 minutes)
+  - S5. Ghosts in the Pines (Syndicate: flush out camouflaged Coalition snipers along the river; autumn)
+  - S6. Laboratory War (Syndicate: research all three upgrades against Bulwarks, then destroy both Command
+    Centers; large plain in the rain)
 - **Choosing targets:** a unit firing on its own picks the enemy its weapon hurts most and that is closest to
   dying, preferring targets already in range and anything that shoots back over buildings, so a group
   concentrates its fire. Computer commanders send up to four soldiers idling at home to a harvester under fire.

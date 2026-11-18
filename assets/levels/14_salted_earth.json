@@ -1,0 +1,26 @@
+{
+  "name": "S4. Salted Earth",
+  "briefing": "Syndicate campaign. A Coalition column will cross the causeway over the lake to reach our refinery. Engineers carry mines: select them and press M to bury one where they stand, at $100 each. Salt the causeway and its shores, then hold for ten minutes. Our own troops never set them off, and the enemy cannot see them.",
+  "map_seed": 14014,
+  "player_faction": "Syndicate",
+  "player": {
+    "site": "SouthWest",
+    "credits": 7000,
+    "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory"],
+    "units": ["Engineer", "Engineer", "Engineer", "Engineer", "Rocketeer", "Rocketeer", "FlameTrooper", "Tank"]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 6000,
+      "difficulty": "Normal",
+      "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory"],
+      "units": ["Tank", "Tank", "Scout", "Rifleman", "Rifleman", "Rifleman"]
+    }
+  ],
+  "objective": { "Survive": { "minutes": 10.0 } },
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "Lake",
+  "season": "Summer"
+}

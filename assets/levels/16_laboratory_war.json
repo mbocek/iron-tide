@@ -1,0 +1,35 @@
+{
+  "name": "S6. Laboratory War",
+  "briefing": "Syndicate campaign. The Coalition has fielded its heaviest Bulwarks against us, and steel alone will not stop them. Our Tech Center is already standing: open the Research tab and buy Composite Armour, High-Explosive Warheads and Combat Drills before the armour arrives. Each takes time and the Tech Center must survive until it is done. Then destroy both enemy Command Centers.",
+  "map_seed": 16016,
+  "player_faction": "Syndicate",
+  "player": {
+    "site": "SouthWest",
+    "credits": 12000,
+    "buildings": ["PowerPlant", "PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory", "TechCenter", "RocketBunker", "RocketBunker"],
+    "units": ["Tank", "Tank", "MissileTruck", "Rocketeer", "Rocketeer", "Rocketeer", "FlameTrooper", "Engineer"]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 6000,
+      "difficulty": "Normal",
+      "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory", "TechCenter", "GunTurret", "GunTurret"],
+      "units": ["Bulwark", "Bulwark", "Tank", "Rifleman", "Rifleman"]
+    },
+    {
+      "site": "NorthWest",
+      "credits": 3000,
+      "difficulty": "Easy",
+      "buildings": ["PowerPlant", "Refinery", "Barracks", "Factory"],
+      "units": ["Bulwark", "Tank", "Sniper", "Rifleman"]
+    }
+  ],
+  "objective": "DestroyCommandCenters",
+  "available_units": [],
+  "available_buildings": [],
+  "map_size": "Large",
+  "landscape": "Plains",
+  "weather": "Rain",
+  "season": "Summer"
+}

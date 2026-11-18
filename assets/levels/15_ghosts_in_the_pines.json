@@ -1,0 +1,26 @@
+{
+  "name": "S5. Ghosts in the Pines",
+  "briefing": "Syndicate campaign. Coalition marksmen are picking off our convoys along the river. A sniper that keeps still for a few seconds blends into the ground and cannot be targeted, until it fires or one of our units comes within eight metres. Send cheap scouts ahead to flush them out, then let the Flame Troopers do the rest. Destroy every enemy unit and structure.",
+  "map_seed": 15015,
+  "player_faction": "Syndicate",
+  "player": {
+    "site": "SouthWest",
+    "credits": 5000,
+    "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory"],
+    "units": ["Scout", "Scout", "Scout", "FlameTrooper", "FlameTrooper", "FlameTrooper", "Rifleman", "Rifleman"]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 5000,
+      "difficulty": "Hard",
+      "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "GunTurret", "GunTurret"],
+      "units": ["Sniper", "Sniper", "Sniper", "Sniper", "Sniper", "Sniper", "Rifleman", "Rifleman", "Medic"]
+    }
+  ],
+  "objective": "DestroyAllEnemies",
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "River",
+  "season": "Autumn"
+}
