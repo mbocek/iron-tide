@@ -812,3 +812,80 @@ def _build_bulwark_turret(pivot):
     add_vent_grille(pivot + Vector((-0.75, 0.0, 0.52)), 0.3, 0.4, 5)
     _add_turret_bustle_rack(pivot + Vector((-0.3, 0.0, 0.05)))
 
+
+
+ROTOR = "Rotor"
+TAIL_ROTOR = "TailRotor"
+
+
+def build_gunship():
+    """Attack helicopter facing +X; the game spins the Rotor and TailRotor nodes and lifts it into the air."""
+    _add_gunship_fuselage()
+    _add_gunship_tail()
+    _add_gunship_skids()
+    _add_gunship_weapons()
+    mast_top = Vector((0.1, 0.0, 1.86))
+    cylinder("Steel", 0.07, 0.32, (0.1, 0.0, 1.66), segments=10, name="RotorMast")
+    with group(ROTOR, mast_top):
+        cylinder("Gunmetal", 0.16, 0.12, mast_top, segments=12, name="RotorHub")
+        for k in range(4):
+            angle = k * math.pi / 2 + math.pi / 4
+            direction = Vector((math.cos(angle), math.sin(angle), 0.0))
+            box("ArmorDark", (2.7, 0.2, 0.035), mast_top + direction * 1.42, (0, 0, angle), bevel=0.01,
+                name="RotorBlade")
+            box("HazardYellow", (0.18, 0.205, 0.04), mast_top + direction * 2.7, (0, 0, angle), bevel=0.0,
+                name="BladeTip")
+    tail_hub = Vector((-3.18, 0.14, 1.52))
+    with group(TAIL_ROTOR, tail_hub):
+        cylinder("Gunmetal", 0.06, 0.08, tail_hub, (math.pi / 2, 0, 0), segments=8, name="TailRotorHub")
+        for k in range(2):
+            angle = k * math.pi / 2
+            box("ArmorDark", (0.08, 0.025, 0.78), tail_hub + Vector((0, 0.02, 0)), (0, angle, 0), bevel=0.0,
+                name="TailRotorBlade")
+
+
+def _add_gunship_fuselage():
+    box("Armor", (2.0, 1.0, 0.86), (0.15, 0.0, 1.0), bevel=0.22, name="Cabin")
+    box("ArmorDark", (2.1, 1.02, 0.12), (0.15, 0.0, 0.6), bevel=0.04, name="CabinBelly")
+    box(GLASS, (0.62, 0.84, 0.5), (1.15, 0.0, 1.12), (0, math.radians(18), 0), bevel=0.12, name="Canopy")
+    box("Armor", (0.5, 0.6, 0.34), (1.32, 0.0, 0.78), (0, math.radians(-14), 0), bevel=0.1, name="Nose")
+    box("ArmorDark", (1.0, 0.72, 0.32), (-0.25, 0.0, 1.5), bevel=0.08, name="EngineHousing")
+    for side in (-1, 1):
+        cylinder_between("Gunmetal", (-0.7, side * 0.26, 1.5), (-0.95, side * 0.3, 1.56), 0.09, 10,
+                         name="Exhaust")
+        box("TeamColor", (1.3, 0.012, 0.16), (0.1, side * 0.507, 1.05), bevel=0.0, name="CabinTeamStripe")
+        add_rivets_along((-0.6, side * 0.51, 0.8), (0.8, side * 0.51, 0.8), 8, normal=(0, side, 0), radius=0.012)
+    box("TeamColor", (0.7, 0.5, 0.012), (-0.25, 0.0, 1.665), bevel=0.0, name="EngineTeamPanel")
+    add_antenna((-0.6, -0.25, 1.66), 0.5)
+
+
+def _add_gunship_tail():
+    cylinder_between("Armor", (-0.8, 0.0, 1.18), (-3.2, 0.0, 1.42), 0.22, 12, end_radius=0.1, name="TailBoom")
+    box("Armor", (0.5, 0.07, 0.62), (-3.08, 0.0, 1.7), (0, math.radians(-18), 0), bevel=0.02, name="TailFin")
+    box("TeamColor", (0.3, 0.075, 0.22), (-3.05, 0.0, 1.78), (0, math.radians(-18), 0), bevel=0.0,
+        name="TailFinTeamMark")
+    box("Armor", (0.36, 0.9, 0.05), (-2.7, 0.0, 1.36), bevel=0.01, name="TailPlane")
+
+
+def _add_gunship_skids():
+    for side in (-1, 1):
+        y = side * 0.55
+        cylinder_between("Gunmetal", (-0.8, y, 0.06), (0.95, y, 0.06), 0.04, 8, name="Skid")
+        cylinder_between("Gunmetal", (0.95, y, 0.06), (1.1, y, 0.16), 0.04, 8, name="SkidTip")
+        for x in (-0.45, 0.6):
+            cylinder_between("Gunmetal", (x, y, 0.06), (x, side * 0.4, 0.6), 0.035, 8, name="SkidStrut")
+
+
+def _add_gunship_weapons():
+    box("Armor", (0.5, 2.0, 0.07), (0.05, 0.0, 0.92), bevel=0.02, name="StubWing")
+    for side in (-1, 1):
+        pod = Vector((0.1, side * 0.92, 0.78))
+        cylinder_between("ArmorDark", pod - Vector((0.45, 0, 0)), pod + Vector((0.45, 0, 0)), 0.13, 12,
+                         name="RocketPod")
+        cylinder_between("TeamColor", pod - Vector((0.1, 0, 0)), pod + Vector((0.02, 0, 0)), 0.135, 12,
+                         name="RocketPodBand")
+        for k in range(6):
+            angle = k * math.tau / 6
+            tube = pod + Vector((0.46, math.cos(angle) * 0.07, math.sin(angle) * 0.07))
+            cylinder("Gunmetal", 0.022, 0.03, tube, FACING_FRONT, segments=6, name="RocketTube")
+    cylinder_between("Gunmetal", (1.45, 0.0, 0.62), (1.85, 0.0, 0.6), 0.035, 8, name="ChinGun")

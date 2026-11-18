@@ -75,6 +75,7 @@ pub enum ArmorClass {
     Infantry,
     Vehicle,
     Structure,
+    Aircraft,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -96,6 +97,8 @@ pub struct WeaponSpec {
     pub versus_infantry: f32,
     pub versus_vehicle: f32,
     pub versus_structure: f32,
+    /// Zero for weapons that cannot shoot upwards at aircraft at all.
+    pub versus_aircraft: f32,
     /// What firing it sounds like.
     pub report: Sound,
 }
@@ -106,7 +109,12 @@ impl WeaponSpec {
             ArmorClass::Infantry => self.versus_infantry,
             ArmorClass::Vehicle => self.versus_vehicle,
             ArmorClass::Structure => self.versus_structure,
+            ArmorClass::Aircraft => self.versus_aircraft,
         }
+    }
+
+    pub fn can_hit(&self, armor: ArmorClass) -> bool {
+        self.multiplier_against(armor) > 0.0
     }
 }
 
@@ -121,6 +129,7 @@ pub enum UnitKind {
     Bulwark,
     Artillery,
     Harvester,
+    Gunship,
 }
 
 pub struct UnitSpec {
@@ -150,14 +159,15 @@ impl UnitKind {
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
-    pub const VEHICLES: [UnitKind; 5] = [
+    pub const VEHICLES: [UnitKind; 6] = [
         UnitKind::Scout,
         UnitKind::Tank,
         UnitKind::Bulwark,
         UnitKind::Artillery,
+        UnitKind::Gunship,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 9] = [
+    pub const ALL: [UnitKind; 10] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -167,7 +177,12 @@ impl UnitKind {
         UnitKind::Bulwark,
         UnitKind::Artillery,
         UnitKind::Harvester,
+        UnitKind::Gunship,
     ];
+
+    pub fn flies(self) -> bool {
+        self.spec().armor == ArmorClass::Aircraft
+    }
 
     pub fn spec(self) -> &'static UnitSpec {
         match self {
@@ -176,6 +191,7 @@ impl UnitKind {
             UnitKind::Tank => &TANK,
             UnitKind::Artillery => &ARTILLERY,
             UnitKind::Harvester => &HARVESTER,
+            UnitKind::Gunship => &GUNSHIP,
             UnitKind::Rocketeer => &ROCKETEER,
             UnitKind::Medic => &MEDIC,
             UnitKind::Engineer => &ENGINEER,
@@ -248,6 +264,7 @@ const RIFLE: WeaponSpec = WeaponSpec {
     versus_infantry: 1.0,
     versus_vehicle: 0.2,
     versus_structure: 0.25,
+    versus_aircraft: 0.25,
     report: Sound::RifleShot,
 };
 
@@ -261,6 +278,7 @@ const SCOUT_MACHINE_GUN: WeaponSpec = WeaponSpec {
     versus_infantry: 1.0,
     versus_vehicle: 0.45,
     versus_structure: 0.3,
+    versus_aircraft: 0.55,
     report: Sound::MachineGunShot,
 };
 
@@ -274,6 +292,7 @@ const TANK_CANNON: WeaponSpec = WeaponSpec {
     versus_infantry: 0.6,
     versus_vehicle: 1.0,
     versus_structure: 0.8,
+    versus_aircraft: 0.0,
     report: Sound::CannonShot,
 };
 
@@ -287,6 +306,7 @@ const HOWITZER: WeaponSpec = WeaponSpec {
     versus_infantry: 0.5,
     versus_vehicle: 0.6,
     versus_structure: 1.2,
+    versus_aircraft: 0.0,
     report: Sound::HowitzerShot,
 };
 
@@ -300,6 +320,7 @@ const TURRET_CANNON: WeaponSpec = WeaponSpec {
     versus_infantry: 0.8,
     versus_vehicle: 1.0,
     versus_structure: 0.5,
+    versus_aircraft: 0.6,
     report: Sound::CannonShot,
 };
 
@@ -403,6 +424,7 @@ const MISSILE_LAUNCHER: WeaponSpec = WeaponSpec {
     versus_infantry: 0.3,
     versus_vehicle: 1.25,
     versus_structure: 0.7,
+    versus_aircraft: 1.1,
     report: Sound::MissileLaunch,
 };
 
@@ -416,6 +438,7 @@ const TWIN_CANNON: WeaponSpec = WeaponSpec {
     versus_infantry: 0.6,
     versus_vehicle: 1.0,
     versus_structure: 1.0,
+    versus_aircraft: 0.0,
     report: Sound::HeavyCannonShot,
 };
 
@@ -471,6 +494,38 @@ const ENGINEER: UnitSpec = UnitSpec {
     producer: BuildingKind::Barracks,
     heal_per_sec: 0.0,
     sight: 12.0,
+};
+
+const ROCKET_PODS: WeaponSpec = WeaponSpec {
+    range: 9.0,
+    damage: 30.0,
+    reload_secs: 1.3,
+    projectile_speed: 32.0,
+    splash_radius: 0.0,
+    style: ProjectileStyle::Missile,
+    versus_infantry: 0.9,
+    versus_vehicle: 1.1,
+    versus_structure: 0.7,
+    versus_aircraft: 0.4,
+    report: Sound::MissileLaunch,
+};
+
+const GUNSHIP: UnitSpec = UnitSpec {
+    name: "Gunship",
+    role: "Attack helicopter with rocket pods. Flies over anything; tanks and howitzers cannot hit it.",
+    model_id: "gunship",
+    cost: 1100,
+    build_secs: 18.0,
+    max_health: 320.0,
+    speed: 6.5,
+    turn_rate: 3.0,
+    radius: 1.6,
+    armor: ArmorClass::Aircraft,
+    weapon: Some(ROCKET_PODS),
+    has_turret: false,
+    producer: BuildingKind::Factory,
+    heal_per_sec: 0.0,
+    sight: 20.0,
 };
 
 const BULWARK: UnitSpec = UnitSpec {

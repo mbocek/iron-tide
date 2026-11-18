@@ -151,7 +151,11 @@ pub fn leave_wrecks(
         let DamageSource::Unit(kind) = loss.what else {
             continue;
         };
-        if kind.spec().armor != ArmorClass::Vehicle || !fog.is_visible(loss.position) {
+        let leaves_hull = matches!(
+            kind.spec().armor,
+            ArmorClass::Vehicle | ArmorClass::Aircraft
+        );
+        if !leaves_hull || !fog.is_visible(loss.position) {
             continue;
         }
         let ground = level.0.landscape.on_ground(loss.position);

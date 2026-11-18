@@ -47,6 +47,8 @@ pub struct Mobile {
     pub path: VecDeque<Vec3>,
     /// True while following a player/AI move order, which auto-targeting must not interrupt.
     pub ordered_move: bool,
+    /// Aircraft fly straight to where they are sent, over water, walls and other units.
+    pub flying: bool,
 }
 
 impl Mobile {
@@ -57,6 +59,15 @@ impl Mobile {
             facing,
             path: VecDeque::new(),
             ordered_move: false,
+            flying: false,
+        }
+    }
+
+    pub fn for_unit(kind: UnitKind, facing: f32) -> Self {
+        let spec = kind.spec();
+        Self {
+            flying: kind.flies(),
+            ..Self::new(spec.speed, spec.turn_rate, facing)
         }
     }
 

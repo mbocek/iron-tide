@@ -70,10 +70,16 @@ impl Targets {
         self.diplomacy.hostile(team, other)
     }
 
-    pub fn nearest_enemy(&self, team: Team, from: Vec3, max_reach: f32) -> Option<&TargetInfo> {
+    pub fn nearest_enemy(
+        &self,
+        team: Team,
+        weapon: &WeaponSpec,
+        from: Vec3,
+        max_reach: f32,
+    ) -> Option<&TargetInfo> {
         self.list
             .iter()
-            .filter(|t| self.hostile(t.team, team) && t.seen_by(team))
+            .filter(|t| self.hostile(t.team, team) && t.seen_by(team) && weapon.can_hit(t.armor))
             .map(|t| (t, surface_distance(from, t)))
             .filter(|&(_, distance)| distance <= max_reach)
             .min_by(|a, b| {
@@ -179,7 +185,10 @@ pub fn acquire_targets(
         let position = transform.translation;
         let sight = weapon.spec.range + SIGHT_BEYOND_RANGE;
         if let Some((entity, mode)) = attack.target {
-            let Some(target) = targets.get(entity) else {
+            let Some(target) = targets
+                .get(entity)
+                .filter(|target| weapon.spec.can_hit(target.armor))
+            else {
                 attack.clear();
                 continue;
             };
@@ -197,7 +206,7 @@ pub fn acquire_targets(
         }
         let can_chase = mobile.is_some() && !on_ordered_move;
         let reach = if can_chase { sight } else { weapon.spec.range };
-        if let Some(enemy) = targets.nearest_enemy(team, position, reach) {
+        if let Some(enemy) = targets.nearest_enemy(team, &weapon.spec, position, reach) {
             attack.target = Some((enemy.entity, TargetMode::Automatic));
             attack.repath_timer = 0.0;
         }

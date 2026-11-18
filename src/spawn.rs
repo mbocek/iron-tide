@@ -28,7 +28,7 @@ pub fn spawn_unit(
         BodyRadius(spec.radius),
         Sight(spec.sight),
         Armor(spec.armor),
-        Mobile::new(spec.speed, spec.turn_rate, facing),
+        Mobile::for_unit(kind, facing),
         Orders::default(),
         WorldAssetRoot(models.unit(kind, team)),
         animated_unit_model(kind, team),

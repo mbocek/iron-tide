@@ -419,11 +419,12 @@ fn plan_next_structure(
 }
 
 /// Weighted wish lists; anything the mission forbids is skipped.
-const VEHICLE_MIX: [(UnitKind, u32); 4] = [
+const VEHICLE_MIX: [(UnitKind, u32); 5] = [
     (UnitKind::Tank, 5),
     (UnitKind::Bulwark, 2),
     (UnitKind::Artillery, 2),
     (UnitKind::Scout, 3),
+    (UnitKind::Gunship, 2),
 ];
 const INFANTRY_MIX: [(UnitKind, u32); 3] = [
     (UnitKind::Rifleman, 6),

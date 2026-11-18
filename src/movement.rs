@@ -6,6 +6,8 @@ use crate::levels::ActiveLevel;
 use crate::map::{GameMap, cell_center, world_to_cell};
 
 const WAYPOINT_REACHED_DISTANCE: f32 = 0.2;
+pub const FLIGHT_ALTITUDE: f32 = 6.0;
+const FLIGHT_NOSE_DOWN: f32 = 0.12;
 /// Vehicles drive forward only once roughly facing their next waypoint, so they turn on the spot like tracked vehicles.
 const DRIVE_ALIGNMENT_TOLERANCE: f32 = 0.7;
 const SEPARATION_STRENGTH: f32 = 2.5;
@@ -20,6 +22,11 @@ pub fn order_move(
     goal: IVec2,
     ordered: bool,
 ) -> bool {
+    if mobile.flying {
+        mobile.path = [cell_center(goal)].into();
+        mobile.ordered_move = ordered;
+        return true;
+    }
     let Some(cells) = map.find_path(world_to_cell(from), goal) else {
         return false;
     };
@@ -66,6 +73,16 @@ pub fn settle_on_terrain(
         let heading = Quat::from_rotation_y(mobile.facing);
         let position = transform.translation;
         let center_height = landscape.height(position.x, position.z);
+        if mobile.flying {
+            let nose_down = if mobile.is_moving() {
+                FLIGHT_NOSE_DOWN
+            } else {
+                0.0
+            };
+            transform.translation.y = center_height.max(0.0) + FLIGHT_ALTITUDE;
+            transform.rotation = heading * Quat::from_rotation_z(-nose_down);
+            continue;
+        }
         if armor.0 == ArmorClass::Infantry {
             transform.translation.y = center_height;
             transform.rotation = heading;
@@ -120,16 +137,18 @@ pub fn separate_units(
     map: Res<GameMap>,
     mut units: Query<(Entity, &mut Transform, &BodyRadius, &Mobile)>,
 ) {
-    let snapshot: Vec<(Entity, Vec3, f32)> = units
+    let snapshot: Vec<(Entity, Vec3, f32, bool)> = units
         .iter()
-        .map(|(entity, transform, radius, _)| (entity, transform.translation, radius.0))
+        .map(|(entity, transform, radius, mobile)| {
+            (entity, transform.translation, radius.0, mobile.flying)
+        })
         .collect();
     let dt = time.delta_secs();
 
     for (entity, mut transform, radius, mobile) in &mut units {
         let mut push = Vec3::ZERO;
-        for &(other, other_position, other_radius) in &snapshot {
-            if other == entity {
+        for &(other, other_position, other_radius, other_flies) in &snapshot {
+            if other == entity || other_flies != mobile.flying {
                 continue;
             }
             let offset = transform.translation - other_position;
@@ -143,7 +162,7 @@ pub fn separate_units(
         }
         let resting_factor = if mobile.is_moving() { 0.5 } else { 1.0 };
         let candidate = transform.translation + push * SEPARATION_STRENGTH * resting_factor * dt;
-        if map.is_passable(world_to_cell(candidate)) {
+        if mobile.flying || map.is_passable(world_to_cell(candidate)) {
             transform.translation = candidate;
         }
     }

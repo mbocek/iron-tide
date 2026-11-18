@@ -15,13 +15,14 @@ use iron_tide::levels::{BaseSite, Difficulty, LevelDefinition};
 use iron_tide::map::GameMap;
 use iron_tide::outcome::GameOutcome;
 
-const COMBAT_UNITS: [UnitKind; 6] = [
+const COMBAT_UNITS: [UnitKind; 7] = [
     UnitKind::Rifleman,
     UnitKind::Rocketeer,
     UnitKind::Scout,
     UnitKind::Tank,
     UnitKind::Bulwark,
     UnitKind::Artillery,
+    UnitKind::Gunship,
 ];
 const DUEL_BUDGET: i32 = 3000;
 const DUEL_TIME_LIMIT_SECS: f32 = 150.0;

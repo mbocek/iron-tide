@@ -69,6 +69,7 @@ fn authored_drive_speed(kind: UnitKind) -> f32 {
         UnitKind::Harvester => 2.0,
         UnitKind::Rifleman | UnitKind::Rocketeer | UnitKind::Medic | UnitKind::Engineer => 2.4,
         UnitKind::Bulwark => 2.2,
+        UnitKind::Gunship => 6.5,
     }
 }
 
@@ -379,6 +380,68 @@ pub fn animate_corpses(
         }
         if corpse.age >= CORPSE_LINGER_SECS {
             commands.entity(entity).despawn();
+        }
+    }
+}
+
+const ROTOR_TURNS_PER_SEC: f32 = 4.0;
+const TAIL_ROTOR_SPEEDUP: f32 = 1.6;
+
+/// The spinning parts of an aircraft's model, found once its scene has loaded.
+#[derive(Component)]
+pub struct Rotors {
+    main: (Entity, Quat),
+    tail: Option<(Entity, Quat)>,
+    angle: f32,
+}
+
+pub fn link_rotor_nodes(
+    mut commands: Commands,
+    aircraft: Query<(Entity, &Unit), Without<Rotors>>,
+    children: Query<&Children>,
+    nodes: Query<(&Name, &Transform)>,
+) {
+    for (entity, unit) in &aircraft {
+        if !unit.0.flies() {
+            continue;
+        }
+        let find = |wanted: &str| {
+            children.iter_descendants(entity).find_map(|node| {
+                nodes
+                    .get(node)
+                    .ok()
+                    .filter(|(name, _)| name.as_str() == wanted)
+                    .map(|(_, transform)| (node, transform.rotation))
+            })
+        };
+        if let Some(main) = find("Rotor") {
+            commands.entity(entity).insert(Rotors {
+                main,
+                tail: find("TailRotor"),
+                angle: 0.0,
+            });
+        }
+    }
+}
+
+pub fn spin_rotors(
+    time: Res<Time>,
+    mut aircraft: Query<&mut Rotors>,
+    mut nodes: Query<&mut Transform, Without<Rotors>>,
+) {
+    for mut rotors in &mut aircraft {
+        rotors.angle = (rotors.angle
+            + time.delta_secs() * ROTOR_TURNS_PER_SEC * std::f32::consts::TAU)
+            % std::f32::consts::TAU;
+        let (main, main_rest) = rotors.main;
+        if let Ok(mut transform) = nodes.get_mut(main) {
+            transform.rotation = main_rest * Quat::from_rotation_y(rotors.angle);
+        }
+        if let Some((tail, tail_rest)) = rotors.tail
+            && let Ok(mut transform) = nodes.get_mut(tail)
+        {
+            transform.rotation =
+                tail_rest * Quat::from_rotation_z(rotors.angle * TAIL_ROTOR_SPEEDUP);
         }
     }
 }

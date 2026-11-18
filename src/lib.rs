@@ -252,6 +252,12 @@ impl Plugin for GamePlugin {
             .add_systems(Update, graphics::fit_shadows_to_zoom)
             .add_systems(
                 Update,
+                (animation::link_rotor_nodes, animation::spin_rotors)
+                    .chain()
+                    .in_set(FramePhase::Presentation),
+            )
+            .add_systems(
+                Update,
                 (tutorial::follow_tutorial, tutorial::refresh_tutorial_panel)
                     .chain()
                     .in_set(FramePhase::Presentation),

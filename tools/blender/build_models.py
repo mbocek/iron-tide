@@ -32,6 +32,7 @@ TEAM_MODELS = {
     "bulwark": (units.build_bulwark, UNIT_TRIANGLE_BUDGET),
     "artillery": (units.build_artillery, UNIT_TRIANGLE_BUDGET),
     "harvester": (units.build_harvester, UNIT_TRIANGLE_BUDGET),
+    "gunship": (units.build_gunship, UNIT_TRIANGLE_BUDGET),
     "command_center": (buildings.build_command_center, BUILDING_TRIANGLE_BUDGET),
     "power_plant": (buildings.build_power_plant, BUILDING_TRIANGLE_BUDGET),
     "refinery": (buildings.build_refinery, BUILDING_TRIANGLE_BUDGET),
@@ -74,6 +75,7 @@ REQUIRED_NODES = {
     "rocketeer": INFANTRY_NODES,
     "medic": INFANTRY_NODES,
     "engineer": INFANTRY_NODES,
+    "gunship": ("Rotor", "TailRotor"),
     "bulwark": ("Turret", "Barrel", "Sprocket_L", "Sprocket_R", "Idler_L", "Idler_R",
                 *(f"RoadWheel_{side}{index}" for side in "LR" for index in range(1, 8))),
 }

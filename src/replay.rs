@@ -10,6 +10,7 @@ use crate::components::{Building, Health, Mobile, Unit};
 use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::footprint_center;
 use crate::match_flow::{GameState, MatchClock};
+use crate::movement::FLIGHT_ALTITUDE;
 use crate::outcome::GameOutcome;
 use crate::settings::game_data_directory;
 use crate::ui::{ACCENT, TEXT_MAIN, UiFonts};
@@ -487,10 +488,15 @@ pub fn play_replay(
         let next = following.get(&actor.id()).copied().unwrap_or(*actor);
         let ground = actor.position().lerp(next.position(), blend);
         let facing = blend_facing(actor.facing(), next.facing(), blend);
+        let altitude = match actor.look() {
+            Some(Look::Unit(kind)) if kind.flies() => FLIGHT_ALTITUDE,
+            _ => 0.0,
+        };
         let translation = level
             .0
             .landscape
-            .on_ground(Vec3::new(ground.x, 0.0, ground.y));
+            .on_ground(Vec3::new(ground.x, 0.0, ground.y))
+            + Vec3::Y * altitude;
         let placed =
             Transform::from_translation(translation).with_rotation(Quat::from_rotation_y(facing));
         match playback.actors.get(&actor.id()) {

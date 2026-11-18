@@ -12,7 +12,7 @@ use crate::economy::Economies;
 use crate::map::{
     CELL_SIZE, GameMap, cell_center, footprint_cells, footprint_center, world_to_cell,
 };
-use crate::movement::order_move;
+use crate::movement::{FLIGHT_ALTITUDE, order_move};
 use crate::notifications::Notifications;
 use crate::sound::{Sound, SoundCue};
 use crate::spawn::{exit_cell, spawn_building, spawn_unit};
@@ -322,7 +322,7 @@ fn deploy_unit(
     }
     let mut rng = rand::rng();
     let rally = exit + IVec2::new(RALLY_DISTANCE_CELLS, rng.random_range(-2..=2));
-    let mut mobile = Mobile::new(kind.spec().speed, kind.spec().turn_rate, 0.0);
+    let mut mobile = Mobile::for_unit(kind, 0.0);
     if order_move(&mut mobile, map, cell_center(exit), rally, false) {
         commands.entity(entity).insert(mobile);
     }
@@ -398,6 +398,7 @@ pub fn placement_context<'a>(
             .collect(),
         occupied_cells: units
             .iter()
+            .filter(|transform| transform.translation.y < FLIGHT_ALTITUDE * 0.5)
             .map(|transform| world_to_cell(transform.translation))
             .collect(),
     }
