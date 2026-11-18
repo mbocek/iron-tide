@@ -45,6 +45,7 @@ pub struct TargetInfo {
     pub radius: f32,
     pub armor: ArmorClass,
     pub is_building: bool,
+    pub health_fraction: f32,
     /// Whether the local player may see it; only the interface reads this.
     pub seen_locally: bool,
     /// Indexed by `Team::index`: whether that team can currently see it.
@@ -78,25 +79,48 @@ impl Targets {
         self.diplomacy.hostile(team, other)
     }
 
-    pub fn nearest_enemy(
+    /// The enemy this weapon should fire at: one it hurts most and that is nearly finished, preferably
+    /// already in range; buildings come after anything that shoots back.
+    pub fn best_enemy(
         &self,
         team: Team,
         weapon: &WeaponSpec,
         from: Vec3,
         max_reach: f32,
     ) -> Option<&TargetInfo> {
+        let worth = |target: &TargetInfo, distance: f32| {
+            let effectiveness = weapon.multiplier_against(target.armor).min(2.0);
+            let out_of_range = if distance > weapon.range {
+                OUT_OF_RANGE_PENALTY
+            } else {
+                0.0
+            };
+            let structure = if target.is_building {
+                STRUCTURE_PENALTY
+            } else {
+                0.0
+            };
+            distance + out_of_range + structure
+                - EFFECTIVENESS_PULL * effectiveness
+                - WOUNDED_PULL * (1.0 - target.health_fraction)
+        };
         self.list
             .iter()
             .filter(|t| self.hostile(t.team, team) && t.seen_by(team) && weapon.can_hit(t.armor))
             .map(|t| (t, surface_distance(from, t)))
             .filter(|&(_, distance)| distance <= max_reach)
-            .min_by(|a, b| {
-                let rank = |(t, d): &(&TargetInfo, f32)| d + if t.is_building { 4.0 } else { 0.0 };
-                rank(a).total_cmp(&rank(b))
-            })
+            .min_by(|(a, da), (b, db)| worth(a, *da).total_cmp(&worth(b, *db)))
             .map(|(t, _)| t)
     }
 }
+
+/// Metres a target out of reach counts as farther away, so units shoot what they can before chasing.
+const OUT_OF_RANGE_PENALTY: f32 = 6.0;
+const STRUCTURE_PENALTY: f32 = 4.0;
+/// Metres a target counts as nearer per unit of the weapon's damage multiplier against it.
+const EFFECTIVENESS_PULL: f32 = 4.0;
+/// Metres a nearly dead target counts as nearer than an unhurt one.
+const WOUNDED_PULL: f32 = 4.0;
 
 pub fn surface_distance(from: Vec3, target: &TargetInfo) -> f32 {
     (from.xz().distance(target.position.xz()) - target.radius).max(0.0)
@@ -158,26 +182,25 @@ pub fn snapshot_targets(
     fog: Res<FogOfWar>,
     intel: Res<Intel>,
     diplomacy: Res<Diplomacy>,
-    damageable: Query<
-        (
-            &SimId,
-            Entity,
-            &Team,
-            &Transform,
-            &BodyRadius,
-            &Armor,
-            Has<Building>,
-            Option<&Camouflage>,
-        ),
-        With<Health>,
-    >,
+    damageable: Query<(
+        &SimId,
+        Entity,
+        &Team,
+        &Transform,
+        &BodyRadius,
+        &Armor,
+        Has<Building>,
+        Option<&Camouflage>,
+        &Health,
+    )>,
 ) {
     targets.list.clear();
     targets.by_entity.clear();
     targets.diplomacy = *diplomacy;
     let mut in_simulation_order: Vec<_> = damageable.iter().collect();
     in_simulation_order.sort_by_key(|target| *target.0);
-    for (_, entity, &team, transform, radius, armor, is_building, camouflage) in in_simulation_order
+    for (_, entity, &team, transform, radius, armor, is_building, camouflage, health) in
+        in_simulation_order
     {
         let concealed = camouflage.is_some_and(|camouflage| camouflage.concealed);
         let index = targets.list.len();
@@ -189,6 +212,7 @@ pub fn snapshot_targets(
             radius: radius.0,
             armor: armor.0,
             is_building,
+            health_fraction: health.fraction(),
             seen_locally: !diplomacy.hostile(team, local.0)
                 || (!concealed
                     && intel
@@ -238,7 +262,7 @@ pub fn acquire_targets(
         }
         let can_chase = mobile.is_some() && !on_ordered_move;
         let reach = if can_chase { sight } else { weapon.spec.range };
-        if let Some(enemy) = targets.nearest_enemy(team, &weapon.spec, position, reach) {
+        if let Some(enemy) = targets.best_enemy(team, &weapon.spec, position, reach) {
             attack.target = Some((enemy.entity, TargetMode::Automatic));
             attack.repath_timer = 0.0;
         }

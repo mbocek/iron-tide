@@ -298,6 +298,9 @@ The game opens in a main menu:
   - S2. Bunker Line (Syndicate: hold 12 minutes against Bulwarks and gunships behind Rocket Bunkers)
   - S3. Rocket Rain (Syndicate: shell the defences with Missile Trucks and destroy both Command Centers; large
     winter plain)
+- **Choosing targets:** a unit firing on its own picks the enemy its weapon hurts most and that is closest to
+  dying, preferring targets already in range and anything that shoots back over buildings, so a group
+  concentrates its fire. Computer commanders send up to four soldiers idling at home to a harvester under fire.
 - **Mines:** with engineers selected, M (rebindable) buries a mine under each of them for $100. A mine arms after
   1.5 s and goes off under the first enemy ground unit that touches it (110 damage with splash); its own side
   and allies see it as a small disc, enemies never do. Computer commanders with money to spare send an engineer

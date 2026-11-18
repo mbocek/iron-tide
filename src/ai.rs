@@ -6,7 +6,7 @@ use crate::abilities::{MINE_COST, Mine, lay_mine};
 use crate::army_mix::{Sightings, counter_weight};
 use crate::assets::ModelLibrary;
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
-use crate::combat::{TargetInfo, Targets};
+use crate::combat::{DamageDealt, TargetInfo, Targets};
 use crate::components::*;
 use crate::determinism::{SimId, SimulationRng, in_simulation_order};
 use crate::economy::Economies;
@@ -960,5 +960,72 @@ pub fn mine_the_approaches(
         };
         order_move(mobile, &map, transform.translation, goal, true);
         commands.entity(*entity).insert(MineTrip(goal));
+    }
+}
+
+const HARVESTER_GUARDS: usize = 4;
+const HARVESTER_RESCUE_COOLDOWN_SECS: f32 = 8.0;
+
+type GuardUnit<'a> = (
+    &'a Unit,
+    &'a Team,
+    &'a Transform,
+    &'a Mobile,
+    Option<&'a AttackTarget>,
+    &'a mut Orders,
+    &'a SimId,
+);
+
+/// When an enemy shoots at one of its harvesters, a commander sends soldiers idling at home to drive it off.
+pub fn defend_harvesters(
+    time: Res<Time>,
+    mut cooldowns: Local<[f32; 4]>,
+    commanders: Res<AiCommanders>,
+    mut hits: MessageReader<DamageDealt>,
+    harvesters: Query<&Transform, With<Harvester>>,
+    mut army: Query<GuardUnit>,
+) {
+    for cooldown in cooldowns.iter_mut() {
+        *cooldown = (*cooldown - time.delta_secs()).max(0.0);
+    }
+    let mut attacked: Vec<(Team, Vec3)> = Vec::new();
+    for hit in hits.read() {
+        let is_ai = commanders.0.iter().any(|ai| ai.team == hit.team);
+        if let (true, Ok(transform)) = (is_ai, harvesters.get(hit.victim))
+            && !attacked.iter().any(|(team, _)| *team == hit.team)
+        {
+            attacked.push((hit.team, transform.translation));
+        }
+    }
+    for (team, spot) in attacked {
+        if cooldowns[team.index()] > 0.0 {
+            continue;
+        }
+        cooldowns[team.index()] = HARVESTER_RESCUE_COOLDOWN_SECS;
+        let Some(ai) = commanders.0.iter().find(|ai| ai.team == team) else {
+            continue;
+        };
+        let home = footprint_center(ai.base, BuildingKind::CommandCenter.spec().footprint);
+        let mut guards: Vec<_> = army
+            .iter_mut()
+            .filter(|(unit, owner, transform, mobile, attack, orders, _)| {
+                **owner == team
+                    && fights(unit.0)
+                    && unit.0 != UnitKind::Engineer
+                    && !mobile.is_moving()
+                    && attack.is_none_or(|attack| attack.target.is_none())
+                    && orders.current.is_none()
+                    && transform.translation.distance(home) < BASE_DEFENSE_RADIUS
+            })
+            .collect();
+        guards.sort_by(|a, b| {
+            a.2.translation
+                .distance(spot)
+                .total_cmp(&b.2.translation.distance(spot))
+                .then(a.6.cmp(b.6))
+        });
+        for (.., orders, _) in guards.into_iter().take(HARVESTER_GUARDS) {
+            send(orders, spot);
+        }
     }
 }

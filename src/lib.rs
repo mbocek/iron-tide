@@ -258,6 +258,7 @@ impl Plugin for SimulationPlugin {
                         match_stats::tally_damage,
                         match_stats::tally_losses,
                         match_stats::tally_new_forces,
+                        ai::defend_harvesters,
                         veterancy::record_last_hits,
                         veterancy::credit_kills,
                         veterancy::promote_veterans,
