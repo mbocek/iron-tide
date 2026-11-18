@@ -2,7 +2,7 @@
 
 | Input | Action |
 | --- | --- |
-| LMB / drag | select unit / box-select units (Shift adds); the box counts the units inside, selected units get white corner marks |
+| LMB / drag | select unit / box-select units (Shift adds); the box counts the units inside, selected units get white corner marks; a selected defensive structure outlines its weapon range on the ground |
 | RMB on ground | move (formation) |
 | RMB on enemy | attack |
 | Ctrl + RMB | attack-move: fight anything met on the way, then carry on |

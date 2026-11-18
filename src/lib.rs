@@ -643,8 +643,11 @@ impl Plugin for GamePlugin {
                     )
                         .chain(),
                     (
-                        overlay::draw_overlays,
-                        overlay::draw_planned_routes,
+                        (
+                            overlay::draw_overlays,
+                            overlay::draw_planned_routes,
+                            overlay::draw_weapon_ranges,
+                        ),
                         structure_tools::draw_repair_markers,
                         structure_tools::refresh_tool_buttons,
                         structure_tools::refresh_tool_hint,

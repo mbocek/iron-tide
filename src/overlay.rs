@@ -1,10 +1,11 @@
-use std::f32::consts::FRAC_PI_2;
+use std::f32::consts::{FRAC_PI_2, TAU};
 
 use bevy::prelude::*;
 
 use crate::camera::RtsCamera;
 use crate::catalog::{HARVESTER_CAPACITY, Team};
 use crate::components::*;
+use crate::levels::ActiveLevel;
 use crate::local_view::LocalView;
 use crate::map::cell_center;
 use crate::orders::{MarkerKind, OrderMarker};
@@ -102,6 +103,33 @@ pub fn draw_planned_routes(
         gizmos.line(flag, flag + Vec3::Y * RALLY_FLAG_HEIGHT, RALLY_COLOR);
         let (isometry, radius) = ground_circle(flag, 0.6);
         gizmos.circle(isometry, radius, RALLY_COLOR);
+    }
+}
+
+const WEAPON_RANGE_COLOR: Color = Color::srgba(1.0, 0.35, 0.2, 0.55);
+const WEAPON_RANGE_SEGMENTS: usize = 96;
+const WEAPON_RANGE_LIFT: f32 = 0.2;
+
+/// Selected defensive structures outline how far they shoot, following the hills.
+pub fn draw_weapon_ranges(
+    mut gizmos: Gizmos,
+    view: LocalView,
+    level: Res<ActiveLevel>,
+    defenses: Query<(&Transform, &Weapon, &Team), (With<Selected>, With<Building>)>,
+) {
+    let landscape = level.0.landscape;
+    for (transform, weapon, &team) in &defenses {
+        let center = transform.translation;
+        if !view.reveals(team, center) {
+            continue;
+        }
+        let rim = (0..=WEAPON_RANGE_SEGMENTS).map(|segment| {
+            let angle = segment as f32 / WEAPON_RANGE_SEGMENTS as f32 * TAU;
+            let x = center.x + angle.cos() * weapon.spec.range;
+            let z = center.z + angle.sin() * weapon.spec.range;
+            Vec3::new(x, landscape.height(x, z) + WEAPON_RANGE_LIFT, z)
+        });
+        gizmos.linestrip(rim, WEAPON_RANGE_COLOR);
     }
 }
 
