@@ -78,8 +78,12 @@ pub struct SaveGame {
     camera_focus: [f32; 3],
     #[serde(default)]
     explored: Vec<bool>,
+    /// Saves from before every opponent had its own view kept one shared Syndicate view.
     #[serde(default)]
     explored_by_syndicate: Vec<bool>,
+    /// What each opponent has explored, in `Team::OPPONENTS` order.
+    #[serde(default)]
+    explored_by_opponents: Vec<Vec<bool>>,
 }
 
 /// A save waiting to be restored once the next match's map has been generated from its level.
@@ -264,7 +268,10 @@ pub fn write_requested_save(
             .single()
             .map_or([0.0; 3], |camera| camera.focus.to_array()),
         explored: fog.explored_cells(),
-        explored_by_syndicate: intel.syndicate_vision.explored_cells(),
+        explored_by_syndicate: Vec::new(),
+        explored_by_opponents: Team::OPPONENTS
+            .map(|opponent| intel.vision(opponent, &fog).explored_cells())
+            .to_vec(),
     };
     let path = slot_path(&directory, slot);
     let written = path
@@ -419,9 +426,15 @@ pub fn restore_pending_load(
     *commanders = save.ai;
     clock.elapsed_secs = save.match_secs;
     fog.restore_explored(&save.explored);
-    intel
-        .syndicate_vision
-        .restore_explored(&save.explored_by_syndicate);
+    for (index, opponent) in Team::OPPONENTS.into_iter().enumerate() {
+        let explored = save
+            .explored_by_opponents
+            .get(index)
+            .unwrap_or(&save.explored_by_syndicate);
+        intel
+            .opponent_vision_mut(opponent)
+            .restore_explored(explored);
+    }
     for mut camera in &mut cameras {
         camera.focus = Vec3::from_array(save.camera_focus);
     }

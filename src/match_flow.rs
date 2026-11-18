@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::ai::{AiCommander, AiCommanders, find_building_site};
 use crate::assets::ModelLibrary;
-use crate::catalog::{BuildingKind, Team, UnitKind};
+use crate::catalog::{BuildingKind, Diplomacy, Team, UnitKind};
 use crate::combat::Targets;
 use crate::control_groups::ControlGroups;
 use crate::economy::Economies;
@@ -48,6 +48,9 @@ pub struct MatchClock {
 pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
     commands.insert_resource(FogOfWar::new(level.0.fog_of_war));
     commands.insert_resource(Intel::new(level.0.fog_of_war));
+    commands.insert_resource(Diplomacy {
+        free_for_all: level.0.free_for_all,
+    });
     commands.insert_resource(LastHits::default());
     commands.insert_resource(Targets::default());
     commands.insert_resource(Economies::default());

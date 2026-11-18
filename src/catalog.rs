@@ -57,6 +57,19 @@ impl Team {
     }
 }
 
+/// Who fights whom. Normally the Syndicate commanders are allies against the Coalition; in a free-for-all
+/// every team fights every other.
+#[derive(Resource, Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct Diplomacy {
+    pub free_for_all: bool,
+}
+
+impl Diplomacy {
+    pub fn hostile(self, team: Team, other: Team) -> bool {
+        team != other && (self.free_for_all || team.is_hostile_to(other))
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ArmorClass {
     Infantry,

@@ -529,7 +529,7 @@ fn direct_army(
     let visible_enemies: Vec<&TargetInfo> = knowledge
         .targets
         .iter()
-        .filter(|t| t.team.is_hostile_to(team) && t.seen_by(team))
+        .filter(|t| knowledge.targets.hostile(t.team, team) && t.seen_by(team))
         .collect();
     let intruder = visible_enemies
         .iter()

@@ -5,7 +5,9 @@ use rand::RngExt;
 
 use crate::animation::{animated_unit_model, spawn_corpse};
 use crate::assets::ModelLibrary;
-use crate::catalog::{ArmorClass, BuildingKind, ProjectileStyle, Team, UnitKind, WeaponSpec};
+use crate::catalog::{
+    ArmorClass, BuildingKind, Diplomacy, ProjectileStyle, Team, UnitKind, WeaponSpec,
+};
 use crate::components::*;
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::fog::FogOfWar;
@@ -35,16 +37,13 @@ pub struct TargetInfo {
     pub armor: ArmorClass,
     pub is_building: bool,
     pub seen_by_player: bool,
-    pub seen_by_syndicate: bool,
+    /// Indexed by `Team::index`: whether that team can currently see it.
+    seen_by_team: [bool; 4],
 }
 
 impl TargetInfo {
     pub fn seen_by(&self, viewer: Team) -> bool {
-        if viewer == Team::Player {
-            self.seen_by_player
-        } else {
-            self.seen_by_syndicate
-        }
+        self.seen_by_team[viewer.index()]
     }
 }
 
@@ -53,6 +52,7 @@ impl TargetInfo {
 pub struct Targets {
     list: Vec<TargetInfo>,
     by_entity: HashMap<Entity, usize>,
+    diplomacy: Diplomacy,
 }
 
 impl Targets {
@@ -64,10 +64,14 @@ impl Targets {
         self.list.iter()
     }
 
+    pub fn hostile(&self, team: Team, other: Team) -> bool {
+        self.diplomacy.hostile(team, other)
+    }
+
     pub fn nearest_enemy(&self, team: Team, from: Vec3, max_reach: f32) -> Option<&TargetInfo> {
         self.list
             .iter()
-            .filter(|t| t.team.is_hostile_to(team) && t.seen_by(team))
+            .filter(|t| self.hostile(t.team, team) && t.seen_by(team))
             .map(|t| (t, surface_distance(from, t)))
             .filter(|&(_, distance)| distance <= max_reach)
             .min_by(|a, b| {
@@ -115,6 +119,7 @@ pub fn snapshot_targets(
     mut targets: ResMut<Targets>,
     fog: Res<FogOfWar>,
     intel: Res<Intel>,
+    diplomacy: Res<Diplomacy>,
     damageable: Query<
         (
             Entity,
@@ -129,6 +134,7 @@ pub fn snapshot_targets(
 ) {
     targets.list.clear();
     targets.by_entity.clear();
+    targets.diplomacy = *diplomacy;
     for (entity, &team, transform, radius, armor, is_building) in &damageable {
         let index = targets.list.len();
         targets.by_entity.insert(entity, index);
@@ -140,8 +146,10 @@ pub fn snapshot_targets(
             armor: armor.0,
             is_building,
             seen_by_player: fog.reveals(team, transform.translation),
-            seen_by_syndicate: team != Team::Player
-                || intel.syndicate_vision.is_visible(transform.translation),
+            seen_by_team: Team::ALL.map(|viewer| {
+                !diplomacy.hostile(team, viewer)
+                    || intel.vision(viewer, &fog).is_visible(transform.translation)
+            }),
         });
     }
 }
@@ -409,7 +417,7 @@ pub fn fly_projectiles(
         if weapon.splash_radius > 0.0 {
             for victim in targets
                 .iter()
-                .filter(|t| t.team.is_hostile_to(projectile.team))
+                .filter(|t| targets.hostile(t.team, projectile.team))
             {
                 let distance = surface_distance(impact, victim);
                 if distance > weapon.splash_radius {

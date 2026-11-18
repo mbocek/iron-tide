@@ -125,6 +125,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<match_flow::MatchClock>()
             .init_resource::<fog::FogOfWar>()
             .init_resource::<intel::Intel>()
+            .init_resource::<catalog::Diplomacy>()
             .init_resource::<veterancy::LastHits>()
             .init_resource::<savegame::SaveRequests>()
             .init_resource::<savegame::SaveDirectory>()

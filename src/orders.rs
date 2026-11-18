@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::camera::{Cursor, RtsCamera};
-use crate::catalog::{BuildingKind, Team, UnitKind};
+use crate::catalog::{BuildingKind, Diplomacy, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
 use crate::engineers::{EngineerJob, EngineerTask, job_for};
@@ -207,6 +207,7 @@ pub fn issue_orders(
     mut units: Query<CommandableUnit, (With<Selected>, With<Unit>)>,
     buildings: Query<&Building>,
     structures: Query<(&Building, &Health)>,
+    diplomacy: Res<Diplomacy>,
     kinds: Query<&Unit>,
     selected_buildings: Query<(Entity, &Building, &Team), With<Selected>>,
 ) {
@@ -258,7 +259,13 @@ pub fn issue_orders(
 
     if let Some(structure) = hovered.filter(|t| t.is_building)
         && let Ok((building, health)) = structures.get(structure.entity)
-        && let Some(job) = job_for(Team::Player, structure.team, building.kind, health)
+        && let Some(job) = job_for(
+            *diplomacy,
+            Team::Player,
+            structure.team,
+            building.kind,
+            health,
+        )
     {
         let engineers: Vec<Entity> = units
             .iter()

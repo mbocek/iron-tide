@@ -175,6 +175,8 @@ pub struct LevelDefinition {
     pub fog_of_war: bool,
     /// Walk the player through the basics step by step.
     pub tutorial: bool,
+    /// The opponents fight each other as well as the player.
+    pub free_for_all: bool,
 }
 
 impl Default for LevelDefinition {
@@ -190,6 +192,7 @@ impl Default for LevelDefinition {
             available_buildings: Vec::new(),
             fog_of_war: true,
             tutorial: false,
+            free_for_all: false,
         }
     }
 }
@@ -370,6 +373,7 @@ pub struct SkirmishOptions {
     pub map_variant: u64,
     pub player_site: BaseSite,
     pub fog_of_war: bool,
+    pub free_for_all: bool,
 }
 
 impl Default for SkirmishOptions {
@@ -383,6 +387,7 @@ impl Default for SkirmishOptions {
             map_variant: 1,
             player_site: BaseSite::SouthWest,
             fog_of_war: true,
+            free_for_all: false,
         }
     }
 }
@@ -426,6 +431,7 @@ impl SkirmishOptions {
             available_buildings: Vec::new(),
             fog_of_war: self.fog_of_war,
             tutorial: false,
+            free_for_all: self.free_for_all,
         }
     }
 }

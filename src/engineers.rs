@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 
 use crate::assets::ModelLibrary;
-use crate::catalog::{BuildingKind, Team};
+use crate::catalog::{BuildingKind, Diplomacy, Team};
 use crate::components::{Building, Health, Mobile, Orders};
 use crate::map::{CELL_SIZE, GameMap, footprint_center};
 use crate::movement::order_move;
@@ -40,6 +40,7 @@ impl EngineerTask {
 
 /// What an engineer of `team` would do to a structure: capture an enemy one, fully repair a damaged own one.
 pub fn job_for(
+    diplomacy: Diplomacy,
     team: Team,
     owner: Team,
     kind: BuildingKind,
@@ -48,7 +49,7 @@ pub fn job_for(
     if kind.is_wall() {
         return None;
     }
-    if owner.is_hostile_to(team) {
+    if diplomacy.hostile(owner, team) {
         return Some(EngineerJob::Capture);
     }
     (owner == team && health.current < health.max).then_some(EngineerJob::Repair)
@@ -74,6 +75,7 @@ pub fn carry_out_engineer_tasks(
         Option<&mut Orders>,
     )>,
     mut buildings: Query<(&Building, &Team, &mut Health)>,
+    diplomacy: Res<Diplomacy>,
 ) {
     let mut entered = HashSet::new();
     for (engineer, &team, transform, mut mobile, mut task, orders) in &mut engineers {
@@ -86,7 +88,7 @@ pub fn carry_out_engineer_tasks(
             commands.entity(engineer).remove::<EngineerTask>();
             continue;
         };
-        if job_for(team, owner, building.kind, &health) != Some(task.job) {
+        if job_for(*diplomacy, team, owner, building.kind, &health) != Some(task.job) {
             commands.entity(engineer).remove::<EngineerTask>();
             continue;
         }
@@ -153,20 +155,38 @@ mod tests {
             max: 100.0,
         };
         let intact = Health::full(100.0);
+        let allied = Diplomacy::default();
         let plant = BuildingKind::PowerPlant;
         assert_eq!(
-            job_for(Team::Player, Team::Crimson, plant, &intact),
+            job_for(allied, Team::Player, Team::Crimson, plant, &intact),
             Some(EngineerJob::Capture)
         );
         assert_eq!(
-            job_for(Team::Player, Team::Player, plant, &damaged),
+            job_for(allied, Team::Player, Team::Player, plant, &damaged),
             Some(EngineerJob::Repair)
         );
-        assert_eq!(job_for(Team::Player, Team::Player, plant, &intact), None);
         assert_eq!(
-            job_for(Team::Player, Team::Crimson, BuildingKind::Wall, &intact),
+            job_for(allied, Team::Player, Team::Player, plant, &intact),
             None
         );
-        assert_eq!(job_for(Team::Crimson, Team::Amber, plant, &intact), None);
+        assert_eq!(
+            job_for(
+                allied,
+                Team::Player,
+                Team::Crimson,
+                BuildingKind::Wall,
+                &intact
+            ),
+            None
+        );
+        assert_eq!(
+            job_for(allied, Team::Crimson, Team::Amber, plant, &intact),
+            None
+        );
+        let free_for_all = Diplomacy { free_for_all: true };
+        assert_eq!(
+            job_for(free_for_all, Team::Crimson, Team::Amber, plant, &intact),
+            Some(EngineerJob::Capture)
+        );
     }
 }

@@ -163,7 +163,7 @@ The game opens in a main menu:
   2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics)
   3. Iron Hammer (destroy both enemy Command Centers, introduces the Bulwark)
   4. Three Fronts (three Hard enemies)
-- **Battle editor:** 1-3 enemy commanders, difficulty Easy/Normal/Hard, starting credits, objective
+- **Battle editor:** 1-3 enemy commanders (allied or free-for-all), difficulty Easy/Normal/Hard, starting credits, objective
   (destroy everything / destroy Command Centers / survive 10 minutes / stockpile credits), available units,
   map variant and your starting corner. *Save as custom level* writes a JSON file to
   `~/.config/iron_tide/levels/`; every valid file there is listed under *Custom levels*.
@@ -185,7 +185,8 @@ A level file is plain JSON; omitted fields take defaults:
   "available_units": [],
   "available_buildings": [],
   "fog_of_war": true,
-  "tutorial": false
+  "tutorial": false,
+  "free_for_all": false
 }
 ```
 
@@ -198,8 +199,10 @@ attack wave and its income (75 % / 100 % / 135 %).
 
 ## Rules
 
-- **Factions:** Coalition (blue, the player) against up to three allied Syndicate commanders
-  (Crimson red, Amber orange, Violet purple), each with its own base, economy and AI.
+- **Factions:** Coalition (blue, the player) against up to three Syndicate commanders (Crimson red, Amber
+  orange, Violet purple), each with its own base, economy and AI. They are allies and share what they see,
+  unless the level is a free-for-all (`"free_for_all": true`, or *Opponents* in the battle editor): then they
+  fight each other as well, and each sees only through its own units and buildings.
 - **Economy:** the harvester mines crystals and unloads them at the refinery. Every refinery comes with a free harvester.
 - **Power:** when consumption exceeds production, all production runs at half speed.
 - **Engineer:** unarmed $500 infantry from the Barracks. Right-click an enemy structure (not a wall) with
