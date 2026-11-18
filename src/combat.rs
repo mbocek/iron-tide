@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::abilities::Camouflage;
 use bevy::prelude::*;
 use rand::RngExt;
 
@@ -166,6 +167,7 @@ pub fn snapshot_targets(
             &BodyRadius,
             &Armor,
             Has<Building>,
+            Option<&Camouflage>,
         ),
         With<Health>,
     >,
@@ -175,7 +177,9 @@ pub fn snapshot_targets(
     targets.diplomacy = *diplomacy;
     let mut in_simulation_order: Vec<_> = damageable.iter().collect();
     in_simulation_order.sort_by_key(|target| *target.0);
-    for (_, entity, &team, transform, radius, armor, is_building) in in_simulation_order {
+    for (_, entity, &team, transform, radius, armor, is_building, camouflage) in in_simulation_order
+    {
+        let concealed = camouflage.is_some_and(|camouflage| camouflage.concealed);
         let index = targets.list.len();
         targets.by_entity.insert(entity, index);
         targets.list.push(TargetInfo {
@@ -186,12 +190,13 @@ pub fn snapshot_targets(
             armor: armor.0,
             is_building,
             seen_locally: !diplomacy.hostile(team, local.0)
-                || intel
-                    .vision(local.0, &fog)
-                    .is_visible(transform.translation),
+                || (!concealed
+                    && intel
+                        .vision(local.0, &fog)
+                        .is_visible(transform.translation)),
             seen_by_team: Team::ALL.map(|viewer| {
                 !diplomacy.hostile(team, viewer)
-                    || intel.vision(viewer, &fog).is_visible(transform.translation)
+                    || (!concealed && intel.vision(viewer, &fog).is_visible(transform.translation))
             }),
         });
     }
@@ -296,6 +301,7 @@ pub fn aim_and_fire(
         Option<&Unit>,
         Option<&Building>,
         Option<&Veterancy>,
+        Option<&mut Camouflage>,
         &SimId,
     )>,
 ) {
@@ -311,8 +317,9 @@ pub fn aim_and_fire(
         unit,
         building,
         veterancy,
+        camouflage,
         _,
-    ) in in_simulation_order(shooters.iter_mut(), |shooter| *shooter.10)
+    ) in in_simulation_order(shooters.iter_mut(), |shooter| *shooter.11)
     {
         let source = match (unit, building) {
             (Some(unit), _) => DamageSource::Unit(unit.0),
@@ -353,6 +360,9 @@ pub fn aim_and_fire(
         }
         let shooter_armor = unit.map(|unit| unit.0.spec().armor);
         weapon.cooldown = weapon.spec.reload_secs * reload_factor(&production, team, shooter_armor);
+        if let Some(mut camouflage) = camouflage {
+            camouflage.betray_by_firing();
+        }
         let barrel_direction = sim_math::facing_direction(aimed_yaw);
         let muzzle = position + Vec3::Y * MUZZLE_HEIGHT + barrel_direction * BARREL_LENGTH;
         let rank = veterancy.map_or(Rank::Recruit, |veterancy| veterancy.rank);
@@ -371,15 +381,15 @@ pub fn aim_and_fire(
 }
 
 /// Who fires what from where; the weapon's damage already includes the shooter's rank.
-struct Shot {
-    team: Team,
-    source: DamageSource,
-    shooter: Entity,
-    muzzle: Vec3,
-    weapon: WeaponSpec,
+pub(crate) struct Shot {
+    pub team: Team,
+    pub source: DamageSource,
+    pub shooter: Entity,
+    pub muzzle: Vec3,
+    pub weapon: WeaponSpec,
 }
 
-fn fire_projectile(
+pub(crate) fn fire_projectile(
     commands: &mut Commands,
     rng: &mut SimulationRng,
     effects: &EffectAssets,

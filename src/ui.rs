@@ -1,3 +1,4 @@
+use crate::abilities::MINE_COST;
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::key_bindings::{Action, KeyBindings};
 use crate::local_view::LocalView;
@@ -669,6 +670,13 @@ fn controls_overview(keys: &KeyBindings) -> Vec<(&'static str, String)> {
         (
             tr("Stop / deselect"),
             format!("{} / Esc", key(Action::Stop)),
+        ),
+        (
+            tr("Lay a mine"),
+            tr_fmt(
+                "{} with engineers selected, ${} each",
+                &[&key(Action::LayMine), &MINE_COST],
+            ),
         ),
         (
             tr("Groups"),

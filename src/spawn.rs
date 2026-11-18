@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::abilities::Camouflage;
 use crate::animation::{animated_building_model, animated_unit_model};
 use crate::assets::ModelLibrary;
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
@@ -56,6 +57,9 @@ pub fn spawn_unit(
             per_sec: spec.heal_per_sec,
             treating: false,
         });
+    }
+    if kind == UnitKind::Sniper {
+        unit.insert(Camouflage::default());
     }
     if kind == UnitKind::Harvester {
         unit.insert(Harvester {

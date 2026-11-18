@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 
+pub mod abilities;
 pub mod ai;
 pub mod ambience;
 pub mod animation;
@@ -223,6 +224,7 @@ impl Plugin for SimulationPlugin {
                         ai::repair_damaged_structures,
                         ai::fortify_turrets,
                         ai::employ_engineers,
+                        ai::mine_the_approaches,
                         economy::run_harvesters,
                         structures::carry_out_structure_orders,
                         structures::repair_structures,
@@ -234,6 +236,7 @@ impl Plugin for SimulationPlugin {
                     (
                         fog::update_fog,
                         intel::update_intel,
+                        abilities::update_camouflage,
                         combat::snapshot_targets,
                         combat::acquire_targets,
                         combat::chase_targets,
@@ -243,6 +246,7 @@ impl Plugin for SimulationPlugin {
                         movement::settle_on_terrain,
                         movement::seat_new_buildings,
                         combat::aim_and_fire,
+                        abilities::detonate_mines,
                         combat::fly_projectiles,
                         combat::remove_destroyed,
                         economy::clear_depleted_crystals,
@@ -465,6 +469,7 @@ impl Plugin for GamePlugin {
                     sound::load_sounds,
                     flat_scenery::load_flat_scenery_sources,
                     battlefield::create_battlefield_assets,
+                    abilities::create_mine_look,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),
@@ -582,6 +587,7 @@ impl Plugin for GamePlugin {
                         combat::rotate_turret_nodes,
                         ambience::sway_vegetation,
                         ambience::trample_vegetation,
+                        abilities::show_own_mines,
                         ambience::emit_crystal_sparkles,
                         ambience::discover_crystal_cores,
                         ambience::pulse_crystal_cores,

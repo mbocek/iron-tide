@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
+use crate::abilities::{MINE_COST, Mine, lay_mine};
 use crate::army_mix::{Sightings, counter_weight};
 use crate::assets::ModelLibrary;
 use crate::catalog::{ArmorClass, BuildingKind, Team, UnitKind};
@@ -17,6 +18,7 @@ use crate::map::{
     CELL_SIZE, GameMap, cells_by_distance, footprint_cells, footprint_center, in_far_half,
     opposite_cell, opposite_origin, world_to_cell,
 };
+use crate::movement::order_move;
 use crate::production::{
     BuildItem, Lane, PlacementContext, Production, construct_building, owned_building_kinds,
     placement_context,
@@ -849,4 +851,114 @@ fn known_assault_objective(
 
 fn send(mut orders: Mut<Orders>, objective: Vec3) {
     orders.replace_with(Order::AttackMove(world_to_cell(objective)));
+}
+
+const MINES_PER_COMMANDER: usize = 4;
+const MINING_INTERVAL_SECS: f32 = 6.0;
+/// How far out along the road to the map centre a commander mines the approach to its base, in cells.
+const MINEFIELD_DISTANCE: std::ops::Range<f32> = 10.0..14.0;
+const MINEFIELD_SPREAD: i32 = 4;
+
+/// An engineer on its way to bury a mine.
+#[derive(Component)]
+pub struct MineTrip(IVec2);
+
+type MinerUnit<'a> = (
+    Entity,
+    &'a Unit,
+    &'a Team,
+    &'a Transform,
+    &'a mut Mobile,
+    Option<&'a MineTrip>,
+    Has<EngineerTask>,
+    &'a SimId,
+);
+
+/// With money to spare, a commander sends an idle engineer to mine the approach to its base.
+pub fn mine_the_approaches(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut countdown: Local<f32>,
+    mut rng: ResMut<SimulationRng>,
+    commanders: Res<AiCommanders>,
+    map: Res<GameMap>,
+    mut economies: ResMut<Economies>,
+    mut production: ResMut<Production>,
+    buildings: Query<(&Building, &Team)>,
+    mines: Query<&Mine>,
+    mut engineers: Query<MinerUnit>,
+) {
+    let mut mined: Vec<IVec2> = mines.iter().map(|mine| mine.cell).collect();
+    let mut in_simulation_order: Vec<_> = engineers.iter_mut().collect();
+    in_simulation_order.sort_by_key(|engineer| *engineer.7);
+    for (entity, _, team, transform, mobile, trip, ..) in &in_simulation_order {
+        let Some(MineTrip(goal)) = trip else {
+            continue;
+        };
+        let team = **team;
+        let here = world_to_cell(transform.translation);
+        if here != *goal && mobile.is_moving() {
+            continue;
+        }
+        let credits = &mut economies.of_mut(team).credits;
+        if lay_mine(&mut commands, credits, team, here, |cell| {
+            mined.contains(&cell)
+        }) {
+            mined.push(here);
+        }
+        commands.entity(*entity).remove::<MineTrip>();
+    }
+
+    *countdown -= time.delta_secs();
+    if *countdown > 0.0 {
+        return;
+    }
+    *countdown = MINING_INTERVAL_SECS;
+    for ai in &commanders.0 {
+        let laid = mines.iter().filter(|mine| mine.team == ai.team).count();
+        let rich = economies.of(ai.team).credits >= MINE_COST + RESEARCH_RESERVE;
+        if laid >= MINES_PER_COMMANDER || !rich {
+            continue;
+        }
+        let home = footprint_center(ai.base, BuildingKind::CommandCenter.spec().footprint);
+        let has_engineer = in_simulation_order
+            .iter()
+            .any(|(_, unit, team, ..)| **team == ai.team && unit.0 == UnitKind::Engineer);
+        let idle_engineer = in_simulation_order.iter_mut().find(
+            |(_, unit, team, transform, mobile, trip, tasked, _)| {
+                **team == ai.team
+                    && unit.0 == UnitKind::Engineer
+                    && trip.is_none()
+                    && !tasked
+                    && !mobile.is_moving()
+                    && transform.translation.distance(home) < BASE_DEFENSE_RADIUS
+            },
+        );
+        let Some((entity, _, _, transform, mobile, ..)) = idle_engineer else {
+            let engineer = BuildItem::Unit(UnitKind::Engineer);
+            let queued = production
+                .lane(ai.team, Lane::Infantry)
+                .queue
+                .contains(&engineer);
+            if !queued && !has_engineer {
+                let owned = owned_building_kinds(&buildings, ai.team);
+                let _ = production.enqueue(&mut economies, ai.team, engineer, &owned);
+            }
+            continue;
+        };
+        let middle = Vec2::splat(crate::map::map_world_size() / 2.0);
+        let toward_middle = (middle - home.xz()).normalize_or_zero();
+        let distance = rng.random_range(MINEFIELD_DISTANCE) * CELL_SIZE;
+        let spot = home.xz() + toward_middle * distance;
+        let sideways = IVec2::new(
+            rng.random_range(-MINEFIELD_SPREAD..=MINEFIELD_SPREAD),
+            rng.random_range(-MINEFIELD_SPREAD..=MINEFIELD_SPREAD),
+        );
+        let goal = world_to_cell(Vec3::new(spot.x, 0.0, spot.y)) + sideways;
+        let Some(goal) = map.nearest_passable(goal) else {
+            continue;
+        };
+        order_move(mobile, &map, transform.translation, goal, true);
+        commands.entity(*entity).insert(MineTrip(goal));
+    }
 }

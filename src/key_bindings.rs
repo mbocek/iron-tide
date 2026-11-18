@@ -16,6 +16,7 @@ pub enum Action {
     ResetRotation,
     JumpHome,
     Stop,
+    LayMine,
     RepairTool,
     SellTool,
     QuickSave,
@@ -26,7 +27,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 16] = [
+    pub const ALL: [Action; 17] = [
         Action::ScrollUp,
         Action::ScrollDown,
         Action::ScrollLeft,
@@ -36,6 +37,7 @@ impl Action {
         Action::ResetRotation,
         Action::JumpHome,
         Action::Stop,
+        Action::LayMine,
         Action::RepairTool,
         Action::SellTool,
         Action::QuickSave,
@@ -56,6 +58,7 @@ impl Action {
             Action::ResetRotation => tr("Reset rotation"),
             Action::JumpHome => tr("Jump to base"),
             Action::Stop => tr("Stop"),
+            Action::LayMine => tr("Lay a mine (engineers)"),
             Action::RepairTool => tr("Repair mode"),
             Action::SellTool => tr("Sell mode"),
             Action::QuickSave => tr("Quick save"),
@@ -77,6 +80,7 @@ impl Action {
             Action::ResetRotation => KeyCode::KeyR,
             Action::JumpHome => KeyCode::Space,
             Action::Stop => KeyCode::KeyX,
+            Action::LayMine => KeyCode::KeyM,
             Action::RepairTool => KeyCode::KeyT,
             Action::SellTool => KeyCode::KeyY,
             Action::QuickSave => KeyCode::F5,

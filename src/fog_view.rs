@@ -1,3 +1,4 @@
+use crate::abilities::Camouflage;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::prelude::*;
@@ -162,14 +163,17 @@ pub fn reveal_explored_scenery(
 pub fn show_seen_enemies(
     mut commands: Commands,
     view: LocalView,
-    mut units: Query<(&Team, &Transform, &mut Visibility), With<Unit>>,
+    mut units: Query<(&Team, &Transform, &mut Visibility, Option<&Camouflage>), With<Unit>>,
     mut buildings: Query<
         (Entity, &Team, &Building, &mut Visibility, Has<Discovered>),
         Without<Unit>,
     >,
 ) {
-    for (&team, transform, mut visibility) in &mut units {
-        let wanted = if view.reveals(team, transform.translation) {
+    for (&team, transform, mut visibility, camouflage) in &mut units {
+        let hidden_by_camouflage = camouflage.is_some_and(|camouflage| camouflage.concealed)
+            && view.is_hostile(team)
+            && !view.is_spectating();
+        let wanted = if view.reveals(team, transform.translation) && !hidden_by_camouflage {
             Visibility::Inherited
         } else {
             Visibility::Hidden

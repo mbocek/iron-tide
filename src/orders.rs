@@ -323,6 +323,14 @@ pub fn issue_orders(
             units: units.clone(),
         });
     }
+    let engineers: Vec<SimId> = selected_units
+        .iter()
+        .filter(|(_, unit, owner)| **owner == team && unit.0 == UnitKind::Engineer)
+        .map(|(&id, ..)| id)
+        .collect();
+    if settings.keys.just_pressed(&keys, Action::LayMine) && !engineers.is_empty() {
+        issuer.issue(PlayerCommand::LayMines { units: engineers });
+    }
     if placement.active.is_some()
         || tool.0.is_some()
         || cursor.over_interface

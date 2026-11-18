@@ -454,5 +454,9 @@
   "S2. Bunker Line": "S2. Linie bunkrů",
   "Syndicate campaign. Two Coalition battle groups are coming for our refinery, with gunships overhead and Bulwarks on the ground. Rocket Bunkers hit both. Dig in along the approaches and hold for twelve minutes until the cartels send help.": "Kampaň Syndikátu. Na naši rafinerii jdou dvě bojové skupiny Koalice, s bojovými vrtulníky ve vzduchu a Baštami na zemi. Raketové bunkry zasáhnou obojí. Zakopej se podél přístupů a vydrž dvanáct minut, než kartely pošlou pomoc.",
   "S3. Rocket Rain": "S3. Raketový déšť",
-  "Syndicate campaign. The Coalition headquarters sit behind turrets on a wide snowy plain. Build a Tech Center, bring up Missile Trucks to shell the defences from beyond their reach, and level both Command Centers.": "Kampaň Syndikátu. Velitelství Koalice stojí za věžemi na široké zasněžené rovině. Postav Technologické centrum, přiveď raketomety, ať ostřelují obranu z větší vzdálenosti, než kam dostřelí, a srovnej se zemí obě velitelství."
+  "Syndicate campaign. The Coalition headquarters sit behind turrets on a wide snowy plain. Build a Tech Center, bring up Missile Trucks to shell the defences from beyond their reach, and level both Command Centers.": "Kampaň Syndikátu. Velitelství Koalice stojí za věžemi na široké zasněžené rovině. Postav Technologické centrum, přiveď raketomety, ať ostřelují obranu z větší vzdálenosti, než kam dostřelí, a srovnej se zemí obě velitelství.",
+  "Lay a mine": "Položit minu",
+  "Lay a mine (engineers)": "Položit minu (ženisté)",
+  "{} with engineers selected, ${} each": "{} u vybraných ženistů, ${} za kus",
+  "No mine: the cell has one or the credits ran out": "Mina nepoložena: políčko už jednu má nebo chybí kredity"
 }

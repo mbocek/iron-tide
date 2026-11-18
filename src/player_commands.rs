@@ -1,3 +1,5 @@
+use crate::abilities::{Mine, lay_mine};
+use crate::i18n::tr;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -77,6 +79,10 @@ pub enum PlayerCommand {
     OrderStructure {
         building: SimId,
         kind: StructureOrderKind,
+    },
+    /// Every engineer among `units` buries a mine where it stands.
+    LayMines {
+        units: Vec<SimId>,
     },
 }
 
@@ -212,6 +218,7 @@ pub struct Battlefield<'w, 's> {
     structures: Query<'w, 's, (&'static Building, &'static Team, &'static Health)>,
     owners: Query<'w, 's, (&'static Building, &'static Team)>,
     positions: Query<'w, 's, &'static Transform, With<Unit>>,
+    mines: Query<'w, 's, &'static Mine>,
 }
 
 pub fn carry_out_player_commands(
@@ -255,6 +262,7 @@ impl Battlefield<'_, '_> {
                 self.place_structure(team, kind, origin)
             }
             PlayerCommand::LayWall { from, to } => self.lay_wall(team, from, to),
+            PlayerCommand::LayMines { units } => self.lay_mines(team, &units),
             PlayerCommand::OrderStructure { building, kind } => {
                 if let Some(building) = self.own_structure(team, building) {
                     self.structure_orders.write(StructureOrder {
@@ -339,6 +347,28 @@ impl Battlefield<'_, '_> {
                 self.commands
                     .entity(entity)
                     .insert(EngineerTask::new(target, job));
+            }
+        }
+    }
+
+    fn lay_mines(&mut self, team: Team, ids: &[SimId]) {
+        let mut mined: Vec<IVec2> = self.mines.iter().map(|mine| mine.cell).collect();
+        for entity in self.own_units(team, ids) {
+            let Ok((_, unit, _, transform, ..)) = self.units.get(entity) else {
+                continue;
+            };
+            if unit.0 != UnitKind::Engineer {
+                continue;
+            }
+            let cell = world_to_cell(transform.translation);
+            let credits = &mut self.economies.of_mut(team).credits;
+            if lay_mine(&mut self.commands, credits, team, cell, |cell| {
+                mined.contains(&cell)
+            }) {
+                mined.push(cell);
+            } else if team == self.local.0 {
+                self.notifications
+                    .push(tr("No mine: the cell has one or the credits ran out").to_string());
             }
         }
     }
