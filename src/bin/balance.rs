@@ -132,7 +132,7 @@ struct Pairing {
     fog_of_war: bool,
 }
 
-const PAIRINGS: [Pairing; 4] = [
+const PAIRINGS: [Pairing; 5] = [
     Pairing {
         challenger: Difficulty::Normal,
         defender: Difficulty::Normal,
@@ -141,6 +141,11 @@ const PAIRINGS: [Pairing; 4] = [
     Pairing {
         challenger: Difficulty::Hard,
         defender: Difficulty::Normal,
+        fog_of_war: true,
+    },
+    Pairing {
+        challenger: Difficulty::Normal,
+        defender: Difficulty::Hard,
         fog_of_war: true,
     },
     Pairing {
@@ -156,9 +161,11 @@ const PAIRINGS: [Pairing; 4] = [
 ];
 
 /// One full AI-against-AI match: the player's side is played by the computer too.
+/// The simulation is deterministic, so every match needs its own map seed to be more than a rerun.
 fn ai_match(
     pairing: Pairing,
     challenger_site: BaseSite,
+    map_seed: u64,
 ) -> (GameOutcome, f32, HashMap<UnitKind, UnitRecord>) {
     let Pairing {
         challenger,
@@ -171,6 +178,7 @@ fn ai_match(
     };
     let mut level = LevelDefinition {
         fog_of_war,
+        map_seed,
         ..LevelDefinition::default()
     };
     level.player.site = challenger_site;
@@ -211,6 +219,11 @@ fn ai_match(
         took.unwrap_or(MATCH_TIME_LIMIT_SECS),
         units,
     )
+}
+
+/// Map variants as the battle editor offers them; both sides of a pairing play each one.
+fn map_seed_of(variant: usize) -> u64 {
+    LevelDefinition::default().map_seed + variant as u64 * 7919
 }
 
 fn parallel<T: Send, R: Send>(jobs: Vec<T>, run: impl Fn(T) -> R + Sync) -> Vec<R> {
@@ -279,15 +292,19 @@ fn print_tournament(matches: usize) {
         MATCH_TIME_LIMIT_SECS / 60.0
     );
     let sides = [BaseSite::SouthWest, BaseSite::NorthEast];
-    let jobs: Vec<(usize, Pairing, BaseSite)> = PAIRINGS
+    let jobs: Vec<(usize, Pairing, BaseSite, u64)> = PAIRINGS
         .iter()
         .enumerate()
-        .flat_map(|(index, &pairing)| (0..matches).map(move |n| (index, pairing, sides[n % 2])))
+        .flat_map(|(index, &pairing)| {
+            (0..matches).map(move |n| (index, pairing, sides[n % 2], map_seed_of(n / 2)))
+        })
         .collect();
-    let outcomes = parallel(jobs.clone(), |(_, pairing, site)| ai_match(pairing, site));
+    let outcomes = parallel(jobs.clone(), |(_, pairing, site, seed)| {
+        ai_match(pairing, site, seed)
+    });
     let mut results: Vec<PairingResult> =
         PAIRINGS.iter().map(|_| PairingResult::default()).collect();
-    for ((index, _, site), (outcome, secs, units)) in jobs.into_iter().zip(outcomes) {
+    for ((index, _, site, _), (outcome, secs, units)) in jobs.into_iter().zip(outcomes) {
         let result = &mut results[index];
         let challenger_in_south_west = site == BaseSite::SouthWest;
         match (outcome, challenger_in_south_west) {

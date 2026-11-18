@@ -443,15 +443,15 @@ const SNIPER_RIFLE: WeaponSpec = WeaponSpec {
 };
 
 const FLAMETHROWER: WeaponSpec = WeaponSpec {
-    range: 5.0,
+    range: 6.0,
     damage: 14.0,
     reload_secs: 0.25,
     projectile_speed: 22.0,
-    splash_radius: 1.2,
+    splash_radius: 1.4,
     style: ProjectileStyle::Flame,
     versus_infantry: 1.6,
-    versus_vehicle: 0.3,
-    versus_structure: 1.0,
+    versus_vehicle: 0.12,
+    versus_structure: 0.9,
     versus_aircraft: 0.0,
     report: Sound::FlameBurst,
 };
@@ -772,8 +772,8 @@ const FLAME_TROOPER: UnitSpec = UnitSpec {
     model_id: "flame_trooper",
     cost: 300,
     build_secs: 7.0,
-    max_health: 80.0,
-    speed: 2.3,
+    max_health: 100.0,
+    speed: 2.6,
     turn_rate: 8.0,
     radius: 0.4,
     armor: ArmorClass::Infantry,

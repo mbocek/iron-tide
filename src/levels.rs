@@ -79,7 +79,8 @@ impl Difficulty {
         match self {
             Difficulty::Easy => 2.0,
             Difficulty::Normal => 1.0,
-            Difficulty::Hard => 0.6,
+            // Thinking every 0.6 s made Hard lose to Normal 8:22 in the balance tournament; at 1 s it wins 18:8.
+            Difficulty::Hard => 1.0,
         }
     }
 

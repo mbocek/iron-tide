@@ -68,29 +68,33 @@ make balance MATCHES=40   # tighter numbers
   match, so a favoured base site shows up in its own column.
 - **Unit ledger:** how many of each unit the AIs built and lost, and the damage they dealt per credit spent.
 
-Results after tuning (40 matches per pairing):
+Results after tuning (60 matches per pairing; the simulation is deterministic, so each pair of matches is played
+on its own map variant, once from each corner):
 
-| Duel ($3000 a side) | Rifleman | Rocketeer | Scout | Tank | Bulwark | Howitzer |
-| --- | --- | --- | --- | --- | --- | --- |
-| **Rifleman** | 0 | +79 | −81 | −64 | −16 | −69 |
-| **Rocketeer** | −79 | 0 | −40 | +57 | +53 | −62 |
-| **Scout Buggy** | +81 | +40 | 0 | −49 | −45 | +22 |
-| **Battle Tank** | +64 | −59 | +49 | 0 | −8 | +44 |
-| **Bulwark** | +15 | −53 | +45 | +8 | 0 | +58 |
-| **Howitzer** | +74 | +36 | −22 | −40 | −57 | −2 |
+| Duel ($3000 a side) | Rifleman | Rocketeer | Scout | Tank | Bulwark | Howitzer | Flame Trooper | Missile Truck |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Rifleman** | 0 | +80 | −84 | −70 | −20 | −68 | −53 | −84 |
+| **Rocketeer** | −80 | 0 | −42 | +57 | +53 | −65 | −76 | −72 |
+| **Scout Buggy** | +84 | +41 | 0 | −49 | −56 | +23 | +91 | +35 |
+| **Battle Tank** | +68 | −57 | +49 | 0 | −8 | +53 | +74 | +62 |
+| **Flame Trooper** | +53 | +77 | −91 | −74 | −80 | −87 | 0 | −91 |
+| **Missile Truck** | +84 | +72 | −35 | −62 | −68 | +1 | +91 | 0 |
 
 | Challenger | vs | fog | wins : losses (unfinished) | median length | SW : NE site wins |
 | --- | --- | --- | --- | --- | --- |
-| Normal | Normal | on | 13 : 21 (6) | 11.0 min | 18 : 16 |
-| Hard | Normal | on | 21 : 6 (13) | 7.2 min | 15 : 12 |
-| Easy | Normal | on | 1 : 32 (7) | 7.9 min | 18 : 15 |
-| Normal | Normal | off | 19 : 14 (7) | 10.2 min | 11 : 22 |
+| Normal | Normal | on | 19 : 23 (18) | 10.9 min | 27 : 15 |
+| Hard | Normal | on | 28 : 12 (20) | 7.9 min | 17 : 23 |
+| Normal | Hard | on | 8 : 32 (20) | 7.8 min | 19 : 21 |
+| Easy | Normal | on | 2 : 52 (6) | 8.3 min | 28 : 26 |
+| Normal | Normal | off | 29 : 29 (2) | 4.6 min | 34 : 24 |
 
-Every unit has a counter: riflemen beat rocketeers, scouts hunt infantry, rocketeers kill armour, tanks and the
-Bulwark beat light vehicles, and howitzers shell infantry but lose to anything fast that reaches them.
-With fog of war neither corner is favoured (the map is point-symmetric, see Rules). Unfinished matches are
-mostly mutual exhaustion: both sides out of units, money and harvesters, with only turrets left standing.
-Without fog the north-east has had a slight edge over several runs; the cause is not yet known.
+The challenger plays the Coalition and the defender the Syndicate, so the Normal mirror also compares the
+factions. Every unit has a counter: riflemen beat rocketeers, flame troopers burn any infantry but melt before
+vehicles, scouts hunt infantry, rocketeers kill armour, tanks and the Bulwark beat light vehicles, and howitzers
+and missile trucks shell infantry but lose to anything fast that reaches them. Unfinished matches are mostly
+mutual exhaustion: both sides out of units, money and harvesters, with only turrets left standing. Hard used to
+think every 0.6 s and lost to Normal because of it; it now thinks as often as Normal and wins on income and
+bigger waves.
 
 ## Controls
 
