@@ -6,6 +6,7 @@ pub mod ambience;
 pub mod animation;
 pub mod army_mix;
 pub mod assets;
+pub mod battle_noise;
 pub mod battlefield;
 pub mod camera;
 pub mod capture;
@@ -312,6 +313,7 @@ impl Plugin for GamePlugin {
                     sound::play_sound_cues,
                     sound::direct_music,
                     sound::apply_master_volume,
+                    battle_noise::mix_battle_noise,
                 )
                     .after(FramePhase::Presentation),
             )
@@ -475,6 +477,7 @@ impl Plugin for GamePlugin {
                     battlefield::create_battlefield_assets,
                     abilities::create_mine_look,
                     sound::place_ears,
+                    battle_noise::start_battle_noise,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),

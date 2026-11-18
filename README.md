@@ -290,6 +290,12 @@ carries (a rifle half a screen, a collapsing building nearly three). Sounds off 
 version and arrive late, at the speed of sound; zooming out makes the battle quieter and distant too.
 Sounds under the fog of war stay silent, and repeated sounds are throttled so a firing squad stays readable.
 
+Units also make steady noise: tracked and wheeled engines that idle quietly and roar when they drive, the
+Gunship's rotors, a squad's boots on the march, a harvester grinding crystal and engineers hammering and
+welding at a structure under repair or just placed. Each is one seamless loop for every unit making it,
+louder the more of them are in view (but ten tanks are not ten times one) and coming from where most of them
+are; it follows the same rules of screen, zoom and fog and falls silent while the game is paused.
+
 The menu has its own theme and matches alternate two battle themes. Each battle theme has a calm layer of
 the same length (pads, bass and arpeggio); it plays while nothing fights on screen, and the full mix with its
 drums and melody rises as the fighting in view grows and falls back slowly once it stops. The end of a match
@@ -529,6 +535,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `engineers` | engineers capturing enemy structures and repairing own ones |
 | `tutorial` | the step-by-step tutorial of levels with `"tutorial": true` |
 | `sound` | sound cues from the simulation, playback with distance and fog, music director |
+| `battle_noise` | looping engines, rotors, footsteps, harvesting and construction, mixed from the units in view |
 | `fog`, `fog_view` | fog of war: what the player knows, and how the terrain, water, minimap and enemies show it |
 | `intel` | what each side knows: the Syndicate's shared view and the enemy structures each side has spotted |
 | `outcome`, `match_stats` | mission objectives, victory and defeat; the tally shown at the end of a match |

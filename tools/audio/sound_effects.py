@@ -9,6 +9,7 @@ from dsp import (
 from acoustics import (
     debris, distant_version, explosion_blast, mechanism, muzzle_blast, outdoor_shot, supersonic_crack,
 )
+from battle_noise import BATTLE_NOISE
 from instruments import chime_voice
 
 SFX_PEAK_DBFS = -1.5
@@ -552,3 +553,4 @@ HEARD_FROM_AFAR = [
 SOUND_EFFECTS.update({
     f"sfx/{name}_far": distant_version(SOUND_EFFECTS[f"sfx/{name}"]) for name in HEARD_FROM_AFAR
 })
+SOUND_EFFECTS.update(BATTLE_NOISE)

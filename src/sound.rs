@@ -241,7 +241,7 @@ pub fn load_sounds(mut commands: Commands, asset_server: Res<AssetServer>) {
 const THROTTLE_WINDOW_SECS: f32 = 0.12;
 const PITCH_VARIATION: f32 = 0.06;
 /// Where the two ears that turn a pan into stereo sit, far below the battlefield.
-const EARS_AT: Vec3 = Vec3::new(0.0, -1000.0, 0.0);
+pub const EARS_AT: Vec3 = Vec3::new(0.0, -1000.0, 0.0);
 /// Seconds for the battle music's fury to fall halfway back once the fighting on screen stops.
 const FURY_HALF_LIFE_SECS: f32 = 6.0;
 
