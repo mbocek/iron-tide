@@ -248,13 +248,16 @@ attack wave and its income (75 % / 100 % / 135 %).
   half the price and the structure sinks into the ground. The Command Center cannot be sold. The computer
   repairs its own structures below 60 % health when it has credits to spare.
 - **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Helipad; Barracks → Gun Turret,
-  Wall.
+  Flak Cannon, Wall.
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Engineer, Scout Buggy,
-  Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Gunship, Harvester.
+  Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship,
+  Harvester.
 - **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over
   water, walls and units, and tears through armour with its rocket pods. An aircraft hovering over its own
   Helipad (within 3 m of the pad's centre, not moving) regains 4 % of its health per second for free. Tank cannons and howitzers cannot shoot upwards at all;
-  riflemen and turrets hit it weakly, scout buggies better and rocketeers best.
+  riflemen and turrets hit it weakly, scout buggies better and rocketeers well. The dedicated counters are
+  the Flak Track ($700, War Factory) and the Flak Cannon ($700 structure, after the Barracks), whose bursting
+  shells do double damage to aircraft; the Flak Cannon cannot shoot at the ground at all.
 - **Fair corners:** the map is point-symmetric around its centre: the river and its fords, the crystal fields
   and every tree or rock that blocks movement have a twin in the opposite corner. Bases in the far half face
   the other way, so every base's doors, refinery dock and new units point towards the middle of the map.

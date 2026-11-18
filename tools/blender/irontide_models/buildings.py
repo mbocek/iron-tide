@@ -822,3 +822,53 @@ def _add_helipad_fuel_point(base_z):
     add_pipe_run([(1.2, -1.62, base_z + 0.45), (1.2, -1.45, base_z + 0.2), (1.0, -1.3, base_z + 0.02)], 0.025,
                  material_name="Rubber")
     add_hazard_stripes((-1.75, -1.0, base_z + 0.005), 1.6, 0.14, rotation=(0, 0, math.pi / 2), stripe_width=0.14)
+
+
+FLAK_CANNON_ELEVATION = math.radians(60)
+FLAK_CANNON_AXIS = Vector((math.cos(FLAK_CANNON_ELEVATION), 0.0, math.sin(FLAK_CANNON_ELEVATION)))
+FLAK_CANNON_RECOIL = 0.2
+
+
+def build_flak_cannon():
+    """A sandbagged gun pit with a quad anti-aircraft mount and a fire-control radar."""
+    slab("ConcreteDark", chamfered_rect(2.0, 2.0, 0.52), 0.0, 0.08, bevel=0.0, name="PitFooting")
+    slab("Concrete", chamfered_rect(1.9, 1.9, 0.48), 0.08, 0.35, top_scale=0.94, bevel=0.03, name="PitFloor")
+    for k in range(8):
+        angle = k * math.pi / 4
+        start = (math.cos(angle) * 0.86, math.sin(angle) * 0.86, 0.35)
+        end = (math.cos(angle + math.pi / 4) * 0.86, math.sin(angle + math.pi / 4) * 0.86, 0.35)
+        if k != 7:
+            add_sandbag_wall(start, end, layers=2, bag_length=0.36, bag_width=0.22, bag_height=0.11)
+    add_outline_band(chamfered_rect(1.6, 1.6, 0.4), chamfered_rect(1.44, 1.44, 0.36), 0.35, 0.362, "TeamColor",
+                     name="PitTeamBorder")
+    add_crate((-0.55, -0.55, 0.35), (0.3, 0.22, 0.2), 0.4, material_name="ArmorLight")
+    add_beacon((0.6, 0.6, 0.35), radius=0.035)
+    lathe("Armor", [(0.4, 0.0), (0.4, 0.3), (0.3, 0.42), (0.0, 0.42)], (0, 0, 0.35), segments=20,
+          name="MountPedestal")
+    pivot = Vector((0.0, 0.0, 0.77))
+    with group(TURRET, pivot):
+        _build_flak_mount(pivot)
+    current_assembly().on_finalize(
+        lambda root, merged: add_recoil_animation(merged[BARREL], "Fire", -FLAK_CANNON_AXIS * FLAK_CANNON_RECOIL))
+
+
+def _build_flak_mount(pivot):
+    cylinder("ArmorDark", 0.38, 0.08, pivot + Vector((0, 0, 0.04)), segments=20, name="MountBearing")
+    for side in (-1, 1):
+        box("Armor", (0.5, 0.08, 0.5), pivot + Vector((0.0, side * 0.36, 0.33)), bevel=0.02, name="MountCheek")
+        box("TeamColor", (0.4, 0.012, 0.14), pivot + Vector((-0.02, side * 0.405, 0.38)), bevel=0.0,
+            name="MountTeamPanel")
+    trunnion = pivot + Vector((0.05, 0.0, 0.45))
+    box("ArmorDark", (0.36, 0.56, 0.24), trunnion, (0, -FLAK_CANNON_ELEVATION * 0.4, 0), bevel=0.02,
+        name="GunCradle")
+    tilt = (0.0, math.pi / 2 - FLAK_CANNON_ELEVATION, 0.0)
+    with group(BARREL, trunnion, parent=TURRET):
+        for y in (-0.21, -0.07, 0.07, 0.21):
+            for z in (0.0,):
+                root = trunnion + Vector((0.0, y, z))
+                lathe("Gunmetal", [(0.0, 0.0), (0.045, 0.0), (0.045, 0.16), (0.03, 0.2), (0.03, 1.0),
+                                   (0.042, 1.03), (0.042, 1.12), (0.02, 1.12), (0.02, 1.06)], root, tilt,
+                      segments=10, cap_end=False, name="FlakBarrel")
+    box("ArmorLight", (0.3, 0.2, 0.2), pivot + Vector((-0.35, 0.0, 0.3)), bevel=0.02, name="AmmoDrum")
+    add_radar_dish(pivot + Vector((-0.4, 0.0, 0.62)), 0.2, math.radians(40), math.pi)
+    add_antenna(pivot + Vector((-0.3, 0.25, 0.4)), 0.6)

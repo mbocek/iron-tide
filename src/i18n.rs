@@ -789,6 +789,22 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ),
     ("Helipad", "Heliport", "Heliport"),
     (
+        "Flak Cannon",
+        "Protilietadlový kanón",
+        "Protiletadlový kanón",
+    ),
+    (
+        "Anti-aircraft gun pit. Cannot shoot at ground targets.",
+        "Protilietadlové postavenie. Na pozemné ciele strieľať nevie.",
+        "Protiletadlové postavení. Na pozemní cíle střílet neumí.",
+    ),
+    ("Flak Track", "Protilietadlový tank", "Protiletadlový tank"),
+    (
+        "Mobile anti-aircraft gun. Shreds gunships, weak against armour.",
+        "Pojazdný protilietadlový kanón. Rozstrieľa vrtuľníky, proti pancieru je slabý.",
+        "Pojízdný protiletadlový kanón. Rozstřílí vrtulníky, proti pancíři je slabý.",
+    ),
+    (
         "Builds gunships and repairs aircraft hovering over the pad.",
         "Vyrába bitevné vrtuľníky a opravuje lietadlá visiace nad plochou.",
         "Vyrábí bitevní vrtulníky a opravuje letadla visící nad plochou.",

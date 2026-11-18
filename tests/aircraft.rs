@@ -104,3 +104,34 @@ fn gunships_come_from_the_helipad_and_are_repaired_over_it() {
         "only {mended} of {full} after five seconds over the pad"
     );
 }
+
+#[test]
+fn a_flak_cannon_shoots_down_gunships_and_ignores_ground_units() {
+    let mut battle = Battle::sandbox();
+    battle.construct(BuildingKind::FlakCannon, Team::Player, FIELD);
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Crimson, FIELD + IVec2::new(4, 0));
+    if let Some(mut mobile) = battle.world().get_mut::<Mobile>(tank) {
+        mobile.stop();
+    }
+    battle.run_for(4.0);
+    assert_eq!(
+        health(&mut battle, tank),
+        UnitKind::Tank.spec().max_health,
+        "the flak cannon fired at a tank"
+    );
+    battle.despawn_units(Team::Crimson);
+
+    let gunship = battle.spawn_unit(UnitKind::Gunship, Team::Crimson, FIELD + IVec2::new(4, 2));
+    battle.run_until(15.0, |battle| !battle.alive(gunship));
+    assert!(!battle.alive(gunship), "the gunship survived the flak");
+}
+
+#[test]
+fn a_flak_track_beats_a_gunship() {
+    let mut battle = Battle::sandbox();
+    let flak = battle.spawn_unit(UnitKind::FlakTrack, Team::Player, FIELD);
+    let gunship = battle.spawn_unit(UnitKind::Gunship, Team::Crimson, FIELD + IVec2::new(5, 0));
+    battle.run_until(40.0, |battle| !battle.alive(gunship) || !battle.alive(flak));
+    assert!(battle.alive(flak), "the gunship won against its counter");
+    assert!(!battle.alive(gunship));
+}

@@ -33,6 +33,7 @@ TEAM_MODELS = {
     "artillery": (units.build_artillery, UNIT_TRIANGLE_BUDGET),
     "harvester": (units.build_harvester, UNIT_TRIANGLE_BUDGET),
     "gunship": (units.build_gunship, UNIT_TRIANGLE_BUDGET),
+    "flak_track": (units.build_flak_track, UNIT_TRIANGLE_BUDGET),
     "command_center": (buildings.build_command_center, BUILDING_TRIANGLE_BUDGET),
     "power_plant": (buildings.build_power_plant, BUILDING_TRIANGLE_BUDGET),
     "refinery": (buildings.build_refinery, BUILDING_TRIANGLE_BUDGET),
@@ -40,6 +41,7 @@ TEAM_MODELS = {
     "factory": (buildings.build_factory, BUILDING_TRIANGLE_BUDGET),
     "gun_turret": (buildings.build_gun_turret, BUILDING_TRIANGLE_BUDGET),
     "helipad": (buildings.build_helipad, BUILDING_TRIANGLE_BUDGET),
+    "flak_cannon": (buildings.build_flak_cannon, BUILDING_TRIANGLE_BUDGET),
     "wall": (buildings.build_wall, 4_000),
 }
 NEUTRAL_MODELS = {
@@ -67,7 +69,7 @@ NEUTRAL_MODELS = {
     "bush_round": (vegetation.build_bush_round, 2_000),
     "bush_flowering": (vegetation.build_bush_flowering, 2_000),
 }
-MODELS_WITH_TURRET = {"tank", "artillery", "scout", "gun_turret", "bulwark"}
+MODELS_WITH_TURRET = {"tank", "artillery", "scout", "gun_turret", "bulwark", "flak_track", "flak_cannon"}
 INFANTRY_NODES = ("Rig", "Body", "hips", "chest", "head", "rifle", "hand.L", "hand.R")
 INFANTRY_CLIPS = {"Idle": None, "Walk": None, "KneelFire": None, "Death": None}
 REQUIRED_NODES = {
@@ -91,6 +93,8 @@ REQUIRED_ANIMATIONS = {
     "tank": {"Drive": None, "Fire": "Barrel"},
     "artillery": {"Drive": None, "Fire": "Barrel"},
     "gun_turret": {"Fire": "Barrel"},
+    "flak_cannon": {"Fire": "Barrel"},
+    "flak_track": {"Drive": None, "Fire": "Barrel"},
     "harvester": {"Drive": None, "Work": "CollectorDrum"},
     "crystal": CRYSTAL_IDLE,
     "crystal_a": CRYSTAL_IDLE,

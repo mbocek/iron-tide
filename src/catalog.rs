@@ -130,6 +130,7 @@ pub enum UnitKind {
     Artillery,
     Harvester,
     Gunship,
+    FlakTrack,
 }
 
 pub struct UnitSpec {
@@ -159,15 +160,16 @@ impl UnitKind {
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
-    pub const VEHICLES: [UnitKind; 6] = [
+    pub const VEHICLES: [UnitKind; 7] = [
         UnitKind::Scout,
         UnitKind::Tank,
         UnitKind::Bulwark,
         UnitKind::Artillery,
+        UnitKind::FlakTrack,
         UnitKind::Gunship,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 10] = [
+    pub const ALL: [UnitKind; 11] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -178,6 +180,7 @@ impl UnitKind {
         UnitKind::Artillery,
         UnitKind::Harvester,
         UnitKind::Gunship,
+        UnitKind::FlakTrack,
     ];
 
     pub fn flies(self) -> bool {
@@ -196,6 +199,7 @@ impl UnitKind {
             UnitKind::Medic => &MEDIC,
             UnitKind::Engineer => &ENGINEER,
             UnitKind::Bulwark => &BULWARK,
+            UnitKind::FlakTrack => &FLAK_TRACK,
         }
     }
 }
@@ -210,6 +214,7 @@ pub enum BuildingKind {
     GunTurret,
     Wall,
     Helipad,
+    FlakCannon,
 }
 
 pub struct BuildingSpec {
@@ -228,13 +233,14 @@ pub struct BuildingSpec {
 }
 
 impl BuildingKind {
-    pub const CONSTRUCTIBLE: [BuildingKind; 7] = [
+    pub const CONSTRUCTIBLE: [BuildingKind; 8] = [
         BuildingKind::PowerPlant,
         BuildingKind::Refinery,
         BuildingKind::Barracks,
         BuildingKind::Factory,
         BuildingKind::Helipad,
         BuildingKind::GunTurret,
+        BuildingKind::FlakCannon,
         BuildingKind::Wall,
     ];
 
@@ -253,6 +259,7 @@ impl BuildingKind {
             BuildingKind::GunTurret => &GUN_TURRET,
             BuildingKind::Wall => &WALL,
             BuildingKind::Helipad => &HELIPAD,
+            BuildingKind::FlakCannon => &FLAK_CANNON,
         }
     }
 }
@@ -325,6 +332,35 @@ const TURRET_CANNON: WeaponSpec = WeaponSpec {
     versus_structure: 0.5,
     versus_aircraft: 0.6,
     report: Sound::CannonShot,
+};
+
+/// Bursting shells that only reach aircraft: the pit cannot depress its guns at the ground.
+const FLAK_GUNS: WeaponSpec = WeaponSpec {
+    range: 15.0,
+    damage: 24.0,
+    reload_secs: 0.5,
+    projectile_speed: 70.0,
+    splash_radius: 1.2,
+    style: ProjectileStyle::Bullet,
+    versus_infantry: 0.0,
+    versus_vehicle: 0.0,
+    versus_structure: 0.0,
+    versus_aircraft: 2.0,
+    report: Sound::FlakShot,
+};
+
+const FLAK_AUTOCANNON: WeaponSpec = WeaponSpec {
+    range: 13.0,
+    damage: 16.0,
+    reload_secs: 0.45,
+    projectile_speed: 70.0,
+    splash_radius: 0.0,
+    style: ProjectileStyle::Bullet,
+    versus_infantry: 0.6,
+    versus_vehicle: 0.25,
+    versus_structure: 0.15,
+    versus_aircraft: 1.8,
+    report: Sound::FlakShot,
 };
 
 const RIFLEMAN: UnitSpec = UnitSpec {
@@ -549,6 +585,24 @@ const BULWARK: UnitSpec = UnitSpec {
     sight: 16.0,
 };
 
+const FLAK_TRACK: UnitSpec = UnitSpec {
+    name: "Flak Track",
+    role: "Mobile anti-aircraft gun. Shreds gunships, weak against armour.",
+    model_id: "flak_track",
+    cost: 700,
+    build_secs: 11.0,
+    max_health: 260.0,
+    speed: 4.2,
+    turn_rate: 3.5,
+    radius: 1.5,
+    armor: ArmorClass::Vehicle,
+    weapon: Some(FLAK_AUTOCANNON),
+    has_turret: true,
+    producer: BuildingKind::Factory,
+    heal_per_sec: 0.0,
+    sight: 16.0,
+};
+
 const COMMAND_CENTER: BuildingSpec = BuildingSpec {
     name: "Command Center",
     role: "Heart of the base. Lose every structure and the war is lost.",
@@ -659,6 +713,20 @@ const HELIPAD: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Factory],
     weapon: None,
     sight: 12.0,
+};
+
+const FLAK_CANNON: BuildingSpec = BuildingSpec {
+    name: "Flak Cannon",
+    role: "Anti-aircraft gun pit. Cannot shoot at ground targets.",
+    model_id: "flak_cannon",
+    footprint: IVec2::new(1, 1),
+    cost: 700,
+    build_secs: 10.0,
+    max_health: 450.0,
+    power: -25,
+    prerequisites: &[BuildingKind::Barracks],
+    weapon: Some(FLAK_GUNS),
+    sight: 18.0,
 };
 
 pub const STARTING_CREDITS: i32 = 5000;

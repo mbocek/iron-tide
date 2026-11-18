@@ -70,6 +70,7 @@ fn authored_drive_speed(kind: UnitKind) -> f32 {
         UnitKind::Rifleman | UnitKind::Rocketeer | UnitKind::Medic | UnitKind::Engineer => 2.4,
         UnitKind::Bulwark => 2.2,
         UnitKind::Gunship => 6.5,
+        UnitKind::FlakTrack => 3.2,
     }
 }
 
@@ -78,7 +79,9 @@ pub fn animated_unit_model(kind: UnitKind, team: Team) -> AnimatedModel {
 }
 
 pub fn animated_building_model(kind: BuildingKind, team: Team) -> Option<AnimatedModel> {
-    (kind == BuildingKind::GunTurret)
+    kind.spec()
+        .weapon
+        .is_some()
         .then(|| AnimatedModel(format!("{}_{}", kind.spec().model_id, team.model_variant())))
 }
 
@@ -90,9 +93,11 @@ pub fn load_animation_sources(
         .iter()
         .chain(UnitKind::VEHICLES.iter())
         .flat_map(|&kind| Team::ALL.map(|team| animated_unit_model(kind, team).0));
-    let turret_models = Team::ALL
-        .into_iter()
-        .filter_map(|team| animated_building_model(BuildingKind::GunTurret, team).map(|m| m.0));
+    let turret_models = BuildingKind::CONSTRUCTIBLE.into_iter().flat_map(|kind| {
+        Team::ALL
+            .into_iter()
+            .filter_map(move |team| animated_building_model(kind, team).map(|m| m.0))
+    });
     let crystal_models = CRYSTAL_MODELS.iter().map(|id| id.to_string());
     for model in unit_models.chain(turret_models).chain(crystal_models) {
         let handle = asset_server.load(format!("models/{model}.glb"));

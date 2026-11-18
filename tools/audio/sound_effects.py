@@ -83,6 +83,27 @@ def machine_gun_shot():
     return finished_effect(soft_clip(shot, 2.0), duration, reverb_seconds=0.35, reverb_wet=0.12)
 
 
+def flak_shot():
+    """Two quick autocannon thumps, then the shells bursting high up and far away."""
+    rng = random.Random(1150)
+    duration = 0.7
+    length = samples(duration)
+    shot = silence(length)
+    for start in (0.0, 0.09):
+        thump = gunshot_layers(
+            rng, samples(0.18),
+            crack_cutoff=2200.0, crack_decay=0.005,
+            body_hz=620.0, body_decay=0.03,
+            thump_hz=120.0, thump_decay=0.05,
+            tail_decay=0.05,
+        )
+        mix_into(shot, thump, samples(start))
+    for start, gain in ((0.32, 0.35), (0.4, 0.28)):
+        burst = one_pole_lowpass(decaying_noise(rng, samples(0.25), 0.05, "brown"), 900.0)
+        mix_into(shot, burst, samples(start), gain)
+    return finished_effect(soft_clip(shot, 2.0), duration, reverb_seconds=0.9, reverb_wet=0.22, end_fade=0.06)
+
+
 def cannon_blast(rng, length, boom_start_hz, boom_end_hz, boom_decay, noise_decay, crack_gain=0.9):
     crack = biquad(decaying_noise(rng, length, 0.01), "highpass", 1500.0)
     boom = pitch_drop(boom_start_hz, boom_end_hz, 0.07, boom_decay, length)
@@ -443,6 +464,7 @@ SOUND_EFFECTS = {
     "sfx/rifle_shot_2": lambda: rifle_shot(1),
     "sfx/rifle_shot_3": lambda: rifle_shot(2),
     "sfx/mg_shot": machine_gun_shot,
+    "sfx/flak_shot": flak_shot,
     "sfx/cannon_shot": cannon_shot,
     "sfx/heavy_cannon_shot": heavy_cannon_shot,
     "sfx/howitzer_shot": howitzer_shot,

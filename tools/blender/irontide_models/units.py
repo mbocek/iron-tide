@@ -889,3 +889,60 @@ def _add_gunship_weapons():
             tube = pod + Vector((0.46, math.cos(angle) * 0.07, math.sin(angle) * 0.07))
             cylinder("Gunmetal", 0.022, 0.03, tube, FACING_FRONT, segments=6, name="RocketTube")
     cylinder_between("Gunmetal", (1.45, 0.0, 0.62), (1.85, 0.0, 0.6), 0.035, 8, name="ChinGun")
+
+
+FLAK_ELEVATION = math.radians(55)
+FLAK_AXIS = Vector((math.cos(FLAK_ELEVATION), 0.0, math.sin(FLAK_ELEVATION)))
+FLAK_RECOIL = 0.18
+FLAK_BARREL_TILT = (0.0, math.pi / 2 - FLAK_ELEVATION, 0.0)
+
+
+def build_flak_track():
+    """A light tracked hull carrying an open turret with twin rapid-fire cannons raised at the sky."""
+    length, track_y, track_width, track_height = 3.0, 0.78, 0.4, 0.6
+    make_tracked_chassis(length, track_y, track_width, track_height, 5)
+    deck_z = 0.86
+    hull_profile = [(-1.45, 0.2), (1.2, 0.2), (1.5, 0.55), (1.05, deck_z), (-1.4, deck_z), (-1.5, 0.7)]
+    prism("Armor", hull_profile, 1.18, bevel=0.025, name="LowerHull")
+    upper_profile = [(-1.42, track_height + 0.06), (1.3, track_height + 0.06), (1.05, deck_z), (-1.4, deck_z)]
+    prism("Armor", upper_profile, 1.96, bevel=0.02, name="UpperHull")
+    box("ArmorDark", (0.5, 1.2, 0.05), (-1.0, 0.0, deck_z + 0.025), bevel=0.01, name="EngineDeck")
+    add_vent_grille((-1.0, 0.0, deck_z + 0.055), 0.4, 0.9, 6)
+    box("ArmorDark", (0.3, 0.5, 0.18), (0.8, -0.45, deck_z + 0.09), bevel=0.015, name="DriverHood")
+    box(GLASS, (0.012, 0.35, 0.08), (0.955, -0.45, deck_z + 0.11), bevel=0.0, name="DriverVision")
+    for side in (-1, 1):
+        add_lamp((1.35, side * 0.5, 0.62), FACING_FRONT, radius=0.05, depth=0.05)
+    add_ammo_box((-0.55, 0.78, deck_z), (0.4, 0.22, 0.2))
+    add_jerrycan((-1.3, -0.82, deck_z))
+    pivot = Vector((-0.05, 0.0, deck_z))
+    with group(TURRET, pivot):
+        _build_flak_turret(pivot)
+    animate_vehicle(ground_speed=3.2, recoil=-FLAK_AXIS * FLAK_RECOIL)
+
+
+def _build_flak_turret(pivot):
+    cylinder("ArmorDark", 0.6, 0.06, pivot + Vector((0, 0, 0.03)), segments=24, name="TurretRing")
+    outline = [(0.55, 0.45), (-0.55, 0.55), (-0.7, 0.4), (-0.7, -0.4), (-0.55, -0.55), (0.55, -0.45)]
+    slab("Armor", list(reversed(outline)), 0.06, 0.38, top_scale=0.92, location=pivot, bevel=0.025,
+         name="TurretTub")
+    add_turret_roof_band(list(reversed(outline)), 0.92, pivot, 0.38)
+    for side in (-1, 1):
+        box("TeamColor", (0.6, 0.02, 0.12), pivot + Vector((-0.1, side * 0.52, 0.22)), bevel=0.0,
+            name="TurretTeamPanel")
+    trunnion = pivot + Vector((0.15, 0.0, 0.55))
+    box("ArmorDark", (0.36, 0.5, 0.26), trunnion, (0, -FLAK_ELEVATION * 0.5, 0), bevel=0.02, name="GunCradle")
+    with group(BARREL, trunnion, parent=TURRET):
+        for side in (-1, 1):
+            root = trunnion + Vector((0.0, side * 0.17, 0.0))
+            lathe("Gunmetal", [(0.0, 0.0), (0.06, 0.0), (0.06, 0.2), (0.04, 0.24), (0.04, 1.15), (0.055, 1.18),
+                               (0.055, 1.3), (0.025, 1.3), (0.025, 1.24)], root, FLAK_BARREL_TILT, segments=10,
+                  cap_end=False, name="FlakBarrel")
+    _add_flak_radar(pivot + Vector((-0.5, 0.0, 0.38)))
+
+
+def _add_flak_radar(base):
+    cylinder("Gunmetal", 0.04, 0.35, base + Vector((0, 0, 0.175)), segments=8, name="RadarMast")
+    box("ArmorLight", (0.08, 0.7, 0.22), base + Vector((0, 0, 0.42)), (0, math.radians(-15), 0), bevel=0.02,
+        name="SearchRadar")
+    box("TeamColor", (0.012, 0.6, 0.06), base + Vector((0.045, 0, 0.42)), (0, math.radians(-15), 0), bevel=0.0,
+        name="RadarTeamStripe")

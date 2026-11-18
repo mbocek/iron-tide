@@ -34,7 +34,7 @@ const REPAIR_BELOW_HEALTH: f32 = 0.6;
 const FORTIFY_INTERVAL_SECS: f32 = 3.0;
 const ENGINEER_INTERVAL_SECS: f32 = 2.0;
 
-const BUILD_PLAN: [BuildingKind; 14] = [
+const BUILD_PLAN: [BuildingKind; 15] = [
     BuildingKind::PowerPlant,
     BuildingKind::Barracks,
     BuildingKind::Refinery,
@@ -46,6 +46,7 @@ const BUILD_PLAN: [BuildingKind; 14] = [
     BuildingKind::Refinery,
     BuildingKind::PowerPlant,
     BuildingKind::Helipad,
+    BuildingKind::FlakCannon,
     BuildingKind::GunTurret,
     BuildingKind::PowerPlant,
     BuildingKind::GunTurret,
@@ -420,12 +421,13 @@ fn plan_next_structure(
 }
 
 /// Weighted wish lists; anything the mission forbids is skipped.
-const VEHICLE_MIX: [(UnitKind, u32); 5] = [
+const VEHICLE_MIX: [(UnitKind, u32); 6] = [
     (UnitKind::Tank, 5),
     (UnitKind::Bulwark, 2),
     (UnitKind::Artillery, 2),
     (UnitKind::Scout, 3),
     (UnitKind::Gunship, 2),
+    (UnitKind::FlakTrack, 1),
 ];
 const INFANTRY_MIX: [(UnitKind, u32); 3] = [
     (UnitKind::Rifleman, 6),
