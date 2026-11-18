@@ -34,7 +34,7 @@ const REPAIR_BELOW_HEALTH: f32 = 0.6;
 const FORTIFY_INTERVAL_SECS: f32 = 3.0;
 const ENGINEER_INTERVAL_SECS: f32 = 2.0;
 
-const BUILD_PLAN: [BuildingKind; 13] = [
+const BUILD_PLAN: [BuildingKind; 14] = [
     BuildingKind::PowerPlant,
     BuildingKind::Barracks,
     BuildingKind::Refinery,
@@ -45,6 +45,7 @@ const BUILD_PLAN: [BuildingKind; 13] = [
     BuildingKind::GunTurret,
     BuildingKind::Refinery,
     BuildingKind::PowerPlant,
+    BuildingKind::Helipad,
     BuildingKind::GunTurret,
     BuildingKind::PowerPlant,
     BuildingKind::GunTurret,
@@ -479,6 +480,7 @@ fn train_units(
     let permitted: Vec<UnitKind> = UnitKind::ALL
         .into_iter()
         .filter(|&kind| production.allows(team, BuildItem::Unit(kind)))
+        .filter(|&kind| BuildItem::Unit(kind).missing_requirement(owned).is_none())
         .collect();
     let allowed = |kind: UnitKind| permitted.contains(&kind);
 

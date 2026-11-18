@@ -43,6 +43,7 @@ pub mod queue_bar;
 pub mod replay;
 pub mod savegame;
 pub mod scenery;
+pub mod servicing;
 pub mod settings;
 pub mod sound;
 pub mod spawn;
@@ -209,6 +210,7 @@ impl Plugin for SimulationPlugin {
                         veterancy::credit_kills,
                         veterancy::promote_veterans,
                         veterancy::elite_field_repairs,
+                        servicing::service_waiting_units,
                         notifications::watch_base,
                         outcome::decide_outcome,
                         savegame::write_requested_save,

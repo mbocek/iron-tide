@@ -296,7 +296,10 @@ fn ground_order_from_keys(keys: &ButtonInput<KeyCode>) -> (GroundOrder, bool) {
 }
 
 fn produces_units(kind: BuildingKind) -> bool {
-    matches!(kind, BuildingKind::Barracks | BuildingKind::Factory)
+    matches!(
+        kind,
+        BuildingKind::Barracks | BuildingKind::Factory | BuildingKind::Helipad
+    )
 }
 
 pub fn issue_orders(

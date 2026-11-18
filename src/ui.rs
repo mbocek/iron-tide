@@ -41,9 +41,9 @@ pub(crate) const ACCENT: Color = Color::srgb(0.96, 0.74, 0.26);
 pub(crate) const GOOD: Color = Color::srgb(0.35, 0.86, 0.42);
 const WARNING: Color = Color::srgb(0.95, 0.78, 0.22);
 const DANGER: Color = Color::srgb(1.0, 0.33, 0.28);
-const TILE_WIDTH: f32 = 134.0;
-const TILE_HEIGHT: f32 = 106.0;
-const TILE_ICON_SIZE: f32 = 72.0;
+const TILE_WIDTH: f32 = 88.0;
+const TILE_HEIGHT: f32 = 82.0;
+const TILE_ICON_SIZE: f32 = 46.0;
 const MINIMAP_SIZE: f32 = 276.0;
 const POWER_BAR_SCALE: i32 = 400;
 const SHIFT_CLICK_BATCH: usize = 5;
@@ -389,8 +389,8 @@ fn spawn_build_grid(
     sidebar
         .spawn(Node {
             flex_wrap: FlexWrap::Wrap,
-            column_gap: Val::Px(8.0),
-            row_gap: Val::Px(8.0),
+            column_gap: Val::Px(6.0),
+            row_gap: Val::Px(6.0),
             flex_grow: 1.0,
             align_content: AlignContent::FlexStart,
             ..default()
@@ -416,7 +416,7 @@ fn spawn_build_tile(
             height: Val::Px(TILE_HEIGHT),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
-            padding: UiRect::all(Val::Px(4.0)),
+            padding: UiRect::all(Val::Px(3.0)),
             border: UiRect::all(Val::Px(1.0)),
             ..default()
         },
@@ -433,16 +433,8 @@ fn spawn_build_tile(
                 ..default()
             },
         ));
-        tile.spawn(Node {
-            width: Val::Percent(100.0),
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::horizontal(Val::Px(2.0)),
-            ..default()
-        })
-        .with_children(|caption| {
-            caption.spawn(fonts.heading(item.name(), 14.0, TEXT_MAIN));
-            caption.spawn(fonts.heading(format!("${}", item.cost()), 14.0, ACCENT));
-        });
+        tile.spawn(fonts.heading(item.name(), 12.0, TEXT_MAIN));
+        tile.spawn(fonts.heading(format!("${}", item.cost()), 12.0, ACCENT));
         tile.spawn((
             TileShade(item),
             Node {
@@ -457,11 +449,11 @@ fn spawn_build_tile(
         ));
         tile.spawn((
             TileBadge(item),
-            fonts.heading("", 15.0, GOOD),
+            fonts.heading("", 12.0, GOOD),
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(3.0),
-                right: Val::Px(6.0),
+                top: Val::Px(2.0),
+                right: Val::Px(4.0),
                 ..default()
             },
         ));

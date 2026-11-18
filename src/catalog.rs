@@ -209,6 +209,7 @@ pub enum BuildingKind {
     Factory,
     GunTurret,
     Wall,
+    Helipad,
 }
 
 pub struct BuildingSpec {
@@ -227,11 +228,12 @@ pub struct BuildingSpec {
 }
 
 impl BuildingKind {
-    pub const CONSTRUCTIBLE: [BuildingKind; 6] = [
+    pub const CONSTRUCTIBLE: [BuildingKind; 7] = [
         BuildingKind::PowerPlant,
         BuildingKind::Refinery,
         BuildingKind::Barracks,
         BuildingKind::Factory,
+        BuildingKind::Helipad,
         BuildingKind::GunTurret,
         BuildingKind::Wall,
     ];
@@ -250,6 +252,7 @@ impl BuildingKind {
             BuildingKind::Factory => &FACTORY,
             BuildingKind::GunTurret => &GUN_TURRET,
             BuildingKind::Wall => &WALL,
+            BuildingKind::Helipad => &HELIPAD,
         }
     }
 }
@@ -523,7 +526,7 @@ const GUNSHIP: UnitSpec = UnitSpec {
     armor: ArmorClass::Aircraft,
     weapon: Some(ROCKET_PODS),
     has_turret: false,
-    producer: BuildingKind::Factory,
+    producer: BuildingKind::Helipad,
     heal_per_sec: 0.0,
     sight: 20.0,
 };
@@ -642,6 +645,20 @@ const WALL: BuildingSpec = BuildingSpec {
     prerequisites: &[BuildingKind::Barracks],
     weapon: None,
     sight: 4.0,
+};
+
+const HELIPAD: BuildingSpec = BuildingSpec {
+    name: "Helipad",
+    role: "Builds gunships and repairs aircraft hovering over the pad.",
+    model_id: "helipad",
+    footprint: IVec2::new(2, 2),
+    cost: 1000,
+    build_secs: 14.0,
+    max_health: 700.0,
+    power: -30,
+    prerequisites: &[BuildingKind::Factory],
+    weapon: None,
+    sight: 12.0,
 };
 
 pub const STARTING_CREDITS: i32 = 5000;

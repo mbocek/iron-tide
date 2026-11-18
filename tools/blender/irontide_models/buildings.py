@@ -768,3 +768,57 @@ def build_wall():
                 name="WallSandbag")
     for corner in ((0.7, 0.7), (-0.7, -0.7), (0.7, -0.7), (-0.7, 0.7)):
         cylinder("Steel", 0.03, 0.18, (corner[0], corner[1], 1.42), segments=6, name="RebarStub")
+
+
+HELIPAD_PAD_RADIUS = 1.45
+
+
+def _circle(radius, segments=32, centre=(0.0, 0.0)):
+    return [(centre[0] + math.cos(k * 2 * math.pi / segments) * radius,
+             centre[1] + math.sin(k * 2 * math.pi / segments) * radius) for k in range(segments)]
+
+
+def build_helipad():
+    """A raised landing disc with an H marking, lit rim, a small control hut and a fuel point."""
+    add_foundation(4.0, 4.0)
+    base_z = FOUNDATION_HEIGHT
+    pad_top = base_z + 0.18
+    slab("ConcreteDark", _circle(HELIPAD_PAD_RADIUS + 0.12), base_z, pad_top, top_scale=0.97, bevel=0.02,
+         name="PadDisc")
+    slab("Asphalt", _circle(HELIPAD_PAD_RADIUS - 0.05), pad_top, pad_top + 0.01, bevel=0.0, name="PadSurface")
+    marking_z = pad_top + 0.01
+    add_outline_band(_circle(HELIPAD_PAD_RADIUS - 0.12), _circle(HELIPAD_PAD_RADIUS - 0.3), marking_z,
+                     marking_z + 0.008, "TeamColor", name="PadTeamRing")
+    for side in (-1, 1):
+        box("MedicalWhite", (0.16, 1.1, 0.01), (side * 0.32, 0.0, marking_z + 0.005), bevel=0.0, name="PadLetterH")
+    box("MedicalWhite", (0.5, 0.16, 0.01), (0.0, 0.0, marking_z + 0.005), bevel=0.0, name="PadLetterH")
+    for k in range(8):
+        angle = k * math.pi / 4 + math.pi / 8
+        light = "SignalGreen" if k % 2 == 0 else "WarningLight"
+        location = (math.cos(angle) * (HELIPAD_PAD_RADIUS + 0.02), math.sin(angle) * (HELIPAD_PAD_RADIUS + 0.02),
+                    pad_top)
+        add_beacon(location, radius=0.035, lens=light)
+    _add_helipad_hut(base_z)
+    _add_helipad_fuel_point(base_z)
+    add_flag((1.75, 1.75, base_z), 1.6, (0.5, 0.18), heading=math.pi * 0.75, material_name="HazardYellow")
+
+
+def _add_helipad_hut(base_z):
+    hut = [(-1.95, 1.2), (-1.2, 1.2), (-1.2, 1.95), (-1.95, 1.95)]
+    slab("Cladding", hut, base_z, base_z + 1.1, bevel=0.02, name="ControlHut")
+    slab("Roofing", [(-2.0, 1.15), (-1.15, 1.15), (-1.15, 2.0), (-2.0, 2.0)], base_z + 1.1, base_z + 1.18,
+         bevel=0.01, name="ControlHutRoof")
+    box(GLASS, (0.02, 0.5, 0.3), (-1.19, 1.575, base_z + 0.75), bevel=0.0, name="HutWindow")
+    box("TeamColor", (0.75, 0.02, 0.12), (-1.575, 1.19, base_z + 0.95), bevel=0.0, name="HutTeamBand")
+    add_radar_dish(Vector((-1.575, 1.575, base_z + 1.4)), 0.22, math.radians(30), math.radians(-45))
+    add_antenna((-1.85, 1.85, base_z + 1.18), 0.9)
+
+
+def _add_helipad_fuel_point(base_z):
+    add_drum((1.65, -1.75, base_z), radius=0.17, height=0.5)
+    add_drum((1.75, -1.35, base_z), radius=0.17, height=0.5)
+    box("ArmorLight", (0.3, 0.25, 0.55), (1.2, -1.75, base_z + 0.275), bevel=0.02, name="FuelPump")
+    box("Gunmetal", (0.02, 0.12, 0.12), (1.04, -1.75, base_z + 0.4), bevel=0.0, name="FuelPumpDial")
+    add_pipe_run([(1.2, -1.62, base_z + 0.45), (1.2, -1.45, base_z + 0.2), (1.0, -1.3, base_z + 0.02)], 0.025,
+                 material_name="Rubber")
+    add_hazard_stripes((-1.75, -1.0, base_z + 0.005), 1.6, 0.14, rotation=(0, 0, math.pi / 2), stripe_width=0.14)

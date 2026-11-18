@@ -247,11 +247,13 @@ attack wave and its income (75 % / 100 % / 135 %).
   while the credits run out and stop at full health; a green cross turns above it meanwhile. Selling refunds
   half the price and the structure sinks into the ground. The Command Center cannot be sold. The computer
   repairs its own structures below 60 % health when it has credits to spare.
-- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory; Barracks → Gun Turret, Wall.
+- **Tech tree:** Command Center → Power Plant → Barracks / Refinery → War Factory → Helipad; Barracks → Gun Turret,
+  Wall.
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Field Medic (heals nearby infantry), Engineer, Scout Buggy,
   Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range artillery with splash damage), Gunship, Harvester.
-- **Aircraft:** the Gunship (War Factory, $1100) flies straight to where it is sent, over water, walls and
-  units, and tears through armour with its rocket pods. Tank cannons and howitzers cannot shoot upwards at all;
+- **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over
+  water, walls and units, and tears through armour with its rocket pods. An aircraft hovering over its own
+  Helipad (within 3 m of the pad's centre, not moving) regains 4 % of its health per second for free. Tank cannons and howitzers cannot shoot upwards at all;
   riflemen and turrets hit it weakly, scout buggies better and rocketeers best.
 - **Fair corners:** the map is point-symmetric around its centre: the river and its fords, the crystal fields
   and every tree or rock that blocks movement have a twin in the opposite corner. Bases in the far half face

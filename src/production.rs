@@ -313,7 +313,12 @@ fn deploy_unit(
     let exit = map
         .nearest_passable(exit_cell(producer))
         .unwrap_or(exit_cell(producer));
-    let entity = spawn_unit(commands, models, kind, team, cell_center(exit), 0.0);
+    let launch = if kind.flies() {
+        footprint_center(producer.origin, producer.kind.spec().footprint)
+    } else {
+        cell_center(exit)
+    };
+    let entity = spawn_unit(commands, models, kind, team, launch, 0.0);
     if let Some(rally) = rally.filter(|_| kind != UnitKind::Harvester) {
         commands.entity(entity).insert(Orders {
             current: Some(Order::Move(rally.0)),

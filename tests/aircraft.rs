@@ -2,9 +2,10 @@ mod common;
 
 use bevy::prelude::*;
 use common::Battle;
-use iron_tide::catalog::{Team, UnitKind};
+use iron_tide::catalog::{BuildingKind, Team, UnitKind};
 use iron_tide::components::{AttackTarget, Health, Mobile};
-use iron_tide::map::{GameMap, cell_center};
+use iron_tide::map::{GameMap, cell_center, footprint_center};
+use iron_tide::production::BuildItem;
 
 const NORTH_BANK: IVec2 = IVec2::new(20, 24);
 const SOUTH_BANK: IVec2 = IVec2::new(20, 40);
@@ -69,5 +70,37 @@ fn tanks_cannot_hit_a_gunship_but_rocketeers_can() {
     assert!(
         health(&mut battle, gunship) < full,
         "rocketeers could not hit the gunship"
+    );
+}
+
+#[test]
+fn gunships_come_from_the_helipad_and_are_repaired_over_it() {
+    let mut battle = Battle::sandbox();
+    let pad_origin = IVec2::new(14, 50);
+    battle.construct(BuildingKind::Helipad, Team::Player, pad_origin);
+    battle.set_credits(Team::Player, 5000);
+    assert!(battle.enqueue(Team::Player, BuildItem::Unit(UnitKind::Gunship)));
+    battle.run_until(40.0, |battle| {
+        !battle
+            .units(Team::Player, Some(UnitKind::Gunship))
+            .is_empty()
+    });
+    let gunship = battle.units(Team::Player, Some(UnitKind::Gunship))[0];
+    let pad_centre = footprint_center(pad_origin, BuildingKind::Helipad.spec().footprint);
+    let launch_distance = battle.position(gunship).xz().distance(pad_centre.xz());
+    assert!(
+        launch_distance < UnitKind::Gunship.spec().speed + 1.0,
+        "took off {launch_distance} m away from the pad"
+    );
+
+    battle.order_move(gunship, pad_origin);
+    battle.run_for(3.0);
+    let full = UnitKind::Gunship.spec().max_health;
+    battle.world().get_mut::<Health>(gunship).unwrap().current = full * 0.5;
+    battle.run_for(5.0);
+    let mended = health(&mut battle, gunship);
+    assert!(
+        mended > full * 0.6,
+        "only {mended} of {full} after five seconds over the pad"
     );
 }

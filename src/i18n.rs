@@ -787,6 +787,12 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Betónová bariéra. Ťahaním postavíte rad; každý diel sa platí pri položení.",
         "Betonová bariéra. Tažením postavíte řadu; každý díl se platí při položení.",
     ),
+    ("Helipad", "Heliport", "Heliport"),
+    (
+        "Builds gunships and repairs aircraft hovering over the pad.",
+        "Vyrába bitevné vrtuľníky a opravuje lietadlá visiace nad plochou.",
+        "Vyrábí bitevní vrtulníky a opravuje letadla visící nad plochou.",
+    ),
 ];
 
 #[cfg(test)]
