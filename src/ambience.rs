@@ -10,7 +10,8 @@ use crate::camera::RtsCamera;
 use crate::catalog::ArmorClass;
 use crate::components::{Armor, BodyRadius, HarvestState, Harvester, Mobile};
 use crate::effects::{EffectAssets, spawn_sparkle};
-use crate::fog::{CellSight, FogOfWar};
+use crate::fog::CellSight;
+use crate::local_view::LocalView;
 use crate::map::{GameMap, cell_center, cells_by_distance, crystal_fields, world_to_cell};
 use crate::settings::GameSettings;
 
@@ -99,7 +100,7 @@ pub fn light_crystal_fields(mut commands: Commands, map: Res<GameMap>) {
 pub fn pulse_crystal_glow(
     time: Res<Time>,
     map: Res<GameMap>,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     mut glows: Query<(&CrystalGlow, &mut PointLight)>,
 ) {
     let t = time.elapsed_secs();
@@ -107,7 +108,7 @@ pub fn pulse_crystal_glow(
         let remaining = field_crystal(&map, glow.field_index) as f32 / glow.initial_crystal as f32;
         let pulse = 0.8 + 0.2 * (t * CRYSTAL_GLOW_PULSE_SPEED + glow.phase).sin();
         let field_center = cell_center(crystal_fields()[glow.field_index].center);
-        let known = if fog.is_explored(field_center) {
+        let known = if view.sight().is_explored(field_center) {
             1.0
         } else {
             0.0
@@ -186,7 +187,7 @@ pub fn emit_crystal_sparkles(
     time: Res<Time>,
     effects: Res<EffectAssets>,
     map: Res<GameMap>,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     mut pending: Local<f32>,
     harvesters: Query<(&Transform, &Harvester)>,
 ) {
@@ -202,7 +203,7 @@ pub fn emit_crystal_sparkles(
                 rng.random_range(-reach..=reach),
                 rng.random_range(-reach..=reach),
             );
-        if map.crystal_at(cell) == 0 || fog.sight_at(cell) == CellSight::Unexplored {
+        if map.crystal_at(cell) == 0 || view.sight().sight_at(cell) == CellSight::Unexplored {
             continue;
         }
         let jitter = Vec3::new(
@@ -225,7 +226,7 @@ pub fn emit_crystal_sparkles(
     }
 
     for (transform, harvester) in &harvesters {
-        if !fog.is_visible(transform.translation) {
+        if !view.sight().is_visible(transform.translation) {
             continue;
         }
         if !matches!(harvester.state, HarvestState::Mining { .. })

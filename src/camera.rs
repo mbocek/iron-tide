@@ -11,11 +11,12 @@ use bevy::prelude::*;
 use bevy::render::view::{ColorGrading, ColorGradingGlobal, ColorGradingSection};
 use bevy::window::PrimaryWindow;
 
-use crate::catalog::BuildingKind;
+use crate::catalog::{BuildingKind, Team};
 use crate::key_bindings::{Action, KeyBindings};
 use crate::levels::ActiveLevel;
 use crate::map::{footprint_center, map_world_size};
 use crate::match_flow::Persistent;
+use crate::player_commands::LocalTeam;
 use crate::settings::GameSettings;
 use crate::terrain::Landscape;
 use crate::ui::SIDEBAR_WIDTH;
@@ -53,16 +54,19 @@ pub struct Cursor {
     pub over_interface: bool,
 }
 
-fn home_focus(level: &ActiveLevel) -> Vec3 {
-    footprint_center(
-        level.0.player.site.origin(),
-        BuildingKind::CommandCenter.spec().footprint,
-    )
+/// Above the local player's own Command Center site.
+fn home_focus(level: &ActiveLevel, team: Team) -> Vec3 {
+    let site = level.0.force_of(team).unwrap_or(&level.0.player).site;
+    footprint_center(site.origin(), BuildingKind::CommandCenter.spec().footprint)
 }
 
-pub fn focus_on_player_base(level: Res<ActiveLevel>, mut cameras: Query<&mut RtsCamera>) {
+pub fn focus_on_player_base(
+    level: Res<ActiveLevel>,
+    local: Res<LocalTeam>,
+    mut cameras: Query<&mut RtsCamera>,
+) {
     for mut camera in &mut cameras {
-        camera.focus = home_focus(&level);
+        camera.focus = home_focus(&level, local.0);
     }
 }
 
@@ -174,6 +178,7 @@ fn edge_pan(window: &Window, cursor: &Cursor) -> Vec2 {
 }
 
 pub fn control_camera(
+    local: Res<LocalTeam>,
     settings: Res<GameSettings>,
     level: Res<ActiveLevel>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -194,7 +199,7 @@ pub fn control_camera(
     let dt = time.delta_secs();
 
     if settings.keys.just_pressed(&keys, Action::JumpHome) || keys.just_pressed(KeyCode::Home) {
-        camera.focus = home_focus(&level);
+        camera.focus = home_focus(&level, local.0);
     }
     if settings.keys.just_pressed(&keys, Action::ResetRotation) {
         camera.yaw = 0.0;

@@ -5,6 +5,7 @@ use crate::catalog::Team;
 use crate::components::{Selected, Unit};
 use crate::i18n::tr_fmt;
 use crate::notifications::Notifications;
+use crate::player_commands::LocalTeam;
 use crate::ui::{ACCENT, FRAME, PANEL, TEXT_DIM, TEXT_MAIN, UiFonts, set_field};
 
 const GROUP_COUNT: usize = 9;
@@ -41,6 +42,7 @@ enum GroupCommand {
 }
 
 pub fn handle_group_keys(
+    local: Res<LocalTeam>,
     mut commands: Commands,
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -66,6 +68,7 @@ pub fn handle_group_keys(
         (false, false) => GroupCommand::Recall,
     };
     run_group_command(
+        local.0,
         &mut commands,
         &time,
         &mut groups,
@@ -80,6 +83,7 @@ pub fn handle_group_keys(
 
 #[allow(clippy::too_many_arguments)]
 fn run_group_command(
+    team: Team,
     commands: &mut Commands,
     time: &Time,
     groups: &mut ControlGroups,
@@ -90,11 +94,7 @@ fn run_group_command(
     group: usize,
     command: GroupCommand,
 ) {
-    let is_own_unit = |entity: &Entity| {
-        units
-            .get(*entity)
-            .is_ok_and(|(team, _)| *team == Team::Player)
-    };
+    let is_own_unit = |entity: &Entity| units.get(*entity).is_ok_and(|(owner, _)| *owner == team);
     groups.members[group].retain(is_own_unit);
 
     match command {
@@ -188,6 +188,7 @@ pub fn spawn_group_bar(commands: &mut Commands, fonts: &UiFonts) {
 
 fn click_group_button(
     click: On<PointerClick>,
+    local: Res<LocalTeam>,
     mut commands: Commands,
     time: Res<Time>,
     buttons: Query<&GroupButton>,
@@ -204,6 +205,7 @@ fn click_group_button(
         return;
     }
     run_group_command(
+        local.0,
         &mut commands,
         &time,
         &mut groups,

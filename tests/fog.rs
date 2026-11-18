@@ -13,12 +13,12 @@ use iron_tide::savegame::SaveRequests;
 
 const OPEN_FIELD: IVec2 = IVec2::new(30, 45);
 
-fn seen_by_player(battle: &mut Battle, entity: Entity) -> bool {
+fn seen_locally(battle: &mut Battle, entity: Entity) -> bool {
     battle
         .world()
         .resource::<Targets>()
         .get(entity)
-        .is_some_and(|target| target.seen_by_player)
+        .is_some_and(|target| target.seen_locally)
 }
 
 fn sight_at(battle: &mut Battle, cell: IVec2) -> CellSight {
@@ -36,7 +36,7 @@ fn the_enemy_base_starts_hidden_and_the_own_base_visible() {
     );
     for enemy in battle.units(Team::Crimson, None) {
         assert!(
-            !seen_by_player(&mut battle, enemy),
+            !seen_locally(&mut battle, enemy),
             "enemy units are visible through the fog"
         );
     }
@@ -80,7 +80,7 @@ fn artillery_needs_a_spotter_to_fire_beyond_its_own_sight() {
     let full_health = BuildingKind::PowerPlant.spec().max_health;
 
     battle.run_for(10.0);
-    assert!(!seen_by_player(&mut battle, target));
+    assert!(!seen_locally(&mut battle, target));
     assert_eq!(
         battle.world().get::<Health>(target).unwrap().current,
         full_health,
@@ -168,7 +168,7 @@ fn levels_can_switch_the_fog_off() {
     battle.run_for(0.5);
     assert_eq!(sight_at(&mut battle, base_sites()[1]), CellSight::Visible);
     for enemy in battle.units(Team::Crimson, None) {
-        assert!(seen_by_player(&mut battle, enemy));
+        assert!(seen_locally(&mut battle, enemy));
     }
 }
 

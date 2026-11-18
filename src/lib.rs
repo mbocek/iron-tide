@@ -28,6 +28,7 @@ pub mod intel;
 pub mod interpolation;
 pub mod key_bindings;
 pub mod levels;
+pub mod local_view;
 pub mod main_menu;
 pub mod map;
 pub mod match_flow;
@@ -436,6 +437,7 @@ impl Plugin for GamePlugin {
                     .after(match_flow::deploy_level_forces)
                     .before(savegame::restore_pending_load),
             )
+            .add_systems(Update, network::report_session_trouble)
             .init_resource::<updates::Updates>()
             .add_systems(
                 PostStartup,

@@ -4,6 +4,7 @@ use crate::catalog::Team;
 use crate::components::{Building, Health};
 use crate::economy::Economies;
 use crate::i18n::tr;
+use crate::player_commands::LocalTeam;
 use crate::sound::{Sound, SoundCue};
 
 const MESSAGE_LIFETIME_SECS: f32 = 4.0;
@@ -48,6 +49,7 @@ pub struct BaseWatch {
 }
 
 pub fn watch_base(
+    local: Res<LocalTeam>,
     mut cues: MessageWriter<SoundCue>,
     time: Res<Time>,
     economies: Res<Economies>,
@@ -61,7 +63,7 @@ pub fn watch_base(
 
     let base_health: f32 = buildings
         .iter()
-        .filter(|(_, team)| **team == Team::Player)
+        .filter(|(_, team)| **team == local.0)
         .map(|(health, _)| health.current)
         .sum();
     if base_health < watch.previous_health - 0.5 && watch.warning_cooldown <= 0.0 {
@@ -71,7 +73,7 @@ pub fn watch_base(
     }
     watch.previous_health = base_health;
 
-    let low_power = economies.of(Team::Player).has_low_power();
+    let low_power = economies.of(local.0).has_low_power();
     if low_power && !watch.low_power {
         notifications.push(tr("Low power - production slowed"));
     }

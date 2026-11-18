@@ -128,3 +128,25 @@ fn a_lost_connection_stops_the_battle() {
         "the battle went on without the other player"
     );
 }
+
+#[test]
+fn each_player_wins_or_loses_from_their_own_side() {
+    use iron_tide::components::Building;
+    use iron_tide::outcome::GameOutcome;
+    use iron_tide::player_commands::LocalTeam;
+    let mut guest = Battle::standard();
+    guest.world().insert_resource(LocalTeam(Team::Crimson));
+    guest.despawn_units(Team::Player);
+    let world = guest.world();
+    let coalition_structures: Vec<Entity> = world
+        .query::<(Entity, &Building, &Team)>()
+        .iter(world)
+        .filter(|(_, _, team)| **team == Team::Player)
+        .map(|(entity, ..)| entity)
+        .collect();
+    for structure in coalition_structures {
+        world.despawn(structure);
+    }
+    guest.run_for(2.0);
+    assert_eq!(guest.outcome(), GameOutcome::Victory);
+}

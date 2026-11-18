@@ -8,8 +8,8 @@ use crate::camera::RtsCamera;
 use crate::catalog::ArmorClass;
 use crate::combat::{DamageSource, Destroyed, Impact};
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
-use crate::fog::FogOfWar;
 use crate::levels::{ActiveLevel, Weather};
+use crate::local_view::LocalView;
 use crate::season::Season;
 
 const CRATER_LIFETIME_SECS: f32 = 40.0;
@@ -90,14 +90,14 @@ pub fn scorch_the_ground(
     mut commands: Commands,
     mut impacts: MessageReader<Impact>,
     assets: Res<BattlefieldAssets>,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     level: Res<ActiveLevel>,
     craters: Query<(Entity, &Crater)>,
 ) {
     let mut rng = rand::rng();
     let mut spawned = 0;
     for impact in impacts.read() {
-        if !fog.is_visible(impact.position) {
+        if !view.sight().is_visible(impact.position) {
             continue;
         }
         let ground = level.0.landscape.on_ground(impact.position) + Vec3::Y * CRATER_LIFT;
@@ -147,7 +147,7 @@ pub fn leave_wrecks(
     mut commands: Commands,
     mut losses: MessageReader<Destroyed>,
     models: Res<ModelLibrary>,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     level: Res<ActiveLevel>,
 ) {
     let mut rng = rand::rng();
@@ -159,7 +159,7 @@ pub fn leave_wrecks(
             kind.spec().armor,
             ArmorClass::Vehicle | ArmorClass::Aircraft
         );
-        if !leaves_hull || !fog.is_visible(loss.position) {
+        if !leaves_hull || !view.sight().is_visible(loss.position) {
             continue;
         }
         let ground = level.0.landscape.on_ground(loss.position);

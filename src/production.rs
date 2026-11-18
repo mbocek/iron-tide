@@ -16,6 +16,7 @@ use crate::map::{
 };
 use crate::movement::{FLIGHT_ALTITUDE, order_move};
 use crate::notifications::Notifications;
+use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::sound::{Sound, SoundCue};
 use crate::spawn::{exit_cell, spawn_building, spawn_unit};
@@ -244,6 +245,7 @@ pub fn owned_building_kinds(
 }
 
 pub fn advance_production(
+    local: Res<LocalTeam>,
     mut cues: MessageWriter<SoundCue>,
     mut commands: Commands,
     mut rng: ResMut<SimulationRng>,
@@ -286,7 +288,7 @@ pub fn advance_production(
             }
             lane.queue.pop_front();
             lane.progress_secs = 0.0;
-            if team == Team::Player {
+            if team == local.0 {
                 let fanfare = match item {
                     BuildItem::Structure(_) => Sound::ConstructionComplete,
                     BuildItem::Unit(_) => Sound::UnitReady,

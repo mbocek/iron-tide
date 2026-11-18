@@ -16,6 +16,7 @@ use crate::intel::Intel;
 use crate::interpolation::TickTransforms;
 use crate::map::{CELL_SIZE, GameMap, world_to_cell};
 use crate::movement::order_move;
+use crate::player_commands::LocalTeam;
 use crate::sound::{Sound, SoundCue};
 use crate::veterancy::{Rank, Veterancy};
 
@@ -40,7 +41,8 @@ pub struct TargetInfo {
     pub radius: f32,
     pub armor: ArmorClass,
     pub is_building: bool,
-    pub seen_by_player: bool,
+    /// Whether the local player may see it; only the interface reads this.
+    pub seen_locally: bool,
     /// Indexed by `Team::index`: whether that team can currently see it.
     seen_by_team: [bool; 4],
 }
@@ -147,6 +149,7 @@ impl Projectile {
 }
 
 pub fn snapshot_targets(
+    local: Res<LocalTeam>,
     mut targets: ResMut<Targets>,
     fog: Res<FogOfWar>,
     intel: Res<Intel>,
@@ -179,7 +182,10 @@ pub fn snapshot_targets(
             radius: radius.0,
             armor: armor.0,
             is_building,
-            seen_by_player: fog.reveals(team, transform.translation),
+            seen_locally: !diplomacy.hostile(team, local.0)
+                || intel
+                    .vision(local.0, &fog)
+                    .is_visible(transform.translation),
             seen_by_team: Team::ALL.map(|viewer| {
                 !diplomacy.hostile(team, viewer)
                     || intel.vision(viewer, &fog).is_visible(transform.translation)

@@ -5,6 +5,7 @@ use crate::components::{AttackTarget, Building, Health, Weapon};
 use crate::determinism::{SimId, in_simulation_order};
 use crate::economy::Economies;
 use crate::map::{GameMap, footprint_center};
+use crate::player_commands::LocalTeam;
 use crate::sound::{Sound, SoundCue};
 
 /// Share of its full health a structure regains per second while being repaired.
@@ -77,6 +78,7 @@ type OrderedStructure<'a> = (
 );
 
 pub fn carry_out_structure_orders(
+    local: Res<LocalTeam>,
     mut commands: Commands,
     mut orders: MessageReader<StructureOrder>,
     mut cues: MessageWriter<SoundCue>,
@@ -101,7 +103,7 @@ pub fn carry_out_structure_orders(
                 let standing = health.current > 0.0;
                 if standing && health.current < health.max {
                     structure.insert(Repairing::default());
-                    if team == Team::Player {
+                    if team == local.0 {
                         cues.write(SoundCue::at(Sound::RepairStarted, transform.translation));
                     }
                 }
@@ -116,7 +118,7 @@ pub fn carry_out_structure_orders(
                     .insert(BeingSold {
                         remaining_secs: SELL_ANIMATION_SECS,
                     });
-                if team == Team::Player {
+                if team == local.0 {
                     cues.write(SoundCue::at(Sound::StructureSold, transform.translation));
                 }
             }

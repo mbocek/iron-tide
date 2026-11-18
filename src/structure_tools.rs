@@ -5,10 +5,11 @@ use crate::camera::Cursor;
 use crate::catalog::Team;
 use crate::components::{Building, Health};
 use crate::determinism::SimId;
-use crate::fog::FogOfWar;
 use crate::i18n::{tr, tr_fmt};
 use crate::key_bindings::{Action, KeyBindings};
+use crate::local_view::LocalView;
 use crate::map::{GameMap, footprint_center, world_to_cell};
+use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::settings::GameSettings;
 use crate::sound::{Sound, SoundCue};
@@ -142,14 +143,16 @@ fn own_structure_under(
     map: &GameMap,
     cursor: &Cursor,
     structures: &Query<(&Building, &Team, &Health)>,
+    team: Team,
 ) -> Option<Entity> {
     let ground = cursor.ground.filter(|_| !cursor.over_interface)?;
     let entity = map.building_at(world_to_cell(ground))?;
-    let (_, &team, _) = structures.get(entity).ok()?;
-    (team == Team::Player).then_some(entity)
+    let (_, &owner, _) = structures.get(entity).ok()?;
+    (owner == team).then_some(entity)
 }
 
 pub fn apply_structure_tool(
+    local: Res<LocalTeam>,
     mouse: Res<ButtonInput<MouseButton>>,
     cursor: Res<Cursor>,
     map: Res<GameMap>,
@@ -163,8 +166,8 @@ pub fn apply_structure_tool(
     if !mouse.just_pressed(MouseButton::Left) || cursor.over_interface {
         return;
     }
-    let Some(&building) =
-        own_structure_under(&map, &cursor, &structures).and_then(|entity| sim_ids.get(entity).ok())
+    let Some(&building) = own_structure_under(&map, &cursor, &structures, local.0)
+        .and_then(|entity| sim_ids.get(entity).ok())
     else {
         cues.write(SoundCue::interface(Sound::UiError));
         return;
@@ -198,6 +201,7 @@ pub fn refresh_tool_buttons(
 
 /// Follows the pointer and tells what a click would do to the structure under it.
 pub fn refresh_tool_hint(
+    local: Res<LocalTeam>,
     active: Res<StructureTool>,
     cursor: Res<Cursor>,
     map: Res<GameMap>,
@@ -223,7 +227,7 @@ pub fn refresh_tool_hint(
         Val::Px(screen.y + HINT_OFFSET.y),
     );
 
-    let target = own_structure_under(&map, &cursor, &structures)
+    let target = own_structure_under(&map, &cursor, &structures, local.0)
         .and_then(|entity| structures.get(entity).ok());
     let (message, tone) = match (tool, target) {
         (StructureOrderKind::ToggleRepair, None) => {
@@ -251,14 +255,14 @@ pub fn refresh_tool_hint(
 pub fn draw_repair_markers(
     mut gizmos: Gizmos,
     time: Res<Time>,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     repairing: Query<&Building, With<Repairing>>,
 ) {
     let spin = Quat::from_rotation_y(time.elapsed_secs() * 1.5);
     for building in &repairing {
         let footprint = building.kind.spec().footprint;
         let center = footprint_center(building.origin, footprint);
-        if !fog.is_visible(center) {
+        if !view.sight().is_visible(center) {
             continue;
         }
         let above = center + Vec3::Y * (4.0 + footprint.max_element() as f32);

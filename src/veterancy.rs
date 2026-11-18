@@ -8,6 +8,7 @@ use crate::combat::{DamageDealt, DamageSource, Destroyed};
 use crate::components::{Health, Unit};
 use crate::i18n::{tr, tr_fmt};
 use crate::notifications::Notifications;
+use crate::player_commands::LocalTeam;
 use crate::sound::{Sound, SoundCue};
 use crate::structures::structure_value;
 
@@ -125,6 +126,7 @@ pub fn credit_kills(
 }
 
 pub fn promote_veterans(
+    local: Res<LocalTeam>,
     mut cues: MessageWriter<SoundCue>,
     mut notifications: ResMut<Notifications>,
     mut veterans: Query<(&Unit, &Team, &mut Veterancy, &mut Health), Changed<Veterancy>>,
@@ -138,7 +140,7 @@ pub fn promote_veterans(
         health.current += new_max - health.max;
         health.max = new_max;
         veterancy.rank = earned;
-        if team == Team::Player {
+        if team == local.0 {
             notifications.push(tr_fmt(
                 "{} promoted to {}",
                 &[&tr(unit.0.spec().name), &earned.name()],

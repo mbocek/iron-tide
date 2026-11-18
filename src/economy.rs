@@ -5,6 +5,7 @@ use crate::components::*;
 use crate::determinism::{SimId, in_simulation_order};
 use crate::map::{CrystalVisual, GameMap, cell_center, crystal_scale, world_to_cell};
 use crate::movement::order_move;
+use crate::player_commands::LocalTeam;
 use crate::sound::{Sound, SoundCue};
 use crate::spawn::exit_cell;
 
@@ -83,6 +84,7 @@ pub fn tally_power(mut economies: ResMut<Economies>, buildings: Query<(&Building
 }
 
 pub fn run_harvesters(
+    local: Res<LocalTeam>,
     mut cues: MessageWriter<SoundCue>,
     time: Res<Time>,
     mut map: ResMut<GameMap>,
@@ -180,7 +182,7 @@ pub fn run_harvesters(
                     economy.credits += earned;
                     economy.harvested += earned;
                     harvester.cargo = 0;
-                    if team == Team::Player {
+                    if team == local.0 {
                         cues.write(SoundCue::at(Sound::Credits, position));
                     }
                     Some(HarvestState::SeekingField)

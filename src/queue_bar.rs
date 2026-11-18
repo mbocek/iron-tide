@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::catalog::{BuildingKind, Team};
 use crate::i18n::tr;
+use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::production::{BuildItem, Lane, Placement, Production};
 use crate::ui::{
@@ -35,10 +36,10 @@ fn lane_color(lane: Lane) -> Color {
     }
 }
 
-fn player_queue(production: &Production) -> Vec<(QueueSlot, BuildItem)> {
+fn player_queue(production: &Production, team: Team) -> Vec<(QueueSlot, BuildItem)> {
     let mut entries = Vec::new();
     for lane in Lane::ALL {
-        let lane_state = production.lane(Team::Player, lane);
+        let lane_state = production.lane(team, lane);
         if let Some(kind) = lane_state.ready {
             entries.push((
                 QueueSlot::AwaitingPlacement(kind),
@@ -88,6 +89,7 @@ pub fn spawn_queue_bar(commands: &mut Commands, fonts: &UiFonts) {
 
 /// Rebuilds the slot row whenever the queue's contents change; progress is animated separately.
 pub fn rebuild_queue_bar(
+    local: Res<LocalTeam>,
     mut commands: Commands,
     production: Res<Production>,
     fonts: Res<UiFonts>,
@@ -96,7 +98,7 @@ pub fn rebuild_queue_bar(
     mut bars: Query<(Entity, &mut Visibility), With<QueueBar>>,
     slots: Query<Entity, With<QueueSlot>>,
 ) {
-    let entries = player_queue(&production);
+    let entries = player_queue(&production, local.0);
     if *shown == entries {
         return;
     }
@@ -189,6 +191,7 @@ fn spawn_slot(
 }
 
 pub fn animate_queue_progress(
+    local: Res<LocalTeam>,
     production: Res<Production>,
     mut fills: Query<(&QueueSlotProgress, &mut Node)>,
 ) {
@@ -196,7 +199,7 @@ pub fn animate_queue_progress(
         let fraction = match progress.0 {
             QueueSlot::AwaitingPlacement(_) => 1.0,
             QueueSlot::Queued { lane, position: 0 } => {
-                production.lane(Team::Player, lane).progress_fraction()
+                production.lane(local.0, lane).progress_fraction()
             }
             QueueSlot::Queued { .. } => 0.0,
         };

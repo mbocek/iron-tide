@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use crate::camera::RtsCamera;
 use crate::catalog::{HARVESTER_CAPACITY, Team};
 use crate::components::*;
-use crate::fog::FogOfWar;
+use crate::local_view::LocalView;
 use crate::map::cell_center;
 use crate::orders::{MarkerKind, OrderMarker};
 use crate::settings::{GameSettings, HealthBars};
@@ -139,7 +139,7 @@ pub fn draw_overlays(
     mut gizmos: Gizmos,
     mut bars: Gizmos<HealthBarGizmos>,
     settings: Res<GameSettings>,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     time: Res<Time>,
     mut marker: ResMut<OrderMarker>,
     cameras: Query<&GlobalTransform, With<RtsCamera>>,
@@ -160,7 +160,7 @@ pub fn draw_overlays(
 
     for (transform, health, radius, &team, harvester, veterancy, selected, is_building) in &entities
     {
-        if !fog.reveals(team, transform.translation) {
+        if !view.reveals(team, transform.translation) {
             continue;
         }
         let damaged = health.current < health.max;
@@ -173,7 +173,7 @@ pub fn draw_overlays(
         }
         let half_width = (radius.0 * 0.9).clamp(0.6, 3.0);
         let bar_span = screen_right * half_width * 2.0;
-        if let Some(harvester) = harvester.filter(|_| team == Team::Player || selected) {
+        if let Some(harvester) = harvester.filter(|_| team == view.team() || selected) {
             let cargo_left =
                 transform.translation + Vec3::Y * CARGO_BAR_HEIGHT - screen_right * half_width;
             let cargo = (harvester.cargo as f32 / HARVESTER_CAPACITY as f32).clamp(0.0, 1.0);

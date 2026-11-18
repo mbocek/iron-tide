@@ -11,6 +11,7 @@ use crate::components::{Building, Unit};
 use crate::fog::{CellSight, FogOfWar};
 use crate::fog_view::Discovered;
 use crate::levels::ActiveLevel;
+use crate::local_view::LocalView;
 use crate::map::{CELL_SIZE, GameMap, footprint_cells, map_cells, map_world_size};
 use crate::terrain::GroundLayers;
 use crate::ui::SIDEBAR_WIDTH;
@@ -152,7 +153,7 @@ pub fn redraw_minimap(
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &GlobalTransform), With<RtsCamera>>,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     level: Res<ActiveLevel>,
     buildings: Query<(&Building, &Team, Has<Discovered>)>,
     units: Query<(&Transform, &Team), With<Unit>>,
@@ -169,7 +170,8 @@ pub fn redraw_minimap(
         return;
     };
     pixels.copy_from_slice(&minimap.terrain);
-    darken_by_fog(pixels, &fog);
+    let fog = view.sight();
+    darken_by_fog(pixels, fog);
     let mut canvas = Canvas { pixels };
 
     for cell_y in 0..map_cells() {
@@ -181,7 +183,7 @@ pub fn redraw_minimap(
         }
     }
     for (building, &team, discovered) in &buildings {
-        if team.is_hostile_to(Team::Player) && !discovered && fog.enabled() {
+        if view.is_hostile(team) && !discovered && fog.enabled() {
             continue;
         }
         for cell in footprint_cells(building.origin, building.kind.spec().footprint) {
@@ -193,7 +195,7 @@ pub fn redraw_minimap(
         }
     }
     for (transform, &team) in &units {
-        if !fog.reveals(team, transform.translation) {
+        if !view.reveals(team, transform.translation) {
             continue;
         }
         let center = to_minimap(transform.translation).floor().as_ivec2();

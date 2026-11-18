@@ -89,6 +89,17 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ("INFANTRY", "PECHOTA", "PĚCHOTA"),
     ("VEHICLES", "VOZIDLÁ", "VOZIDLA"),
     ("COALITION", "KOALÍCIA", "KOALICE"),
+    ("SYNDICATE", "SYNDIKÁT", "SYNDIKÁT"),
+    (
+        "The other player has left the battle",
+        "Druhý hráč opustil bitku",
+        "Druhý hráč opustil bitvu",
+    ),
+    (
+        "Out of step with the other player at tick {}",
+        "Hra sa rozišla s druhým hráčom v kroku {}",
+        "Hra se rozešla s druhým hráčem v kroku {}",
+    ),
     ("POWER {} / {}", "ENERGIA {} / {}", "ENERGIE {} / {}"),
     ("REPAIR  {}", "OPRAVA  {}", "OPRAVA  {}"),
     ("SELL  {}", "PREDAJ  {}", "PRODEJ  {}"),

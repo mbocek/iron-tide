@@ -10,6 +10,7 @@ use crate::i18n::{tr, tr_fmt};
 use crate::map::{CELL_SIZE, GameMap, footprint_center};
 use crate::movement::order_move;
 use crate::notifications::Notifications;
+use crate::player_commands::LocalTeam;
 use crate::sound::{Sound, SoundCue};
 use crate::spawn::spawn_building;
 
@@ -62,6 +63,7 @@ fn reach_of(building: &Building) -> f32 {
 }
 
 pub fn carry_out_engineer_tasks(
+    local: Res<LocalTeam>,
     mut commands: Commands,
     mut cues: MessageWriter<SoundCue>,
     mut notifications: ResMut<Notifications>,
@@ -130,14 +132,14 @@ pub fn carry_out_engineer_tasks(
                     current: kind.spec().max_health - damage,
                     max: kind.spec().max_health,
                 });
-                if owner == Team::Player {
+                if owner == local.0 {
                     notifications
                         .push(tr_fmt("{} captured by the enemy", &[&tr(kind.spec().name)]));
                     cues.write(SoundCue::interface(Sound::BaseAlert));
                 }
             }
         }
-        if team == Team::Player {
+        if team == local.0 {
             let message = match task.job {
                 EngineerJob::Capture => tr_fmt("{} captured", &[&tr(building.kind.spec().name)]),
                 EngineerJob::Repair => tr_fmt("{} repaired", &[&tr(building.kind.spec().name)]),

@@ -6,6 +6,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::catalog::Team;
 use crate::components::{Building, Unit};
 use crate::fog::{CellSight, FogOfWar};
+use crate::local_view::LocalView;
 use crate::map::{CrystalVisual, footprint_cells, map_cells};
 use crate::scenery::Scenery;
 
@@ -94,11 +95,12 @@ fn blurred_shades(fog: &FogOfWar) -> Vec<u8> {
 }
 
 pub fn paint_fog_texture(
-    fog: Res<FogOfWar>,
+    view: LocalView,
     texture: Res<FogTexture>,
     mut painted_revision: Local<u64>,
     mut images: ResMut<Assets<Image>>,
 ) {
+    let fog = view.sight();
     if *painted_revision == fog.revision {
         return;
     }
@@ -115,7 +117,7 @@ pub fn paint_fog_texture(
         .as_chunks_mut::<4>()
         .0
         .iter_mut()
-        .zip(blurred_shades(&fog))
+        .zip(blurred_shades(fog))
     {
         texel[..3].fill(shade);
     }
@@ -125,11 +127,11 @@ pub fn paint_fog_texture(
 /// Hides scenery and crystals on ground the player has not explored yet.
 pub fn shroud_unexplored_scenery(
     mut commands: Commands,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     scenery: Query<(Entity, &Transform), Or<(With<Scenery>, With<CrystalVisual>)>>,
 ) {
     for (entity, transform) in &scenery {
-        if !fog.is_explored(transform.translation) {
+        if !view.sight().is_explored(transform.translation) {
             commands
                 .entity(entity)
                 .insert((Shrouded, Visibility::Hidden));
@@ -139,10 +141,11 @@ pub fn shroud_unexplored_scenery(
 
 pub fn reveal_explored_scenery(
     mut commands: Commands,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     mut seen_revision: Local<u64>,
     mut shrouded: Query<(Entity, &Transform, &mut Visibility), With<Shrouded>>,
 ) {
+    let fog = view.sight();
     if *seen_revision == fog.revision {
         return;
     }
@@ -158,7 +161,7 @@ pub fn reveal_explored_scenery(
 /// Enemy units show only where the player can see; enemy structures appear once spotted and then stay.
 pub fn show_seen_enemies(
     mut commands: Commands,
-    fog: Res<FogOfWar>,
+    view: LocalView,
     mut units: Query<(&Team, &Transform, &mut Visibility), With<Unit>>,
     mut buildings: Query<
         (Entity, &Team, &Building, &mut Visibility, Has<Discovered>),
@@ -166,7 +169,7 @@ pub fn show_seen_enemies(
     >,
 ) {
     for (&team, transform, mut visibility) in &mut units {
-        let wanted = if fog.reveals(team, transform.translation) {
+        let wanted = if view.reveals(team, transform.translation) {
             Visibility::Inherited
         } else {
             Visibility::Hidden
@@ -174,11 +177,11 @@ pub fn show_seen_enemies(
         visibility.set_if_neq(wanted);
     }
     for (entity, &team, building, mut visibility, discovered) in &mut buildings {
-        if !team.is_hostile_to(Team::Player) || discovered {
+        if !view.is_hostile(team) || discovered {
             continue;
         }
         let spotted = footprint_cells(building.origin, building.kind.spec().footprint)
-            .any(|cell| fog.sight_at(cell) == CellSight::Visible);
+            .any(|cell| view.sight().sight_at(cell) == CellSight::Visible);
         if spotted {
             commands.entity(entity).insert(Discovered);
             *visibility = Visibility::Inherited;

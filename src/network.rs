@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::ai::AiCommanders;
 use crate::catalog::Team;
 use crate::determinism::simulation_checksum;
+use crate::i18n::{tr, tr_fmt};
+use crate::notifications::Notifications;
 use crate::player_commands::{
     CommandQueue, LocalTeam, PlayerCommand, ScheduledCommand, SimulationTick,
 };
@@ -54,6 +56,7 @@ pub struct NetSession {
     local_checksums: BTreeMap<u64, u64>,
     remote_checksums: BTreeMap<u64, u64>,
     pub state: SessionState,
+    reported: Option<SessionState>,
 }
 
 impl NetSession {
@@ -86,6 +89,7 @@ impl NetSession {
             local_checksums: BTreeMap::new(),
             remote_checksums: BTreeMap::new(),
             state: SessionState::InStep,
+            reported: None,
         })
     }
 
@@ -202,6 +206,25 @@ pub fn fingerprint_tick(world: &mut World) {
     session.local_checksums.insert(tick, sum);
     session.send(&Message::Checksum { tick, sum });
     session.compare_checksums(tick);
+}
+
+/// Tells the player once why the battle stopped.
+pub fn report_session_trouble(
+    session: Option<ResMut<NetSession>>,
+    mut notifications: ResMut<Notifications>,
+) {
+    let Some(mut session) = session else { return };
+    if session.state == SessionState::InStep || session.reported == Some(session.state) {
+        return;
+    }
+    notifications.push(match session.state {
+        SessionState::Disconnected => tr("The other player has left the battle").to_string(),
+        SessionState::Desynced(tick) => {
+            tr_fmt("Out of step with the other player at tick {}", &[&tick])
+        }
+        SessionState::InStep => return,
+    });
+    session.reported = Some(session.state);
 }
 
 /// Teams played by people on either machine get no computer commander.

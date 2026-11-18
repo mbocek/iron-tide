@@ -9,6 +9,7 @@ use crate::engineers::{EngineerJob, job_for};
 use crate::i18n::{tr, tr_fmt};
 use crate::key_bindings::Action;
 use crate::map::world_to_cell;
+use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, GroundOrder, PlayerCommand};
 use crate::production::Placement;
 use crate::settings::GameSettings;
@@ -144,7 +145,7 @@ pub fn spawn_selection_box(mut commands: Commands, fonts: Res<UiFonts>) {
 fn target_under(targets: &Targets, point: Vec3) -> Option<&TargetInfo> {
     targets
         .iter()
-        .filter(|t| t.seen_by_player)
+        .filter(|t| t.seen_locally)
         .filter(|t| {
             let offset = (point - t.position).xz().abs();
             let reach = t.radius + CLICK_SLACK;
@@ -162,6 +163,7 @@ fn target_under(targets: &Targets, point: Vec3) -> Option<&TargetInfo> {
 }
 
 pub fn select_units(
+    local: Res<LocalTeam>,
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -221,7 +223,7 @@ pub fn select_units(
         selectable
             .iter()
             .filter(|(_, team, transform, is_unit)| {
-                **team == Team::Player && *is_unit && inside_box(transform.translation)
+                **team == local.0 && *is_unit && inside_box(transform.translation)
             })
             .map(|(entity, ..)| entity)
             .collect::<Vec<_>>()
@@ -259,7 +261,7 @@ pub fn select_units(
     } else if let Some(hit) = cursor
         .ground
         .and_then(|ground| target_under(&targets, ground))
-        && hit.team == Team::Player
+        && hit.team == local.0
     {
         commands.entity(hit.entity).insert(Selected);
     }

@@ -1,6 +1,7 @@
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::key_bindings::{Action, KeyBindings};
 use crate::match_stats::{MatchStats, TeamTally};
+use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
 use crate::structure_tools::spawn_tool_buttons;
@@ -187,6 +188,7 @@ pub fn load_fonts(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 pub fn build_interface(
+    local: Res<LocalTeam>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     fonts: Res<UiFonts>,
@@ -212,7 +214,7 @@ pub fn build_interface(
             BorderColor::all(FRAME_BRIGHT),
         ))
         .with_children(|sidebar| {
-            spawn_header(sidebar, fonts);
+            spawn_header(sidebar, fonts, local.0);
             spawn_minimap(sidebar, &minimap);
             spawn_resources(sidebar, fonts);
             spawn_tabs(sidebar, fonts);
@@ -230,7 +232,7 @@ pub fn build_interface(
     commands.insert_resource(ActiveTab(Lane::Structures));
 }
 
-fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
+fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts, team: Team) {
     sidebar
         .spawn(Node {
             flex_direction: FlexDirection::Row,
@@ -240,7 +242,12 @@ fn spawn_header(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
         })
         .with_children(|header| {
             header.spawn(fonts.heading("IRON TIDE", 30.0, ACCENT));
-            header.spawn(fonts.heading(tr("COALITION"), 16.0, Team::Player.ui_color()));
+            let side = if team == Team::Player {
+                tr("COALITION")
+            } else {
+                tr("SYNDICATE")
+            };
+            header.spawn(fonts.heading(side, 16.0, team.ui_color()));
             header
                 .spawn((
                     Node {
@@ -837,8 +844,12 @@ fn run_outcome_action(
 }
 
 /// The rows of the end-of-match table: what the player did against what all opponents did together.
-fn outcome_rows(stats: &MatchStats, economies: &Economies) -> Vec<(&'static str, String, String)> {
-    let player = *stats.of(Team::Player);
+fn outcome_rows(
+    stats: &MatchStats,
+    economies: &Economies,
+    team: Team,
+) -> Vec<(&'static str, String, String)> {
+    let player = *stats.of(team);
     let mut opponents = TeamTally::default();
     let mut opponents_harvested = 0;
     for team in Team::OPPONENTS {
@@ -880,7 +891,7 @@ fn outcome_rows(stats: &MatchStats, economies: &Economies) -> Vec<(&'static str,
         ),
         (
             tr("Credits harvested"),
-            format!("${}", economies.of(Team::Player).harvested),
+            format!("${}", economies.of(team).harvested),
             format!("${opponents_harvested}"),
         ),
     ]
@@ -891,6 +902,7 @@ fn spawn_outcome_table(
     fonts: &UiFonts,
     rows: Vec<(&'static str, String, String)>,
     match_secs: f32,
+    team: Team,
 ) {
     let row = |table: &mut ChildSpawnerCommands, cells: [(String, Color); 3]| {
         table
@@ -924,7 +936,7 @@ fn spawn_outcome_table(
         table,
         [
             (String::new(), TEXT_DIM),
-            (tr("You").into(), Team::Player.ui_color()),
+            (tr("You").into(), team.ui_color()),
             (tr("Enemies").into(), Team::Crimson.ui_color()),
         ],
     );
@@ -1063,14 +1075,15 @@ fn tile_state(
     production: &Production,
     owned: &[BuildingKind],
     credits: i32,
+    team: Team,
 ) -> TileState {
-    if !production.allows(Team::Player, item) {
+    if !production.allows(team, item) {
         return TileState::NotInMission;
     }
     if item.missing_requirement(owned).is_some() {
         return TileState::Locked;
     }
-    let lane = production.lane(Team::Player, item.lane());
+    let lane = production.lane(team, item.lane());
     if let BuildItem::Structure(kind) = item
         && lane.ready == Some(kind)
     {
@@ -1093,6 +1106,7 @@ fn tile_state(
 }
 
 pub fn refresh_build_tiles(
+    local: Res<LocalTeam>,
     time: Res<Time>,
     active: Res<ActiveTab>,
     production: Res<Production>,
@@ -1113,9 +1127,10 @@ pub fn refresh_build_tiles(
         Without<BuildTile>,
     >,
 ) {
-    let owned = owned_building_kinds(&buildings, Team::Player);
-    let credits = economies.of(Team::Player).credits;
-    let state_of = |item| tile_state(item, &production, &owned, credits);
+    let owned = owned_building_kinds(&buildings, local.0);
+    let credits = economies.of(local.0).credits;
+    let team = local.0;
+    let state_of = |item| tile_state(item, &production, &owned, credits, team);
     let pulse = (time.elapsed_secs() * 5.0).sin() * 0.5 + 0.5;
 
     for (tile, hovered, mut node, mut background, mut border) in &mut tiles {
@@ -1204,6 +1219,7 @@ pub fn refresh_build_tiles(
 }
 
 pub fn refresh_resources(
+    local: Res<LocalTeam>,
     economies: Res<Economies>,
     mut credits_text: Query<&mut Text, (With<CreditsText>, Without<PowerText>)>,
     mut power_text: Query<(&mut Text, &mut TextColor), (With<PowerText>, Without<CreditsText>)>,
@@ -1213,7 +1229,7 @@ pub fn refresh_resources(
     >,
     mut power_demand: Query<&mut Node, (With<PowerBarDemand>, Without<PowerBarFill>)>,
 ) {
-    let economy = economies.of(Team::Player);
+    let economy = economies.of(local.0);
     if let Ok(mut text) = credits_text.single_mut() {
         text.set_if_neq(Text(format!("$ {}", economy.credits)));
     }
@@ -1266,6 +1282,7 @@ fn describe_item(
     item: BuildItem,
     owned: &[BuildingKind],
     production: &Production,
+    team: Team,
 ) -> (String, String) {
     let (role, build_secs, extra) = match item {
         BuildItem::Structure(kind) => {
@@ -1286,7 +1303,7 @@ fn describe_item(
             )
         }
     };
-    let requirement = if !production.allows(Team::Player, item) {
+    let requirement = if !production.allows(team, item) {
         "\nNot available in this mission".to_string()
     } else {
         item.missing_requirement(owned)
@@ -1303,6 +1320,7 @@ fn describe_item(
 }
 
 pub fn refresh_info_panel(
+    local: Res<LocalTeam>,
     asset_server: Res<AssetServer>,
     production: Res<Production>,
     buildings: Query<(&Building, &Team)>,
@@ -1335,7 +1353,7 @@ pub fn refresh_info_panel(
     else {
         return;
     };
-    let owned = owned_building_kinds(&buildings, Team::Player);
+    let owned = owned_building_kinds(&buildings, local.0);
     let hovered = hovered_tiles
         .iter()
         .find(|(hovered, _)| hovered.get())
@@ -1343,7 +1361,7 @@ pub fn refresh_info_panel(
     let selection: Vec<_> = selected.iter().collect();
 
     let (shown_icon, heading, details, health) = if let Some(item) = hovered {
-        let (heading, details) = describe_item(item, &owned, &production);
+        let (heading, details) = describe_item(item, &owned, &production, local.0);
         (Some(icon_path(item)), heading, details, None)
     } else {
         match selection.as_slice() {
@@ -1453,6 +1471,7 @@ pub fn refresh_notifications(
 }
 
 pub fn show_outcome(
+    local: Res<LocalTeam>,
     mut commands: Commands,
     fonts: Res<UiFonts>,
     outcome: Res<GameOutcome>,
@@ -1466,10 +1485,15 @@ pub fn show_outcome(
     if !outcome.is_changed() {
         return;
     }
+    let enemy_side = if local.0 == Team::Player {
+        Team::Crimson
+    } else {
+        Team::Player
+    };
     let banner = match *outcome {
         GameOutcome::Ongoing => None,
-        GameOutcome::Victory => Some((tr("VICTORY"), Team::Player)),
-        GameOutcome::Defeat => Some((tr("DEFEAT"), Team::Crimson)),
+        GameOutcome::Victory => Some((tr("VICTORY"), local.0)),
+        GameOutcome::Defeat => Some((tr("DEFEAT"), enemy_side)),
     };
     if let Some((message, team)) = banner
         && let Ok((mut text, mut color)) = title.single_mut()
@@ -1480,10 +1504,10 @@ pub fn show_outcome(
     if banner.is_some()
         && let Ok(table) = tables.single()
     {
-        let rows = outcome_rows(&stats, &economies);
+        let rows = outcome_rows(&stats, &economies, local.0);
         commands.entity(table).despawn_related::<Children>();
         commands.entity(table).with_children(|table| {
-            spawn_outcome_table(table, &fonts, rows, clock.elapsed_secs);
+            spawn_outcome_table(table, &fonts, rows, clock.elapsed_secs, local.0);
         });
     }
     if let Ok(mut visibility) = overlay.single_mut() {
@@ -1496,6 +1520,7 @@ pub fn show_outcome(
 }
 
 pub fn refresh_objective(
+    local: Res<LocalTeam>,
     level: Res<ActiveLevel>,
     clock: Res<MatchClock>,
     economies: Res<Economies>,
@@ -1503,7 +1528,7 @@ pub fn refresh_objective(
 ) {
     let status = tr_fmt(
         "OBJECTIVE: {}",
-        &[&objective_status(&level, &clock, &economies)],
+        &[&objective_status(&level, &clock, &economies, local.0)],
     );
     for mut text in &mut lines {
         if text.0 != status {

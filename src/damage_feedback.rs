@@ -2,10 +2,10 @@ use bevy::prelude::*;
 use rand::RngExt;
 
 use crate::camera::RtsCamera;
-use crate::catalog::Team;
 use crate::combat::{DamageDealt, Targets};
 use crate::components::{BodyRadius, Health};
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
+use crate::player_commands::LocalTeam;
 use crate::settings::GameSettings;
 use crate::ui::UiFonts;
 
@@ -54,6 +54,7 @@ fn format_damage(total: f32) -> String {
 }
 
 pub fn spawn_damage_numbers(
+    local: Res<LocalTeam>,
     mut commands: Commands,
     mut hits: MessageReader<DamageDealt>,
     targets: Res<Targets>,
@@ -80,10 +81,10 @@ pub fn spawn_damage_numbers(
         let Some(victim) = targets.get(hit.victim) else {
             continue;
         };
-        if !victim.seen_by_player {
+        if !victim.seen_locally {
             continue;
         }
-        let color = if hit.team == Team::Player {
+        let color = if hit.team == local.0 {
             PLAYER_LOSS_COLOR
         } else {
             ENEMY_LOSS_COLOR

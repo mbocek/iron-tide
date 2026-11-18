@@ -201,6 +201,12 @@ checksums end the match as out of step, and a lost connection stops it. Tests jo
 over a real local TCP connection: their orders reach each other, the battles stay identical, a deliberate
 drift is noticed by both, and a dropped connection halts the other side.
 
+Each machine shows the battle from its own player's side (`LocalTeam`, read through `LocalView`): the fog
+of war, hidden enemies, the minimap, sounds, health bars, the sidebar's credits, power and production,
+selection, notifications, the camera's home and the victory or defeat banner all follow the local team,
+while the simulation keeps every team's view and stays the same on both machines. If the connection drops
+or the battles drift apart, the player is told once and the battle stops.
+
 ## Languages
 
 The interface speaks English, Slovak and Czech: choose it with the *Language* button in the main menu or in
@@ -384,6 +390,7 @@ attack wave and its income (75 % / 100 % / 135 %).
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
 | `i18n` | interface languages: the translation table and `tr` / `tr_fmt` |
 | `interpolation` | drawing moving things between simulation ticks |
+| `local_view` | the battle as this machine's player sees it, for drawing, sound and the interface |
 | `network` | the lockstep session with a player on another machine: turns, checksums, disconnection |
 | `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |
 | `determinism` | the seeded simulation randomness, simulation ids, single-threaded schedules and the state checksum |

@@ -6,6 +6,7 @@ use crate::economy::Economies;
 use crate::i18n::tr_fmt;
 use crate::levels::{ActiveLevel, Objective};
 use crate::match_flow::MatchClock;
+use crate::player_commands::LocalTeam;
 
 #[derive(Resource, Default, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum GameOutcome {
@@ -17,6 +18,7 @@ pub enum GameOutcome {
 
 /// The player loses once nothing of theirs is left; how they win depends on the mission objective.
 pub fn decide_outcome(
+    local: Res<LocalTeam>,
     mut outcome: ResMut<GameOutcome>,
     level: Res<ActiveLevel>,
     clock: Res<MatchClock>,
@@ -28,15 +30,15 @@ pub fn decide_outcome(
         return;
     }
     let standing = |building: &Building| !building.kind.is_wall();
-    let player_alive = units.iter().any(|&t| t == Team::Player)
+    let player_alive = units.iter().any(|&t| t == local.0)
         || buildings
             .iter()
-            .any(|(&t, building)| t == Team::Player && standing(building));
+            .any(|(&t, building)| t == local.0 && standing(building));
     if !player_alive {
         *outcome = GameOutcome::Defeat;
         return;
     }
-    let hostile = |team: &Team| team.is_hostile_to(Team::Player);
+    let hostile = |team: &Team| team.is_hostile_to(local.0);
     let achieved = match level.0.objective {
         Objective::DestroyAllEnemies => {
             !units.iter().any(hostile)
@@ -48,12 +50,12 @@ pub fn decide_outcome(
             .iter()
             .any(|(team, building)| hostile(team) && building.kind == BuildingKind::CommandCenter),
         Objective::CaptureCommandCenter => buildings.iter().any(|(&team, building)| {
-            team == Team::Player
+            team == local.0
                 && building.kind == BuildingKind::CommandCenter
                 && building.origin != level.0.player.site.origin()
         }),
         Objective::Survive { minutes } => clock.elapsed_secs >= minutes * 60.0,
-        Objective::ReachCredits { credits } => economies.of(Team::Player).credits >= credits,
+        Objective::ReachCredits { credits } => economies.of(local.0).credits >= credits,
     };
     if achieved {
         *outcome = GameOutcome::Victory;
@@ -61,7 +63,12 @@ pub fn decide_outcome(
 }
 
 /// One-line progress report for the interface, e.g. "Hold out for 8 minutes - 3:12 left".
-pub fn objective_status(level: &ActiveLevel, clock: &MatchClock, economies: &Economies) -> String {
+pub fn objective_status(
+    level: &ActiveLevel,
+    clock: &MatchClock,
+    economies: &Economies,
+    team: Team,
+) -> String {
     let objective = level.0.objective;
     let progress = match objective {
         Objective::Survive { minutes } => {
@@ -72,7 +79,7 @@ pub fn objective_status(level: &ActiveLevel, clock: &MatchClock, economies: &Eco
             )
         }
         Objective::ReachCredits { credits } => {
-            format!("  -  ${} / ${credits}", economies.of(Team::Player).credits)
+            format!("  -  ${} / ${credits}", economies.of(team).credits)
         }
         Objective::DestroyAllEnemies
         | Objective::DestroyCommandCenters

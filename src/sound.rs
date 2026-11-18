@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use rand::RngExt;
 
 use crate::camera::RtsCamera;
-use crate::fog::FogOfWar;
+use crate::local_view::LocalView;
 use crate::match_flow::GameState;
 use crate::outcome::GameOutcome;
 use crate::settings::GameSettings;
@@ -197,7 +197,7 @@ pub fn play_sound_cues(
     time: Res<Time<Real>>,
     library: Option<Res<SoundLibrary>>,
     settings: Res<GameSettings>,
-    fog: Option<Res<FogOfWar>>,
+    view: Option<LocalView>,
     cameras: Query<&RtsCamera>,
 ) {
     let Some(library) = library else {
@@ -211,7 +211,9 @@ pub fn play_sound_cues(
         let attenuation = match (cue.position, listener) {
             (None, _) => 1.0,
             (Some(position), Some(listener)) => {
-                let hidden = fog.as_ref().is_some_and(|fog| !fog.is_visible(position));
+                let hidden = view
+                    .as_ref()
+                    .is_some_and(|view| !view.sight().is_visible(position));
                 if hidden {
                     0.0
                 } else {
