@@ -1629,8 +1629,12 @@ pub fn refresh_info_panel(
             let path = unit
                 .map(|u| format!("icons/{}.png", u.0.spec().model_id))
                 .or(building.map(|b| format!("icons/{}.png", b.kind.spec().model_id)));
+            let role = unit
+                .map(|u| tr(u.0.spec().role))
+                .or(building.map(|b| tr(b.kind.spec().role)))
+                .unwrap_or_default();
             let hp = format!("{:.0} / {:.0} HP", health.current.max(0.0), health.max);
-            let details = match harvester {
+            let condition = match harvester {
                 Some(harvester) => tr_fmt(
                     "{}\nCargo {} / {}  ({})",
                     &[
@@ -1642,6 +1646,7 @@ pub fn refresh_info_panel(
                 ),
                 None => hp,
             };
+            let details = format!("{condition}\n{role}");
             (path, name.to_string(), details, Some(health.fraction()))
         }
         many => {
