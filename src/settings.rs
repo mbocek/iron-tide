@@ -129,7 +129,7 @@ impl Default for GameSettings {
             damage_numbers: true,
             health_bars: HealthBars::DamagedOrSelected,
             performance_overlay: false,
-            master_volume: 0.8,
+            master_volume: 0.4,
             music_volume: 0.6,
             effects_volume: 0.8,
             language: Language::English,
