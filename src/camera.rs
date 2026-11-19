@@ -218,12 +218,8 @@ pub fn control_camera(
     if settings.keys.just_pressed(&keys, Action::ResetRotation) {
         camera.yaw = 0.0;
     }
-    if settings.keys.pressed(&keys, Action::RotateLeft) {
-        camera.yaw += ROTATE_SPEED * dt;
-    }
-    if settings.keys.pressed(&keys, Action::RotateRight) {
-        camera.yaw -= ROTATE_SPEED * dt;
-    }
+    let turn = |action| f32::from(u8::from(settings.keys.pressed(&keys, action)));
+    camera.yaw += yaw_change(turn(Action::RotateLeft), turn(Action::RotateRight), dt);
     for event in wheel.read() {
         if !cursor.over_interface {
             let notches = match event.unit {
@@ -318,4 +314,28 @@ pub fn ray_hit_on_terrain(ray: Ray3d, landscape: Landscape) -> Vec3 {
         ground_height = landscape.height(point.x, point.z);
     }
     point.with_y(ground_height)
+}
+
+/// How the camera's yaw changes while the rotate keys are held. Rotating left swings the battlefield to the
+/// left, as in most strategy games (issue #1), so the view itself turns right.
+fn yaw_change(left: f32, right: f32, dt: f32) -> f32 {
+    (right - left) * ROTATE_SPEED * dt
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rotate_left_swings_the_battlefield_left_and_rotate_right_back() {
+        let left = yaw_change(1.0, 0.0, 0.1);
+        let right = yaw_change(0.0, 1.0, 0.1);
+        let looking = |yaw: f32| -(Quat::from_rotation_y(yaw) * Vec3::Z);
+        assert!(
+            looking(left).x > 0.0,
+            "the view turns towards what was on the right"
+        );
+        assert_eq!(left, -right);
+        assert_eq!(yaw_change(1.0, 1.0, 0.1), 0.0);
+    }
 }
