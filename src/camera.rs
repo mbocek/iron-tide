@@ -51,6 +51,8 @@ pub struct RtsCamera {
 pub struct Cursor {
     pub screen: Option<Vec2>,
     pub ground: Option<Vec3>,
+    /// The line from the camera through the pointer, for picking things above the ground such as aircraft.
+    pub ray: Option<Ray3d>,
     /// True while the pointer is over any interface element, so world clicks must be ignored.
     pub over_interface: bool,
 }
@@ -293,10 +295,12 @@ pub fn track_cursor(
         .get(&PointerId::Mouse)
         .is_some_and(|hits| hits.keys().any(|&entity| interface_nodes.contains(entity)));
     cursor.over_interface = over_sidebar || over_panel;
-    cursor.ground = cursor.screen.and_then(|screen| {
-        let ray = camera.viewport_to_world(camera_transform, screen).ok()?;
-        Some(ray_hit_on_terrain(ray, level.0.landscape))
-    });
+    cursor.ray = cursor
+        .screen
+        .and_then(|screen| camera.viewport_to_world(camera_transform, screen).ok());
+    cursor.ground = cursor
+        .ray
+        .map(|ray| ray_hit_on_terrain(ray, level.0.landscape));
 }
 
 /// Refines a flat-ground hit by re-intersecting at the terrain height under the previous guess.

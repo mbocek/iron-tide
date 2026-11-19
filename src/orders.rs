@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::camera::{Cursor, RtsCamera};
-use crate::catalog::{BuildingKind, Diplomacy, Team, UnitKind};
+use crate::catalog::{ArmorClass, BuildingKind, Diplomacy, Team, UnitKind};
 use crate::combat::{TargetInfo, Targets};
 use crate::components::*;
 use crate::determinism::SimId;
@@ -143,11 +143,25 @@ pub fn spawn_selection_box(mut commands: Commands, fonts: Res<UiFonts>) {
         });
 }
 
-fn target_under(targets: &Targets, point: Vec3) -> Option<&TargetInfo> {
+/// Where the pointer's line crosses the horizontal plane at `height`.
+fn pointer_at_height(ray: Ray3d, height: f32) -> Option<Vec3> {
+    let distance = ray.intersect_plane(Vec3::Y * height, InfinitePlane3d::new(Vec3::Y))?;
+    Some(ray.get_point(distance))
+}
+
+/// What the pointer is on. Aircraft are picked where they are seen, up in the air, not by the ground beneath.
+fn target_under(targets: &Targets, ground: Vec3, ray: Option<Ray3d>) -> Option<&TargetInfo> {
+    let pointed_at = |t: &TargetInfo| {
+        let airborne = t.armor == ArmorClass::Aircraft;
+        ray.filter(|_| airborne)
+            .and_then(|ray| pointer_at_height(ray, t.position.y))
+            .unwrap_or(ground)
+    };
     targets
         .iter()
         .filter(|t| t.seen_locally)
         .filter(|t| {
+            let point = pointed_at(t);
             let offset = (point - t.position).xz().abs();
             let reach = t.radius + CLICK_SLACK;
             if t.is_building {
@@ -157,9 +171,8 @@ fn target_under(targets: &Targets, point: Vec3) -> Option<&TargetInfo> {
             }
         })
         .min_by(|a, b| {
-            a.position
-                .distance_squared(point)
-                .total_cmp(&b.position.distance_squared(point))
+            let distance = |t: &TargetInfo| (pointed_at(t) - t.position).xz().length_squared();
+            distance(a).total_cmp(&distance(b))
         })
 }
 
@@ -266,7 +279,7 @@ pub fn select_units(
         }
     } else if let Some(hit) = cursor
         .ground
-        .and_then(|ground| target_under(&targets, ground))
+        .and_then(|ground| target_under(&targets, ground, cursor.ray))
         && hit.team == local.0
     {
         commands.entity(hit.entity).insert(Selected);
@@ -375,7 +388,7 @@ pub fn issue_orders(
     let hovered = if from_minimap.is_some() {
         None
     } else {
-        target_under(&targets, ground).copied()
+        target_under(&targets, ground, cursor.ray).copied()
     };
     let goal = world_to_cell(ground);
     let mut acknowledge = |marker: &mut OrderMarker, position: Vec3, kind: MarkerKind| {
@@ -451,4 +464,20 @@ pub fn issue_orders(
         GroundOrder::Patrol => MarkerKind::Patrol,
     };
     acknowledge(&mut marker, ground, kind);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_aircraft_is_picked_where_it_flies_not_on_the_ground_beneath() {
+        let camera = Vec3::new(0.0, 30.0, 30.0);
+        let aircraft = Vec3::new(10.0, 6.0, 10.0);
+        let ray = Ray3d::new(camera, Dir3::new(aircraft - camera).unwrap());
+        let at_its_height = pointer_at_height(ray, aircraft.y).unwrap();
+        assert!(at_its_height.distance(aircraft) < 1e-3);
+        let on_the_ground = pointer_at_height(ray, 0.0).unwrap();
+        assert!(on_the_ground.xz().distance(aircraft.xz()) > 4.0);
+    }
 }
