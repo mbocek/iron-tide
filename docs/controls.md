@@ -19,6 +19,7 @@
 | WASD, arrows, screen edge | scroll the camera (Shift = faster) |
 | Middle mouse button + drag | drag the map |
 | Minimap: click / drag | jump to that spot |
+| Minimap: right click | send the selected units there (with Ctrl, Alt, Shift as on the map), or set a rally point |
 | Mouse wheel / Q, E / R | zoom / rotate / reset rotation |
 | Space or Home | back to base |
 | X / Esc | stop / deselect, cancel placement |

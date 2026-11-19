@@ -239,6 +239,23 @@ pub fn redraw_minimap(
     }
 }
 
+/// Where a right click on the minimap sends the selection; `issue_orders` takes it the same frame.
+#[derive(Resource, Default)]
+pub struct MinimapOrder(pub Option<Vec3>);
+
+pub fn order_on_press(
+    press: On<PointerPress>,
+    level: Res<ActiveLevel>,
+    mut order: ResMut<MinimapOrder>,
+) {
+    if press.button != PointerButton::Secondary {
+        return;
+    }
+    if let Some(spot) = map_spot(&press.hit) {
+        order.0 = Some(level.0.landscape.on_ground(Vec3::new(spot.x, 0.0, spot.y)));
+    }
+}
+
 pub fn jump_camera_on_press(press: On<PointerPress>, mut cameras: Query<&mut RtsCamera>) {
     if press.button == PointerButton::Primary {
         jump_camera_to(&press.hit, &mut cameras);
@@ -255,13 +272,34 @@ pub fn jump_camera_on_drag(
     }
 }
 
-/// UI picking reports hits relative to the node, from (-0.5, -0.5) top left to (0.5, 0.5) bottom right.
-fn jump_camera_to(hit: &HitData, cameras: &mut Query<&mut RtsCamera>) {
-    let Some(position) = hit.position else { return };
+/// The map point under a minimap hit, as world x and z. UI picking reports hits relative to the node, from
+/// (-0.5, -0.5) top left to (0.5, 0.5) bottom right.
+fn map_spot(hit: &HitData) -> Option<Vec2> {
+    let position = hit.position?;
     let normalized = (position.truncate() + Vec2::splat(0.5)).clamp(Vec2::ZERO, Vec2::ONE);
-    let target = normalized * map_world_size();
+    Some(normalized * map_world_size())
+}
+
+fn jump_camera_to(hit: &HitData, cameras: &mut Query<&mut RtsCamera>) {
+    let Some(target) = map_spot(hit) else { return };
     for mut camera in cameras.iter_mut() {
         camera.focus.x = target.x;
         camera.focus.z = target.y;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_minimap_hit_points_at_the_same_spot_on_the_map() {
+        let hit = |x: f32, y: f32| {
+            HitData::new(Entity::PLACEHOLDER, 0.0, Some(Vec3::new(x, y, 0.0)), None)
+        };
+        let size = map_world_size();
+        assert_eq!(map_spot(&hit(0.0, 0.0)), Some(Vec2::splat(size * 0.5)));
+        assert_eq!(map_spot(&hit(-0.5, 0.5)), Some(Vec2::new(0.0, size)));
+        assert_eq!(map_spot(&hit(0.9, -0.9)), Some(Vec2::new(size, 0.0)));
     }
 }

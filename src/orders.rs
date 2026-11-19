@@ -9,6 +9,7 @@ use crate::engineers::{EngineerJob, job_for};
 use crate::i18n::{tr, tr_fmt};
 use crate::key_bindings::Action;
 use crate::map::world_to_cell;
+use crate::minimap::MinimapOrder;
 use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, GroundOrder, PlayerCommand};
 use crate::production::Placement;
@@ -338,6 +339,7 @@ pub fn issue_orders(
     targets: Res<Targets>,
     mut marker: ResMut<OrderMarker>,
     diplomacy: Res<Diplomacy>,
+    mut minimap_order: ResMut<MinimapOrder>,
     selected_units: Query<(&SimId, &Unit, &Team), With<Selected>>,
     selected_buildings: Query<(&SimId, &Building, &Team), With<Selected>>,
     structures: Query<(&SimId, &Building, &Health)>,
@@ -362,15 +364,19 @@ pub fn issue_orders(
     if settings.keys.just_pressed(&keys, Action::LayMine) && !engineers.is_empty() {
         issuer.issue(PlayerCommand::LayMines { units: engineers });
     }
-    if placement.active.is_some()
-        || tool.0.is_some()
-        || cursor.over_interface
-        || !mouse.just_pressed(MouseButton::Right)
-    {
+    let from_minimap = minimap_order.0.take();
+    if placement.active.is_some() || tool.0.is_some() {
         return;
     }
-    let Some(ground) = cursor.ground else { return };
-    let hovered = target_under(&targets, ground).copied();
+    let clicked_in_world = !cursor.over_interface && mouse.just_pressed(MouseButton::Right);
+    let Some(ground) = from_minimap.or(cursor.ground.filter(|_| clicked_in_world)) else {
+        return;
+    };
+    let hovered = if from_minimap.is_some() {
+        None
+    } else {
+        target_under(&targets, ground).copied()
+    };
     let goal = world_to_cell(ground);
     let mut acknowledge = |marker: &mut OrderMarker, position: Vec3, kind: MarkerKind| {
         cues.write(SoundCue::interface(Sound::UnitAcknowledge));

@@ -303,6 +303,7 @@ impl Plugin for GamePlugin {
             .init_resource::<camera::Cursor>()
             .init_resource::<orders::DragSelection>()
             .init_resource::<orders::OrderMarker>()
+            .init_resource::<minimap::MinimapOrder>()
             .init_resource::<crystal_models::CrystalModelLibrary>()
             .init_resource::<animation::AnimationLibrary>()
             .init_resource::<menu::MenuState>()

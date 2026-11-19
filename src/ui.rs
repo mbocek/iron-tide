@@ -19,7 +19,7 @@ use crate::economy::Economies;
 use crate::levels::{ActiveLevel, LevelDefinition, campaign};
 use crate::match_flow::{GameState, MatchClock};
 use crate::menu::{MenuState, open_menu_from_button, spawn_menu};
-use crate::minimap::{Minimap, jump_camera_on_drag, jump_camera_on_press};
+use crate::minimap::{Minimap, jump_camera_on_drag, jump_camera_on_press, order_on_press};
 use crate::network::NetSession;
 use crate::network_hud::{spawn_chat_line, spawn_network_hud};
 use crate::notifications::Notifications;
@@ -320,7 +320,8 @@ fn spawn_minimap(sidebar: &mut ChildSpawnerCommands, minimap: &Minimap) {
                     },
                 ))
                 .observe(jump_camera_on_press)
-                .observe(jump_camera_on_drag);
+                .observe(jump_camera_on_drag)
+                .observe(order_on_press);
         });
 }
 
