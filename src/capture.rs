@@ -46,8 +46,8 @@ const CAPTURE_RANDOM_VAR: &str = "IRON_TIDE_CAPTURE_RANDOM";
 /// `IRON_TIDE_CAPTURE_HOST=2` hosts a network battle for that many players and `IRON_TIDE_CAPTURE_JOIN=127.0.0.1`
 /// joins one.
 const CAPTURE_HOST_VAR: &str = "IRON_TIDE_CAPTURE_HOST";
-/// `IRON_TIDE_CAPTURE_MAIN_MENU=1` stays in the main menu; any other value selects that page first
-/// (`editor`, `network`, `replay`).
+/// `IRON_TIDE_CAPTURE_MAIN_MENU=1` stays on the main menu's start screen; a page name opens that page
+/// (`campaign`, `random`, `custom`, `editor`, `network`, `replays`).
 const CAPTURE_MAIN_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MAIN_MENU";
 const CAPTURE_JOIN_VAR: &str = "IRON_TIDE_CAPTURE_JOIN";
 const LOAD_AFTER_SECS: f32 = 1.5;

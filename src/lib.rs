@@ -583,9 +583,14 @@ impl Plugin for GamePlugin {
                     updates::receive_update_news,
                     main_menu::type_on_network_page,
                     lobby::run_lobby,
+                    main_menu::step_back_on_escape,
+                    main_menu::rebuild_screen,
                     main_menu::refresh_main_menu,
                     main_menu::show_network_status,
                     main_menu::refresh_update_banner,
+                    menu::pause_while_menu_open,
+                    menu::rebuild_menu_page,
+                    menu::refresh_menu,
                 )
                     .chain()
                     .run_if(in_state(match_flow::GameState::MainMenu)),

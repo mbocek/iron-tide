@@ -493,5 +493,18 @@
   "got it  ×": "rozumiem  ×",
   "Engineers lay mines: select them and press {} to bury one where they stand ($100). The enemy cannot see your mines, and you cannot see theirs.": "Ženisti kladú míny: vyber ich a stlač {}, zakopú jednu tam, kde stoja (100 $). Nepriateľ tvoje míny nevidí a ty nevidíš jeho.",
   "The Tech Center opens the RESEARCH tab: upgrades for your whole army. Research takes time, and the Tech Center must stand until it is done.": "Technologické centrum otvára záložku VÝSKUM: vylepšenia pre celú armádu. Výskum chvíľu trvá a Technologické centrum musí dovtedy stáť.",
-  "A sniper that keeps still for a few seconds blends into the ground and cannot be targeted, until it fires or an enemy comes within 8 m.": "Ostreľovač, ktorý pár sekúnd stojí bez pohybu, splynie s terénom a nedá sa zamerať, kým nevystrelí alebo sa k nemu nepriateľ nepriblíži na 8 m."
+  "A sniper that keeps still for a few seconds blends into the ground and cannot be targeted, until it fires or an enemy comes within 8 m.": "Ostreľovač, ktorý pár sekúnd stojí bez pohybu, splynie s terénom a nedá sa zamerať, kým nevystrelí alebo sa k nemu nepriateľ nepriblíži na 8 m.",
+  "CAMPAIGNS": "KAMPANE",
+  "SKIRMISH": "BITKA",
+  "MULTIPLAYER": "HRA PO SIETI",
+  "EDITOR": "EDITOR",
+  "SETTINGS": "NASTAVENIA",
+  "< Back": "< Späť",
+  "Esc to close": "Esc zatvorí",
+  "Story missions for the Coalition and the Syndicate": "Príbehové misie za Koalíciu a Syndikát",
+  "A battle against the computer, rolled or set up your way": "Bitka proti počítaču, náhodná alebo podľa teba",
+  "Battles over the network, up to four players": "Bitky po sieti až pre štyroch hráčov",
+  "Set up battles, paint maps and play your own levels": "Priprav bitky, kresli mapy a hraj vlastné úrovne",
+  "Watch your recent matches again": "Pozri si znova posledné zápasy",
+  "Graphics, sound, controls and gameplay": "Grafika, zvuk, ovládanie a hra"
 }

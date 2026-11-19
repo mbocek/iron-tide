@@ -365,91 +365,109 @@ pub struct KeyButton(Action);
 #[derive(Component)]
 pub struct KeyValue(Action);
 
-pub fn spawn_menu(commands: &mut Commands, fonts: &UiFonts) {
-    commands
-        .spawn((
-            MenuRoot,
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                right: Val::Px(0.0),
-                top: Val::Px(0.0),
-                bottom: Val::Px(0.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-            GlobalZIndex(10),
-            Visibility::Hidden,
-        ))
-        .with_children(|backdrop| {
-            backdrop
-                .spawn((
+/// Where the menu is opened: paused in a match with every page, or over the main menu with the settings only.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum MenuPlace {
+    Match,
+    MainMenu,
+}
+
+impl MenuPage {
+    fn shown_in(self, place: MenuPlace) -> bool {
+        place == MenuPlace::Match || !matches!(self, MenuPage::Game | MenuPage::SaveLoad)
+    }
+}
+
+pub fn spawn_menu(commands: &mut Commands, fonts: &UiFonts, place: MenuPlace) {
+    let hint = match place {
+        MenuPlace::Match => tr("paused  -  Esc / F10 to resume"),
+        MenuPlace::MainMenu => tr("Esc to close"),
+    };
+    let mut root = commands.spawn((
+        MenuRoot,
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            right: Val::Px(0.0),
+            top: Val::Px(0.0),
+            bottom: Val::Px(0.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
+        GlobalZIndex(10),
+        Visibility::Hidden,
+    ));
+    if place == MenuPlace::MainMenu {
+        root.insert(DespawnOnExit(GameState::MainMenu));
+    }
+    root.with_children(|backdrop| {
+        backdrop
+            .spawn((
+                Node {
+                    width: Val::Px(MENU_WIDTH),
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(Val::Px(18.0)),
+                    row_gap: Val::Px(12.0),
+                    border: UiRect::all(Val::Px(2.0)),
+                    ..default()
+                },
+                BackgroundColor(PANEL),
+                BorderColor::all(FRAME_BRIGHT),
+            ))
+            .with_children(|panel| {
+                panel
+                    .spawn(Node {
+                        justify_content: JustifyContent::SpaceBetween,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    })
+                    .with_children(|header| {
+                        header.spawn(fonts.heading("IRON TIDE", 30.0, ACCENT));
+                        header.spawn(fonts.text(hint, 15.0, TEXT_DIM));
+                    });
+                panel
+                    .spawn(Node {
+                        column_gap: Val::Px(6.0),
+                        ..default()
+                    })
+                    .with_children(|tabs| {
+                        for page in MenuPage::ALL
+                            .into_iter()
+                            .filter(|page| page.shown_in(place))
+                        {
+                            tabs.spawn((
+                                MenuTab(page),
+                                Hovered::default(),
+                                Node {
+                                    flex_grow: 1.0,
+                                    height: Val::Px(32.0),
+                                    justify_content: JustifyContent::Center,
+                                    align_items: AlignItems::Center,
+                                    border: UiRect::all(Val::Px(1.0)),
+                                    ..default()
+                                },
+                                BackgroundColor(BUTTON_IDLE),
+                                BorderColor::all(FRAME),
+                            ))
+                            .with_children(|tab| {
+                                tab.spawn(fonts.heading(page.title(), 15.0, TEXT_MAIN));
+                            })
+                            .observe(select_page);
+                        }
+                    });
+                panel.spawn((
+                    MenuContent,
                     Node {
-                        width: Val::Px(MENU_WIDTH),
                         flex_direction: FlexDirection::Column,
-                        padding: UiRect::all(Val::Px(18.0)),
-                        row_gap: Val::Px(12.0),
-                        border: UiRect::all(Val::Px(2.0)),
+                        row_gap: Val::Px(6.0),
+                        min_height: Val::Px(380.0),
                         ..default()
                     },
-                    BackgroundColor(PANEL),
-                    BorderColor::all(FRAME_BRIGHT),
-                ))
-                .with_children(|panel| {
-                    panel
-                        .spawn(Node {
-                            justify_content: JustifyContent::SpaceBetween,
-                            align_items: AlignItems::Center,
-                            ..default()
-                        })
-                        .with_children(|header| {
-                            header.spawn(fonts.heading("IRON TIDE", 30.0, ACCENT));
-                            header.spawn(fonts.text(
-                                tr("paused  -  Esc / F10 to resume"),
-                                15.0,
-                                TEXT_DIM,
-                            ));
-                        });
-                    panel
-                        .spawn(Node {
-                            column_gap: Val::Px(6.0),
-                            ..default()
-                        })
-                        .with_children(|tabs| {
-                            for page in MenuPage::ALL {
-                                tabs.spawn((
-                                    MenuTab(page),
-                                    Hovered::default(),
-                                    Node {
-                                        flex_grow: 1.0,
-                                        height: Val::Px(32.0),
-                                        justify_content: JustifyContent::Center,
-                                        align_items: AlignItems::Center,
-                                        border: UiRect::all(Val::Px(1.0)),
-                                        ..default()
-                                    },
-                                    BackgroundColor(BUTTON_IDLE),
-                                    BorderColor::all(FRAME),
-                                ))
-                                .with_children(|tab| {
-                                    tab.spawn(fonts.heading(page.title(), 15.0, TEXT_MAIN));
-                                })
-                                .observe(select_page);
-                            }
-                        });
-                    panel.spawn((
-                        MenuContent,
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(6.0),
-                            min_height: Val::Px(380.0),
-                            ..default()
-                        },
-                    ));
-                });
-        });
+                ));
+            });
+    });
 }
 
 pub fn toggle_menu(
@@ -498,6 +516,22 @@ fn set_open(menu: &mut MenuState, open: bool) {
 /// A fresh match starts with the pause menu closed and time running.
 pub fn close_menu(mut menu: ResMut<MenuState>) {
     *menu = MenuState::default();
+}
+
+/// Opens the menu on its first settings page, as the main menu's Settings tile does.
+pub fn open_settings(menu: &mut MenuState) {
+    menu.page = MenuPage::Graphics;
+    set_open(menu, true);
+}
+
+pub fn close_settings(menu: &mut MenuState) {
+    set_open(menu, false);
+}
+
+impl MenuState {
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
 }
 
 pub fn open_menu_from_button(mut menu: ResMut<MenuState>) {

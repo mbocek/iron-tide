@@ -1,6 +1,9 @@
 # Missions and custom levels
 
-The game opens in a main menu:
+The game opens on a start screen of large tiles: *Campaigns*, *Skirmish* (random battles and custom levels),
+*Multiplayer*, *Editor* (battle editor and custom levels), *Replays* and *Settings* (graphics, sound, controls and
+gameplay, the same pages as in the pause menu), with *Continue* above them when there is a quick save. Each tile
+opens a screen with a *Back* button; Esc goes back too.
 - **Campaign:** ten Coalition missions and six Syndicate missions (S1-S6) (`assets/levels/*.json`), each
   with its own objective. A level's `player_faction` decides which armoury the player builds from; every computer
   side fights for the other faction.

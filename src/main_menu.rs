@@ -1,5 +1,6 @@
 use crate::map_editor::open_map_editor;
 use crate::map_preview::map_preview;
+use crate::menu::{MenuPlace, MenuState, close_settings, open_settings, spawn_menu};
 use crate::network::NetSession;
 use crate::outcome::GameOutcome;
 use crate::random_battle::{
@@ -51,6 +52,9 @@ const BACKDROP_VEIL: f32 = 0.8;
 const PRIMARY_IDLE: Color = Color::srgb(0.62, 0.45, 0.10);
 const PRIMARY_HOVERED: Color = Color::srgb(0.76, 0.56, 0.14);
 const MAP_VARIANTS: u64 = 5;
+const HUB_TILE_WIDTH: f32 = 420.0;
+const HUB_TILE_HEIGHT: f32 = 120.0;
+const HUB_GAP: f32 = 16.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Selection {
@@ -75,15 +79,6 @@ pub enum MenuSection {
 }
 
 impl MenuSection {
-    const ALL: [MenuSection; 6] = [
-        MenuSection::Campaign,
-        MenuSection::Random,
-        MenuSection::Custom,
-        MenuSection::Editor,
-        MenuSection::Network,
-        MenuSection::Replays,
-    ];
-
     fn label(self) -> &'static str {
         match self {
             MenuSection::Campaign => tr("CAMPAIGN"),
@@ -104,11 +99,84 @@ impl MenuSection {
     }
 }
 
+/// The tiles of the start screen; each opens a screen with the sections that belong to it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MenuGroup {
+    Campaigns,
+    Skirmish,
+    Multiplayer,
+    Editor,
+    Replays,
+}
+
+impl MenuGroup {
+    const ALL: [MenuGroup; 5] = [
+        MenuGroup::Campaigns,
+        MenuGroup::Skirmish,
+        MenuGroup::Multiplayer,
+        MenuGroup::Editor,
+        MenuGroup::Replays,
+    ];
+
+    fn title(self) -> &'static str {
+        match self {
+            MenuGroup::Campaigns => tr("CAMPAIGNS"),
+            MenuGroup::Skirmish => tr("SKIRMISH"),
+            MenuGroup::Multiplayer => tr("MULTIPLAYER"),
+            MenuGroup::Editor => tr("EDITOR"),
+            MenuGroup::Replays => tr("REPLAYS"),
+        }
+    }
+
+    fn blurb(self) -> &'static str {
+        match self {
+            MenuGroup::Campaigns => tr("Story missions for the Coalition and the Syndicate"),
+            MenuGroup::Skirmish => tr("A battle against the computer, rolled or set up your way"),
+            MenuGroup::Multiplayer => tr("Battles over the network, up to four players"),
+            MenuGroup::Editor => tr("Set up battles, paint maps and play your own levels"),
+            MenuGroup::Replays => tr("Watch your recent matches again"),
+        }
+    }
+
+    fn sections(self) -> &'static [MenuSection] {
+        match self {
+            MenuGroup::Campaigns => &[MenuSection::Campaign],
+            MenuGroup::Skirmish => &[MenuSection::Random, MenuSection::Custom],
+            MenuGroup::Multiplayer => &[MenuSection::Network],
+            MenuGroup::Editor => &[MenuSection::Editor, MenuSection::Custom],
+            MenuGroup::Replays => &[MenuSection::Replays],
+        }
+    }
+
+    fn holding(section: MenuSection) -> MenuGroup {
+        MenuGroup::ALL
+            .into_iter()
+            .find(|group| group.sections().contains(&section))
+            .unwrap_or(MenuGroup::Campaigns)
+    }
+}
+
+/// What the main menu shows: the start screen, or one group's sections.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Screen {
+    Hub,
+    Group(MenuGroup),
+}
+
 #[derive(Component)]
 pub struct SectionButton(MenuSection);
 
+#[derive(Component)]
+pub struct HubTile(MenuGroup);
+
+/// Holds the current screen's contents; rebuilt whenever the screen changes.
+#[derive(Component)]
+pub struct ScreenBody;
+
 #[derive(Resource)]
 pub struct MainMenu {
+    screen: Screen,
+    needs_new_screen: bool,
     entries: Vec<LevelEntry>,
     replays: Vec<ReplaySummary>,
     selection: Selection,
@@ -240,6 +308,8 @@ pub enum MenuCommand {
     WatchReplay,
     CycleLanguage,
     ContinueQuickSave,
+    OpenSettings,
+    BackToHub,
     DownloadUpdate,
     HostNetworkBattle,
     JoinNetworkBattle,
@@ -440,12 +510,13 @@ pub fn build_main_menu(
     settings: Res<GameSettings>,
     mut commands: Commands,
     fonts: Res<UiFonts>,
-    save_directory: Res<SaveDirectory>,
     asset_server: Res<AssetServer>,
 ) {
     // The menu is built on the first frame, before the language from the saved settings is otherwise applied.
     set_language(settings.language);
     let menu = MainMenu {
+        screen: Screen::Hub,
+        needs_new_screen: true,
         entries: all_levels(),
         replays: list_replays(&replay_directory()),
         selection: Selection::Level(0),
@@ -457,7 +528,6 @@ pub fn build_main_menu(
         message: None,
         needs_rebuild: true,
     };
-    let quick_save = slot_summary(&save_directory, QUICK_SAVE_SLOT);
     commands.spawn((
         DespawnOnExit(GameState::MainMenu),
         ImageNode::new(asset_server.load(BACKDROP_IMAGE)),
@@ -489,54 +559,17 @@ pub fn build_main_menu(
         ))
         .with_children(|root| {
             spawn_title_bar(root, &fonts, &settings);
-            root.spawn(Node {
-                width: Val::Px(full_width()),
-                column_gap: Val::Px(BODY_GAP),
-                align_items: AlignItems::FlexStart,
-                ..default()
-            })
-            .with_children(|body| {
-                spawn_section_column(body, &fonts, quick_save);
-                body.spawn((
-                    ListColumn,
-                    Node {
-                        width: Val::Px(LIST_WIDTH),
-                        flex_shrink: 0.0,
-                        flex_direction: FlexDirection::Column,
-                        padding: UiRect::all(Val::Px(14.0)),
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(PANEL),
-                    BorderColor::all(FRAME),
-                ))
-                .with_children(|column| {
-                    column.spawn((
-                        LevelList,
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(5.0),
-                            ..default()
-                        },
-                    ));
-                });
-                body.spawn((
-                    DetailPanel,
-                    Node {
-                        min_width: Val::Px(DETAIL_WIDTH),
-                        flex_grow: 1.0,
-                        min_height: Val::Px(420.0),
-                        flex_direction: FlexDirection::Column,
-                        padding: UiRect::all(Val::Px(20.0)),
-                        row_gap: Val::Px(8.0),
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(PANEL),
-                    BorderColor::all(FRAME_BRIGHT),
-                ));
-            });
+            root.spawn((
+                ScreenBody,
+                Node {
+                    width: Val::Px(full_width()),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+            ));
         });
+    spawn_menu(&mut commands, &fonts, MenuPlace::MainMenu);
     commands.insert_resource(menu);
 }
 
@@ -606,15 +639,184 @@ fn spawn_title_bar(root: &mut ChildSpawnerCommands, fonts: &UiFonts, settings: &
     });
 }
 
+/// The start screen: a tile for each group, settings, and the quick save to continue from.
+fn spawn_hub(body: &mut ChildSpawnerCommands, fonts: &UiFonts, quick_save: Option<String>) {
+    body.spawn(Node {
+        flex_direction: FlexDirection::Column,
+        row_gap: Val::Px(HUB_GAP),
+        margin: UiRect::top(Val::Px(40.0)),
+        ..default()
+    })
+    .with_children(|hub| {
+        if let Some(summary) = quick_save {
+            hub.spawn((
+                MenuCommand::ContinueQuickSave,
+                Hovered::default(),
+                Node {
+                    width: Val::Px(HUB_TILE_WIDTH * 2.0 + HUB_GAP),
+                    flex_direction: FlexDirection::Column,
+                    ..button_node(Val::Auto)
+                },
+                BackgroundColor(BUTTON_IDLE),
+                BorderColor::all(ACCENT),
+            ))
+            .with_children(|button| {
+                button.spawn(fonts.heading(tr("CONTINUE"), 20.0, ACCENT));
+                button.spawn(fonts.text(summary, 14.0, TEXT_DIM));
+            })
+            .observe(run_command);
+        }
+        let tiles: Vec<Option<MenuGroup>> =
+            MenuGroup::ALL.into_iter().map(Some).chain([None]).collect();
+        for row in tiles.chunks(2) {
+            hub.spawn(Node {
+                column_gap: Val::Px(HUB_GAP),
+                ..default()
+            })
+            .with_children(|row_node| {
+                for &tile in row {
+                    let (title, blurb) = match tile {
+                        Some(group) => (group.title(), group.blurb()),
+                        None => (tr("SETTINGS"), tr("Graphics, sound, controls and gameplay")),
+                    };
+                    let mut button = row_node.spawn((
+                        Hovered::default(),
+                        Node {
+                            width: Val::Px(HUB_TILE_WIDTH),
+                            height: Val::Px(HUB_TILE_HEIGHT),
+                            flex_direction: FlexDirection::Column,
+                            justify_content: JustifyContent::Center,
+                            padding: UiRect::axes(Val::Px(22.0), Val::Px(10.0)),
+                            row_gap: Val::Px(6.0),
+                            border: UiRect::all(Val::Px(1.0)),
+                            ..default()
+                        },
+                        BackgroundColor(BUTTON_IDLE),
+                        BorderColor::all(FRAME),
+                    ));
+                    button.with_children(|tile_node| {
+                        tile_node.spawn(fonts.heading(title, 26.0, TEXT_MAIN));
+                        tile_node.spawn(fonts.text(blurb, 15.0, TEXT_DIM));
+                    });
+                    match tile {
+                        Some(group) => {
+                            button.insert(HubTile(group)).observe(open_group);
+                        }
+                        None => {
+                            button
+                                .insert(MenuCommand::OpenSettings)
+                                .observe(run_command);
+                        }
+                    }
+                }
+            });
+        }
+    });
+}
+
+/// One group's screen: its sections down the left, a list beside them and the details of what is chosen.
+fn spawn_group_screen(body: &mut ChildSpawnerCommands, fonts: &UiFonts, group: MenuGroup) {
+    body.spawn(Node {
+        width: Val::Px(full_width()),
+        column_gap: Val::Px(BODY_GAP),
+        align_items: AlignItems::FlexStart,
+        ..default()
+    })
+    .with_children(|body| {
+        spawn_section_column(body, fonts, group);
+        body.spawn((
+            ListColumn,
+            Node {
+                width: Val::Px(LIST_WIDTH),
+                flex_shrink: 0.0,
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(14.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(PANEL),
+            BorderColor::all(FRAME),
+        ))
+        .with_children(|column| {
+            column.spawn((
+                LevelList,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(5.0),
+                    ..default()
+                },
+            ));
+        });
+        body.spawn((
+            DetailPanel,
+            Node {
+                min_width: Val::Px(DETAIL_WIDTH),
+                flex_grow: 1.0,
+                min_height: Val::Px(420.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(20.0)),
+                row_gap: Val::Px(8.0),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(PANEL),
+            BorderColor::all(FRAME_BRIGHT),
+        ));
+    });
+}
+
+fn open_group(click: On<PointerClick>, tiles: Query<&HubTile>, mut menu: ResMut<MainMenu>) {
+    if let Ok(tile) = tiles.get(click.entity) {
+        menu.open_group(tile.0);
+    }
+}
+
+/// Puts the screen the menu is on into the screen body, after the screen changed.
+pub fn rebuild_screen(
+    mut commands: Commands,
+    fonts: Res<UiFonts>,
+    save_directory: Res<SaveDirectory>,
+    menu: Option<ResMut<MainMenu>>,
+    bodies: Query<Entity, With<ScreenBody>>,
+) {
+    let (Some(mut menu), Ok(body)) = (menu, bodies.single()) else {
+        return;
+    };
+    if !menu.needs_new_screen {
+        return;
+    }
+    menu.needs_new_screen = false;
+    commands.entity(body).despawn_related::<Children>();
+    let screen = menu.screen;
+    commands.entity(body).with_children(|body| match screen {
+        Screen::Hub => spawn_hub(body, &fonts, slot_summary(&save_directory, QUICK_SAVE_SLOT)),
+        Screen::Group(group) => spawn_group_screen(body, &fonts, group),
+    });
+    menu.needs_rebuild = true;
+}
+
+/// Escape closes the settings, or leaves a group's screen for the start screen.
+pub fn step_back_on_escape(
+    keys: Res<ButtonInput<KeyCode>>,
+    menu: Option<ResMut<MainMenu>>,
+    mut settings_menu: ResMut<MenuState>,
+) {
+    let Some(mut menu) = menu else { return };
+    if !keys.just_pressed(KeyCode::Escape) {
+        return;
+    }
+    if settings_menu.is_open() {
+        close_settings(&mut settings_menu);
+    } else if menu.screen != Screen::Hub {
+        menu.show_hub();
+    }
+}
+
 fn full_width() -> f32 {
     NAV_WIDTH + LIST_WIDTH + DETAIL_WIDTH + 2.0 * BODY_GAP
 }
 
-fn spawn_section_column(
-    body: &mut ChildSpawnerCommands,
-    fonts: &UiFonts,
-    quick_save: Option<String>,
-) {
+fn spawn_section_column(body: &mut ChildSpawnerCommands, fonts: &UiFonts, group: MenuGroup) {
     body.spawn(Node {
         width: Val::Px(NAV_WIDTH),
         flex_shrink: 0.0,
@@ -623,25 +825,9 @@ fn spawn_section_column(
         ..default()
     })
     .with_children(|column| {
-        if let Some(summary) = quick_save {
-            column
-                .spawn((
-                    MenuCommand::ContinueQuickSave,
-                    Hovered::default(),
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        ..button_node(Val::Percent(100.0))
-                    },
-                    BackgroundColor(BUTTON_IDLE),
-                    BorderColor::all(ACCENT),
-                ))
-                .with_children(|button| {
-                    button.spawn(fonts.heading(tr("CONTINUE"), 20.0, ACCENT));
-                    button.spawn(fonts.text(summary, 14.0, TEXT_DIM));
-                })
-                .observe(run_command);
-        }
-        for section in MenuSection::ALL {
+        spawn_command_button(column, fonts, tr("< Back"), MenuCommand::BackToHub);
+        column.spawn(fonts.heading(group.title(), 24.0, ACCENT));
+        for &section in group.sections() {
             column
                 .spawn((
                     SectionButton(section),
@@ -988,16 +1174,35 @@ impl MainMenu {
         first.unwrap_or(Selection::Nothing(section))
     }
 
+    fn open_group(&mut self, group: MenuGroup) {
+        self.screen = Screen::Group(group);
+        self.selection = self.first_in(group.sections()[0]);
+        self.message = None;
+        self.needs_new_screen = true;
+    }
+
+    fn show_hub(&mut self) {
+        self.screen = Screen::Hub;
+        self.message = None;
+        self.needs_new_screen = true;
+    }
+
     /// Opens a section by its English name, for capture runs.
     pub fn open_section_named(&mut self, name: &str) {
         let section = match name {
+            "campaign" => MenuSection::Campaign,
             "custom" => MenuSection::Custom,
             "random" => MenuSection::Random,
             "editor" => MenuSection::Editor,
             "network" => MenuSection::Network,
             "replays" => MenuSection::Replays,
-            _ => MenuSection::Campaign,
+            _ => return,
         };
+        let group = MenuGroup::holding(section);
+        if self.screen != Screen::Group(group) {
+            self.screen = Screen::Group(group);
+            self.needs_new_screen = true;
+        }
         if self.section() != section {
             self.selection = self.first_in(section);
             self.needs_rebuild = true;
@@ -1041,6 +1246,10 @@ impl MainMenu {
     }
 
     pub fn show_network_page(&mut self) {
+        if self.screen != Screen::Group(MenuGroup::Multiplayer) {
+            self.screen = Screen::Group(MenuGroup::Multiplayer);
+            self.needs_new_screen = true;
+        }
         if self.selection != Selection::Network {
             self.selection = Selection::Network;
             self.needs_rebuild = true;
@@ -1517,6 +1726,7 @@ fn run_command(
     mut settings: ResMut<GameSettings>,
     mut updates: ResMut<Updates>,
     mut lobby: ResMut<NetLobby>,
+    mut settings_menu: ResMut<MenuState>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let Ok(&command) = buttons.get(click.entity) else {
@@ -1597,6 +1807,8 @@ fn run_command(
             next_state.set(GameState::MainMenu);
         }
         MenuCommand::ContinueQuickSave => requests.load = Some(QUICK_SAVE_SLOT),
+        MenuCommand::OpenSettings => open_settings(&mut settings_menu),
+        MenuCommand::BackToHub => menu.show_hub(),
         MenuCommand::DownloadUpdate => download_update(&mut updates),
         MenuCommand::HostNetworkBattle => {
             let players = menu.options.network_players;
@@ -1628,6 +1840,16 @@ pub fn refresh_main_menu(
         &mut BorderColor,
     )>,
     panels: Query<Entity, With<DetailPanel>>,
+    mut hub_tiles: Query<
+        (&Hovered, &mut BackgroundColor, &mut BorderColor),
+        (
+            With<HubTile>,
+            Without<SectionButton>,
+            Without<ListButton>,
+            Without<MenuCommand>,
+            Without<EditorOption>,
+        ),
+    >,
     mut buttons: Query<
         (
             &Hovered,
@@ -1668,6 +1890,14 @@ pub fn refresh_main_menu(
             &settings.join_address,
             &lobby,
         );
+    }
+    for (hovered, mut background, mut border) in &mut hub_tiles {
+        background.set_if_neq(BackgroundColor(if hovered.get() {
+            BUTTON_HOVERED
+        } else {
+            BUTTON_IDLE
+        }));
+        border.set_if_neq(BorderColor::all(if hovered.get() { ACCENT } else { FRAME }));
     }
     let open = menu.section();
     for (section, hovered, mut background, mut border) in &mut sections {

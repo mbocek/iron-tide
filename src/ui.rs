@@ -18,7 +18,7 @@ use crate::control_groups::spawn_group_bar;
 use crate::economy::Economies;
 use crate::levels::{ActiveLevel, LevelDefinition, campaign};
 use crate::match_flow::{GameState, MatchClock};
-use crate::menu::{MenuState, open_menu_from_button, spawn_menu};
+use crate::menu::{MenuPlace, MenuState, open_menu_from_button, spawn_menu};
 use crate::minimap::{Minimap, jump_camera_on_drag, jump_camera_on_press, order_on_press};
 use crate::network::NetSession;
 use crate::network_hud::{spawn_chat_line, spawn_network_hud};
@@ -258,7 +258,7 @@ pub fn build_interface(
     spawn_performance_overlay(&mut commands, fonts);
     spawn_network_hud(&mut commands, fonts);
     spawn_chat_line(&mut commands, fonts);
-    spawn_menu(&mut commands, fonts);
+    spawn_menu(&mut commands, fonts, MenuPlace::Match);
     spawn_controls_help(&mut commands, fonts);
     spawn_outcome_overlay(&mut commands, fonts);
     commands.insert_resource(ActiveTab(Lane::Structures));
