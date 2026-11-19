@@ -598,6 +598,7 @@ impl Plugin for GamePlugin {
                     orders::select_units,
                     orders::issue_orders,
                     production::place_structure,
+                    production::preview_wall_drag,
                     structure_tools::apply_structure_tool,
                     structure_tools::switch_tools_by_keyboard,
                 )

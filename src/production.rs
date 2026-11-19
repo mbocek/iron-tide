@@ -544,15 +544,23 @@ pub struct Placement {
 #[derive(Component)]
 pub struct PlacementGhost;
 
+/// One segment of the wall being dragged, shown before the button is released.
+#[derive(Component)]
+pub struct WallDragGhost;
+
+const WALL_GHOST_HEIGHT: f32 = 1.3;
+
 #[derive(Resource)]
 pub struct GhostMaterials {
     valid: Handle<StandardMaterial>,
     invalid: Handle<StandardMaterial>,
+    wall_segment: Handle<Mesh>,
 }
 
 pub fn create_ghost_materials(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let ghost = |color: Color| StandardMaterial {
         base_color: color,
@@ -563,6 +571,11 @@ pub fn create_ghost_materials(
     commands.insert_resource(GhostMaterials {
         valid: materials.add(ghost(Color::srgba(0.2, 1.0, 0.35, 0.35))),
         invalid: materials.add(ghost(Color::srgba(1.0, 0.15, 0.1, 0.4))),
+        wall_segment: meshes.add(Cuboid::new(
+            CELL_SIZE * 0.9,
+            WALL_GHOST_HEIGHT,
+            CELL_SIZE * 0.9,
+        )),
     });
 }
 
@@ -700,6 +713,84 @@ pub fn place_structure(
             footprint_center(origin, footprint),
         ));
         placement.active = None;
+    }
+}
+
+/// While a wall is dragged, shows every segment along the line: green where one will be built, red where
+/// the ground refuses it or the credits run out. It asks the same rules that lay the wall.
+pub fn preview_wall_drag(
+    mut commands: Commands,
+    placement: Res<Placement>,
+    cursor: Res<Cursor>,
+    map: Res<GameMap>,
+    economies: Res<Economies>,
+    intel: Res<Intel>,
+    player_fog: Res<FogOfWar>,
+    local: Res<LocalTeam>,
+    ghost_materials: Res<GhostMaterials>,
+    buildings: Query<(&Building, &Team)>,
+    units: Query<&Transform, With<Unit>>,
+    mut ghosts: Query<
+        (
+            Entity,
+            &mut Transform,
+            &mut MeshMaterial3d<StandardMaterial>,
+        ),
+        (With<WallDragGhost>, Without<Unit>),
+    >,
+) {
+    let dragged = placement
+        .wall_anchor
+        .filter(|_| placement.active.is_some_and(BuildingKind::is_wall))
+        .zip(cursor.ground.filter(|_| !cursor.over_interface))
+        .map(|(anchor, ground)| (anchor, placement_origin(ground, IVec2::ONE)));
+    let segments: Vec<(IVec2, bool)> = match dragged {
+        Some((anchor, end)) => {
+            let team = local.0;
+            let mut context = placement_context(
+                &map,
+                team,
+                intel.vision(team, &player_fog),
+                &buildings,
+                &units,
+            );
+            let laid = affordable_wall_line(&mut context, anchor, end, economies.of(team).credits);
+            wall_line(anchor, end)
+                .into_iter()
+                .map(|cell| (cell, laid.contains(&cell)))
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    let mut shown = ghosts.iter_mut();
+    for &(cell, will_be_built) in &segments {
+        let placed = Transform::from_translation(
+            footprint_center(cell, IVec2::ONE) + Vec3::Y * WALL_GHOST_HEIGHT * 0.5,
+        );
+        let material = if will_be_built {
+            ghost_materials.valid.clone()
+        } else {
+            ghost_materials.invalid.clone()
+        };
+        match shown.next() {
+            Some((_, mut transform, mut current)) => {
+                transform.set_if_neq(placed);
+                if current.0 != material {
+                    current.0 = material;
+                }
+            }
+            None => {
+                commands.spawn((
+                    WallDragGhost,
+                    Mesh3d(ghost_materials.wall_segment.clone()),
+                    MeshMaterial3d(material),
+                    placed,
+                ));
+            }
+        }
+    }
+    for (spare, ..) in shown {
+        commands.entity(spare).despawn();
     }
 }
 
@@ -980,6 +1071,66 @@ mod tests {
         assert_eq!(
             cell_gap(IVec2::ZERO, IVec2::splat(2), IVec2::new(4, 7), IVec2::ONE),
             5
+        );
+    }
+
+    #[test]
+    fn a_dragged_wall_shows_red_segments_past_what_the_credits_buy() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        let valid = Handle::<StandardMaterial>::default();
+        let invalid = Handle::<StandardMaterial>::from(bevy::asset::uuid::Uuid::from_u128(1));
+        world.insert_resource(GhostMaterials {
+            valid: valid.clone(),
+            invalid: invalid.clone(),
+            wall_segment: Handle::default(),
+        });
+        let anchor = IVec2::new(14, 11);
+        world.insert_resource(Placement {
+            active: Some(BuildingKind::Wall),
+            ghost: None,
+            wall_anchor: Some(anchor),
+        });
+        let end = anchor + IVec2::new(6, 0);
+        world.insert_resource(Cursor {
+            ground: Some(footprint_center(end, IVec2::ONE)),
+            ..default()
+        });
+        world.insert_resource(GameMap::open_field());
+        let mut economies = Economies::default();
+        economies.of_mut(Team::Player).credits = BuildingKind::Wall.spec().cost * 3 + 10;
+        world.insert_resource(economies);
+        world.insert_resource(Intel::new(false));
+        world.insert_resource(FogOfWar::new(false));
+        world.insert_resource(LocalTeam(Team::Player));
+        world.spawn((
+            Building {
+                kind: BuildingKind::CommandCenter,
+                origin: IVec2::new(10, 10),
+            },
+            Team::Player,
+        ));
+
+        world.run_system_once(preview_wall_drag).unwrap();
+        let mut ghosts =
+            world.query_filtered::<&MeshMaterial3d<StandardMaterial>, With<WallDragGhost>>();
+        let shown: Vec<bool> = ghosts
+            .iter(&world)
+            .map(|material| material.0 == valid)
+            .collect();
+        assert_eq!(
+            shown,
+            [true, true, true, false, false, false, false],
+            "three segments are affordable"
+        );
+
+        world.resource_mut::<Placement>().wall_anchor = None;
+        world.run_system_once(preview_wall_drag).unwrap();
+        world.flush();
+        assert_eq!(
+            ghosts.iter(&world).count(),
+            0,
+            "the preview goes when the button is released"
         );
     }
 }

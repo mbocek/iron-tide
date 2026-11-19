@@ -16,7 +16,8 @@
   repair it fully. Either way the engineer is used up. Other selected units attack the structure as usual.
 - **Walls:** $50 concrete segments that block movement; segments of one side next to each other join into a
   continuous wall with a post on every cell, in play and in replays. Click the Wall tile, then drag on the map to lay a
-  straight line; each segment is paid as it is placed and the mode stays on until right click / Esc. Every
+  straight line (while dragging, the segments show green where they will stand and red where the ground or
+  the credits stop them); each segment is paid as it is placed and the mode stays on until right click / Esc. Every
   segment extends the area you may build in, so walls can reach out from the base, but no structure or wall
   goes on ground its side has never explored; a wall dragged into the dark stops at its edge. Walls do not keep a
   defeated side alive, and the computer does not pick them as targets for its attack waves.
