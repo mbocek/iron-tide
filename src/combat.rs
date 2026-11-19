@@ -46,6 +46,8 @@ pub struct TargetInfo {
     pub armor: ArmorClass,
     pub is_building: bool,
     pub health_fraction: f32,
+    /// What it shoots with, so a shooter can tell how dangerous it is; `None` for the unarmed.
+    pub weapon: Option<WeaponSpec>,
     /// Whether the local player may see it; only the interface reads this.
     pub seen_locally: bool,
     /// Indexed by `Team::index`: whether that team can currently see it.
@@ -85,11 +87,15 @@ impl Targets {
         &self,
         team: Team,
         weapon: &WeaponSpec,
+        own_armor: ArmorClass,
         from: Vec3,
         max_reach: f32,
     ) -> Option<&TargetInfo> {
         let worth = |target: &TargetInfo, distance: f32| {
             let effectiveness = weapon.multiplier_against(target.armor).min(2.0);
+            let danger = target
+                .weapon
+                .map_or(0.0, |theirs| theirs.multiplier_against(own_armor).min(2.0));
             let out_of_range = if distance > weapon.range {
                 OUT_OF_RANGE_PENALTY
             } else {
@@ -103,6 +109,7 @@ impl Targets {
             distance + out_of_range + structure
                 - EFFECTIVENESS_PULL * effectiveness
                 - WOUNDED_PULL * (1.0 - target.health_fraction)
+                - DANGER_PULL * danger
         };
         self.list
             .iter()
@@ -121,6 +128,9 @@ const STRUCTURE_PENALTY: f32 = 4.0;
 const EFFECTIVENESS_PULL: f32 = 4.0;
 /// Metres a nearly dead target counts as nearer than an unhurt one.
 const WOUNDED_PULL: f32 = 4.0;
+/// Metres a target counts as nearer per unit of its own weapon's multiplier against the shooter: the
+/// rocketeer that can kill a tank goes before the rifleman beside it.
+const DANGER_PULL: f32 = 3.0;
 
 pub fn surface_distance(from: Vec3, target: &TargetInfo) -> f32 {
     (from.xz().distance(target.position.xz()) - target.radius).max(0.0)
@@ -192,6 +202,7 @@ pub fn snapshot_targets(
         Has<Building>,
         Option<&Camouflage>,
         &Health,
+        Option<&Weapon>,
     )>,
 ) {
     targets.list.clear();
@@ -199,7 +210,7 @@ pub fn snapshot_targets(
     targets.diplomacy = *diplomacy;
     let mut in_simulation_order: Vec<_> = damageable.iter().collect();
     in_simulation_order.sort_by_key(|target| *target.0);
-    for (_, entity, &team, transform, radius, armor, is_building, camouflage, health) in
+    for (_, entity, &team, transform, radius, armor, is_building, camouflage, health, weapon) in
         in_simulation_order
     {
         let concealed = camouflage.is_some_and(|camouflage| camouflage.concealed);
@@ -213,6 +224,7 @@ pub fn snapshot_targets(
             armor: armor.0,
             is_building,
             health_fraction: health.fraction(),
+            weapon: weapon.map(|weapon| weapon.spec),
             seen_locally: !diplomacy.hostile(team, local.0)
                 || (!concealed
                     && intel
@@ -232,12 +244,13 @@ pub fn acquire_targets(
         &Team,
         &Transform,
         &Weapon,
+        &Armor,
         &mut AttackTarget,
         Option<&Mobile>,
         Has<Turret>,
     )>,
 ) {
-    for (&team, transform, weapon, mut attack, mobile, has_turret) in &mut shooters {
+    for (&team, transform, weapon, armor, mut attack, mobile, has_turret) in &mut shooters {
         let position = transform.translation;
         let sight = weapon.spec.range + SIGHT_BEYOND_RANGE;
         if let Some((entity, mode)) = attack.target {
@@ -262,7 +275,7 @@ pub fn acquire_targets(
         }
         let can_chase = mobile.is_some() && !on_ordered_move;
         let reach = if can_chase { sight } else { weapon.spec.range };
-        if let Some(enemy) = targets.best_enemy(team, &weapon.spec, position, reach) {
+        if let Some(enemy) = targets.best_enemy(team, &weapon.spec, armor.0, position, reach) {
             attack.target = Some((enemy.entity, TargetMode::Automatic));
             attack.repath_timer = 0.0;
         }

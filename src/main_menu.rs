@@ -373,11 +373,7 @@ impl EditorField {
         match self {
             EditorField::Enemies => options.enemies = cycle(&[1, 2, 3], options.enemies, forward),
             EditorField::Difficulty => {
-                options.difficulty = cycle(
-                    &[Difficulty::Easy, Difficulty::Normal, Difficulty::Hard],
-                    options.difficulty,
-                    forward,
-                );
+                options.difficulty = cycle(&Difficulty::ALL, options.difficulty, forward);
             }
             EditorField::Credits => {
                 options.credits = cycle(&CREDIT_CHOICES, options.credits, forward)

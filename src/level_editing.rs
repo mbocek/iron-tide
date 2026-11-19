@@ -66,11 +66,11 @@ pub fn remove_enemy(level: &mut LevelDefinition) -> bool {
 
 pub fn cycle_difficulty(level: &mut LevelDefinition, enemy: usize) {
     if let Some(enemy) = level.enemies.get_mut(enemy) {
-        enemy.difficulty = match enemy.difficulty {
-            Difficulty::Easy => Difficulty::Normal,
-            Difficulty::Normal => Difficulty::Hard,
-            Difficulty::Hard => Difficulty::Easy,
-        };
+        let next = Difficulty::ALL
+            .iter()
+            .position(|&difficulty| difficulty == enemy.difficulty)
+            .map_or(0, |index| (index + 1) % Difficulty::ALL.len());
+        enemy.difficulty = Difficulty::ALL[next];
     }
 }
 

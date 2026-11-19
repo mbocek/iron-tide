@@ -51,7 +51,7 @@ The game opens in a main menu:
   classic landscape. *New map* rolls
   again; changing the options keeps the map. The rolled battle can be played, saved as a custom level or opened
   in the map editor.
-- **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard, starting credits, objective
+- **Battle editor:** 1-3 enemy commanders (allied or free-for-all), landscape, difficulty Easy/Normal/Hard/Brutal, starting credits, objective
   (destroy everything / destroy Command Centers / survive 10 minutes / stockpile credits), available units,
   map variant and your starting corner. *Save as custom level* writes a JSON file to
   `~/.config/iron_tide/levels/`; every valid file there is listed under *Custom levels*.
@@ -113,5 +113,6 @@ Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by
 (select, move, power plant, refinery, barracks, a rifleman, attack-move, destroy the enemy); each step
 completes as soon as the player does it, and the panel can be hidden. In every level a field tip explains
 mines, research and camouflage the first time the player selects an engineer, owns a Tech Center or meets a
-sniper; each shows once and is remembered in the settings. Difficulty changes how fast the AI thinks, the size of its first
-attack wave and its income (75 % / 100 % / 125 %).
+sniper; each shows once and is remembered in the settings. Difficulty (Easy, Normal, Hard, Brutal) changes how fast the AI
+thinks, the size of its first attack wave (4 / 6 / 8 / 9), how fast its waves grow and its income (75 % / 100 % /
+130 % / 160 %).

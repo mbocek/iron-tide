@@ -135,7 +135,7 @@ struct Pairing {
     fog_of_war: bool,
 }
 
-const PAIRINGS: [Pairing; 5] = [
+const PAIRINGS: [Pairing; 6] = [
     Pairing {
         challenger: Difficulty::Normal,
         defender: Difficulty::Normal,
@@ -154,6 +154,11 @@ const PAIRINGS: [Pairing; 5] = [
     Pairing {
         challenger: Difficulty::Easy,
         defender: Difficulty::Normal,
+        fog_of_war: true,
+    },
+    Pairing {
+        challenger: Difficulty::Brutal,
+        defender: Difficulty::Hard,
         fog_of_war: true,
     },
     Pairing {

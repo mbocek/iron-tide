@@ -32,7 +32,6 @@ const SPLIT_WAVES_FROM: usize = 6;
 const FLANK_OFFSET: f32 = 24.0;
 const RAID_SIZE: usize = 3;
 const RAIDERS: [UnitKind; 3] = [UnitKind::Scout, UnitKind::RaiderBike, UnitKind::Gunship];
-const WAVE_GROWTH: usize = 2;
 /// With no enemy soldier in sight for this long, whatever waits at home goes hunting.
 const QUIET_FRONT_SECS: f32 = 90.0;
 const BASE_DEFENSE_RADIUS: f32 = 16.0 * CELL_SIZE;
@@ -47,7 +46,7 @@ const BACK_TO_THE_FRONT_HEALTH: f32 = 0.9;
 const FORTIFY_INTERVAL_SECS: f32 = 3.0;
 const ENGINEER_INTERVAL_SECS: f32 = 2.0;
 
-const BUILD_PLAN: [BuildingKind; 18] = [
+const BUILD_PLAN: [BuildingKind; 19] = [
     BuildingKind::PowerPlant,
     BuildingKind::Barracks,
     BuildingKind::Refinery,
@@ -63,6 +62,7 @@ const BUILD_PLAN: [BuildingKind; 18] = [
     BuildingKind::FlakCannon,
     BuildingKind::RocketBunker,
     BuildingKind::RepairBay,
+    BuildingKind::Refinery,
     BuildingKind::GunTurret,
     BuildingKind::PowerPlant,
     BuildingKind::GunTurret,
@@ -784,7 +784,7 @@ fn direct_army(
             None => send(orders, objective),
         }
     }
-    ai.wave_size = (ai.wave_size + WAVE_GROWTH).min(MAX_WAVE_SIZE);
+    ai.wave_size = (ai.wave_size + ai.difficulty.wave_growth()).min(MAX_WAVE_SIZE);
 }
 
 /// Fast units waiting at home dash off to hunt an enemy harvester instead of waiting for the wave.

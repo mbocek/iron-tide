@@ -30,10 +30,11 @@ pub enum DifficultyChoice {
 }
 
 impl DifficultyChoice {
-    pub const ALL: [DifficultyChoice; 4] = [
+    pub const ALL: [DifficultyChoice; 5] = [
         DifficultyChoice::Fixed(Difficulty::Easy),
         DifficultyChoice::Fixed(Difficulty::Normal),
         DifficultyChoice::Fixed(Difficulty::Hard),
+        DifficultyChoice::Fixed(Difficulty::Brutal),
         DifficultyChoice::Mixed,
     ];
 }

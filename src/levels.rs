@@ -89,15 +89,23 @@ pub enum Difficulty {
     Easy,
     Normal,
     Hard,
+    Brutal,
 }
 
 impl Difficulty {
+    pub const ALL: [Difficulty; 4] = [
+        Difficulty::Easy,
+        Difficulty::Normal,
+        Difficulty::Hard,
+        Difficulty::Brutal,
+    ];
+
     pub fn think_interval_secs(self) -> f32 {
         match self {
             Difficulty::Easy => 2.0,
             Difficulty::Normal => 1.0,
             // Thinking every 0.6 s made Hard lose to Normal 8:22 in the balance tournament; at 1 s it wins 18:8.
-            Difficulty::Hard => 1.0,
+            Difficulty::Hard | Difficulty::Brutal => 1.0,
         }
     }
 
@@ -105,7 +113,16 @@ impl Difficulty {
         match self {
             Difficulty::Easy => 4,
             Difficulty::Normal => 6,
-            Difficulty::Hard => 7,
+            Difficulty::Hard => 8,
+            Difficulty::Brutal => 9,
+        }
+    }
+
+    /// How many more units each attack wave brings than the one before.
+    pub fn wave_growth(self) -> usize {
+        match self {
+            Difficulty::Easy | Difficulty::Normal | Difficulty::Hard => 2,
+            Difficulty::Brutal => 3,
         }
     }
 
@@ -114,7 +131,8 @@ impl Difficulty {
         match self {
             Difficulty::Easy => 0.75,
             Difficulty::Normal => 1.0,
-            Difficulty::Hard => 1.25,
+            Difficulty::Hard => 1.3,
+            Difficulty::Brutal => 1.6,
         }
     }
 }
