@@ -1108,36 +1108,166 @@ def _add_bike_rider():
         cylinder_between("Uniform", (0.08, side * 0.2, 0.7), (-0.05, side * 0.2, 0.4), 0.055, 6, name="RiderShin")
 
 
+BOMBER_AXIS_Z = 1.0
+ALONG_X = (0.0, math.pi / 2, 0.0)
+
+
 def build_bomber():
-    """A twin-engined Coalition strike bomber facing +X, with landing gear so it can sit on the pad between
-    sorties. The game flies it to its target and back; nothing on it is animated."""
-    fuselage = [(-2.6, 0.55), (1.8, 0.55), (2.6, 0.85), (2.35, 1.2), (1.4, 1.35), (-2.2, 1.3), (-2.8, 1.05)]
-    prism("Armor", fuselage, 0.8, bevel=0.04, name="Fuselage")
-    box(GLASS, (0.7, 0.62, 0.22), (1.9, 0.0, 1.28), (0, math.radians(-12), 0), bevel=0.06, name="Canopy")
-    box("ArmorDark", (1.6, 0.5, 0.12), (-0.3, 0.0, 0.5), bevel=0.02, name="BombBayDoors")
+    """A twin-engined Coalition strike bomber facing +X: rounded fuselage with a glazed nose, swept wings with
+    engine nacelles and bombs on pylons, gun turrets above and in the tail, and landing gear so it can sit on
+    the pad between sorties. The game flies it to its target and back; nothing on it is animated."""
+    _add_bomber_fuselage()
+    _add_bomber_cockpit()
     for side in (-1, 1):
-        wing = [(0.0, 0.0), (0.9, 0.0), (0.2, side * 3.2), (-0.45, side * 3.2)]
-        part("Armor", lambda bm, w=wing: _flat_plate(bm, w, 0.95, 0.08), name="Wing")
-        box("TeamColor", (0.5, 0.6, 0.012), (-0.05, side * 2.5, 1.0), (0, 0, side * math.radians(-12)), bevel=0.0,
-            name="WingTeamPanel")
-        nacelle = Vector((0.5, side * 1.4, 0.82))
-        cylinder_between("ArmorDark", nacelle - Vector((0.9, 0, 0)), nacelle + Vector((0.5, 0, 0)), 0.2, 12,
-                         name="EngineNacelle")
-        cylinder("Gunmetal", 0.15, 0.06, nacelle + Vector((0.52, 0, 0)), FACING_FRONT, segments=12, name="Intake")
-        cylinder("WarningLight", 0.12, 0.04, nacelle - Vector((0.92, 0, 0)), FACING_FRONT, segments=12,
-                 name="Exhaust")
-        cylinder_between("Gunmetal", (0.3, side * 1.4, 0.62), (0.3, side * 1.4, 0.2), 0.04, 6, name="MainGearLeg")
-        make_wheel(Vector((0.3, side * 1.4, 0.16)), 0.16, 0.12, side=side)
-        box("Armor", (0.45, 1.2, 0.05), (-2.4, side * 0.65, 1.2), (0, 0, side * math.radians(-15)), bevel=0.01,
-            name="Tailplane")
-    fin = [(-2.75, 1.25), (-2.0, 1.25), (-2.45, 2.15), (-2.85, 2.15)]
+        _add_bomber_wing(side)
+        _add_bomber_engine(side)
+        _add_bomber_main_gear(side)
+    _add_bomber_tail()
+    _add_bomber_turrets()
+    _add_bomber_nose_gear()
+
+
+def _add_bomber_fuselage():
+    profile = [(0.0, -3.1), (0.14, -3.0), (0.26, -2.5), (0.36, -1.6), (0.44, -0.6), (0.46, 0.4), (0.44, 1.4),
+               (0.38, 2.1), (0.3, 2.5)]
+    lathe("Armor", profile, (0.0, 0.0, BOMBER_AXIS_Z), ALONG_X, segments=20, cap_start=False, name="Fuselage")
+    lathe(GLASS, [(0.3, 2.5), (0.22, 2.85), (0.1, 3.05), (0.0, 3.1)], (0.0, 0.0, BOMBER_AXIS_Z), ALONG_X,
+          segments=20, cap_start=False, cap_end=False, name="GlazedNose")
+    for x, radius in ((2.62, 0.275), (2.84, 0.215), (2.98, 0.13)):
+        cylinder("Gunmetal", radius + 0.01, 0.02, (x, 0.0, BOMBER_AXIS_Z), ALONG_X, segments=20, name="NoseFrame")
+    cylinder_between("Gunmetal", (3.08, 0.0, BOMBER_AXIS_Z), (3.4, 0.0, BOMBER_AXIS_Z), 0.012, 6, name="PitotTube")
+    box("TeamColor", (3.6, 0.1, 0.02), (-0.3, 0.0, BOMBER_AXIS_Z + 0.455), bevel=0.0, name="DorsalTeamStripe")
+    box("ArmorDark", (1.7, 0.42, 0.04), (-0.2, 0.0, BOMBER_AXIS_Z - 0.44), bevel=0.01, name="BombBayDoors")
+    box("Gunmetal", (0.02, 0.44, 0.045), (-0.2, 0.0, BOMBER_AXIS_Z - 0.44), bevel=0.0, name="BombBaySeam")
+    for side in (-1, 1):
+        box("TeamColor", (0.8, 0.01, 0.12), (1.2, side * 0.445, BOMBER_AXIS_Z), (side * math.radians(4), 0, 0),
+            bevel=0.0, name="NoseTeamFlash")
+        for x in (-1.4, -0.4, 0.6):
+            box("Gunmetal", (0.02, 0.01, 0.5), (x, side * 0.455, BOMBER_AXIS_Z - 0.05), bevel=0.0,
+                name="PanelLine")
+    add_antenna((-1.0, 0.0, BOMBER_AXIS_Z + 0.44), 0.35)
+    add_beacon((0.3, 0.0, BOMBER_AXIS_Z + 0.45), radius=0.035, lens="WarningLight")
+    add_beacon((0.3, 0.0, BOMBER_AXIS_Z - 0.48), radius=0.03, lens="WarningLight")
+
+
+def _add_bomber_cockpit():
+    sphere(GLASS, 0.3, (1.85, 0.0, BOMBER_AXIS_Z + 0.36), scale=(1.8, 0.95, 0.55), segments=16, rings=8,
+           name="Canopy")
+    for x in (1.55, 1.85, 2.15):
+        box("Gunmetal", (0.025, 0.52, 0.025), (x, 0.0, BOMBER_AXIS_Z + 0.5), bevel=0.0, name="CanopyFrame")
+    box("Gunmetal", (0.9, 0.025, 0.025), (1.85, 0.0, BOMBER_AXIS_Z + 0.52), bevel=0.0, name="CanopySpine")
+
+
+def _add_bomber_wing(side):
+    root_z, tip_z = BOMBER_AXIS_Z - 0.05, BOMBER_AXIS_Z + 0.2
+    root, tip = (0.0, side * 0.4), (0.0, side * 3.4)
+    wing = [(root[0] + 0.95, root[1]), (root[0] - 0.55, root[1]), (tip[0] - 0.85, tip[1]), (tip[0] - 0.3, tip[1])]
+    part("Armor", lambda bm: _swept_plate(bm, wing, root_z, tip_z, 0.12, 0.05), name="Wing")
+    flap = [(-0.45, side * 0.9), (-0.68, side * 0.9), (-0.82, side * 2.6), (-0.62, side * 2.6)]
+    part("ArmorDark", lambda bm: _swept_plate(bm, flap, root_z + 0.035, tip_z + 0.03, 0.02, 0.02, span_from=0.4,
+                                              span_to=3.4, side=side), name="Flap")
+    roundel = Vector((-0.25, side * 2.3, BOMBER_AXIS_Z + 0.08 + 0.25 * (2.3 - 0.4) / 3.0 + 0.04))
+    cylinder("MedicalWhite", 0.34, 0.012, roundel, segments=20, name="RoundelRing")
+    cylinder("TeamColor", 0.25, 0.016, roundel, segments=20, name="Roundel")
+    light = "SignalGreen" if side > 0 else "WarningLight"
+    sphere(light, 0.06, (-0.55, side * 3.42, tip_z), name="NavigationLight")
+    for x in (-1.0, 0.1):
+        pylon = Vector((x + 0.25, side * 2.0, BOMBER_AXIS_Z - 0.02))
+        box("ArmorDark", (0.4, 0.06, 0.16), pylon - Vector((0, 0, 0.1)), bevel=0.01, name="BombPylon")
+        bomb_centre = pylon - Vector((0, 0, 0.32))
+        lathe("ArmorDark", [(0.0, -0.42), (0.1, -0.3), (0.13, 0.0), (0.12, 0.2), (0.0, 0.42)], bomb_centre, ALONG_X,
+              segments=12, name="Bomb")
+        cylinder("HazardYellow", 0.132, 0.04, bomb_centre + Vector((0.18, 0, 0)), ALONG_X, segments=12,
+                 name="BombBand")
+        for fin in range(4):
+            angle = fin * math.pi / 2
+            box("ArmorDark", (0.14, 0.01, 0.12), bomb_centre - Vector((0.38, 0, 0)), (angle, 0, 0), bevel=0.0,
+                name="BombFin")
+
+
+def _swept_plate(bm, outline_xy, root_z, tip_z, root_thickness, tip_thickness, span_from=0.4, span_to=3.4,
+                 side=None):
+    """A plate whose height and thickness follow the span, for a wing with dihedral that thins to its tip."""
+    def height_and_thickness(y):
+        share = min(1.0, max(0.0, (abs(y) - span_from) / (span_to - span_from)))
+        return root_z + (tip_z - root_z) * share, root_thickness + (tip_thickness - root_thickness) * share
+
+    bottom, top = [], []
+    for x, y in outline_xy:
+        z, thickness = height_and_thickness(y)
+        bottom.append(bm.verts.new((x, y, z - thickness / 2)))
+        top.append(bm.verts.new((x, y, z + thickness / 2)))
+    bm.faces.new(list(reversed(bottom)))
+    bm.faces.new(top)
+    count = len(top)
+    for k in range(count):
+        j = (k + 1) % count
+        bm.faces.new((bottom[k], bottom[j], top[j], top[k]))
+
+
+def _add_bomber_engine(side):
+    axis = Vector((0.55, side * 1.35, BOMBER_AXIS_Z - 0.12))
+    lathe("ArmorDark", [(0.17, -1.1), (0.22, -0.8), (0.24, -0.1), (0.23, 0.45), (0.2, 0.6)], axis, ALONG_X,
+          segments=16, cap_start=False, cap_end=False, name="EngineNacelle")
+    cylinder("Gunmetal", 0.215, 0.06, axis + Vector((0.62, 0, 0)), ALONG_X, segments=16, name="IntakeLip")
+    cylinder("Rubber", 0.18, 0.02, axis + Vector((0.6, 0, 0)), ALONG_X, segments=16, name="IntakeFan")
+    sphere("Steel", 0.07, axis + Vector((0.6, 0, 0)), scale=(1.4, 1.0, 1.0), segments=10, rings=5, name="Spinner")
+    lathe("Gunmetal", [(0.17, 0.0), (0.12, -0.18)], axis - Vector((1.1, 0, 0)), ALONG_X, segments=16,
+          cap_start=False, name="ExhaustCone")
+    cylinder("WarningLight", 0.11, 0.02, axis - Vector((1.2, 0, 0)), ALONG_X, segments=16, name="ExhaustGlow")
+    box("Armor", (0.9, 0.08, 0.2), axis + Vector((-0.1, 0, 0.2)), bevel=0.02, name="EnginePylon")
+    box("TeamColor", (0.3, 0.012, 0.14), axis + Vector((0.2, side * 0.235, 0.0)), bevel=0.0, name="NacelleTeamBand")
+
+
+def _add_bomber_main_gear(side):
+    leg_top = Vector((0.35, side * 1.35, BOMBER_AXIS_Z - 0.32))
+    axle = Vector((0.35, side * 1.35, 0.19))
+    cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.08)), 0.04, 8, name="MainGearLeg")
+    cylinder_between("Gunmetal", leg_top - Vector((0.25, 0, 0.05)), axle + Vector((0, 0, 0.2)), 0.025, 6,
+                     name="MainGearBrace")
+    for offset in (-0.09, 0.09):
+        make_wheel(axle + Vector((0, offset, 0)), 0.19, 0.1, side=side)
+    box("ArmorDark", (0.5, 0.02, 0.26), leg_top + Vector((0, side * 0.24, -0.08)), bevel=0.0, name="GearDoor")
+
+
+def _add_bomber_nose_gear():
+    leg_top = Vector((2.2, 0.0, BOMBER_AXIS_Z - 0.36))
+    axle = Vector((2.25, 0.0, 0.15))
+    cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.06)), 0.035, 8, name="NoseGearLeg")
+    make_wheel(axle, 0.15, 0.1, side=1)
+
+
+def _add_bomber_tail():
+    fin = [(-3.0, BOMBER_AXIS_Z + 0.2), (-2.1, BOMBER_AXIS_Z + 0.3), (-2.6, BOMBER_AXIS_Z + 1.35),
+           (-3.05, BOMBER_AXIS_Z + 1.35)]
     prism("Armor", fin, 0.08, bevel=0.01, name="TailFin")
-    box("TeamColor", (0.5, 0.09, 0.3), (-2.45, 0.0, 1.85), bevel=0.0, name="FinTeamPanel")
-    cylinder_between("Gunmetal", (2.1, 0.0, 0.62), (2.1, 0.0, 0.2), 0.035, 6, name="NoseGearLeg")
-    make_wheel(Vector((2.1, 0.0, 0.14)), 0.13, 0.1, side=1)
-    for x in (-0.7, -0.2, 0.3):
-        cylinder_between("ArmorDark", (x - 0.2, 0.0, 0.38), (x + 0.2, 0.0, 0.38), 0.1, 8, name="Bomb")
-    add_beacon((0.6, 0.0, 1.35), radius=0.04, lens="WarningLight")
+    rudder = [(-3.05, BOMBER_AXIS_Z + 0.35), (-2.9, BOMBER_AXIS_Z + 0.35), (-2.95, BOMBER_AXIS_Z + 1.3),
+              (-3.08, BOMBER_AXIS_Z + 1.3)]
+    prism("ArmorDark", rudder, 0.085, bevel=0.0, name="Rudder")
+    box("TeamColor", (0.42, 0.09, 0.32), (-2.65, 0.0, BOMBER_AXIS_Z + 0.95), bevel=0.0, name="FinTeamPanel")
+    add_beacon((-2.85, 0.0, BOMBER_AXIS_Z + 1.36), radius=0.03, lens="Headlight")
+    for side in (-1, 1):
+        plane = [(-2.25, side * 0.15), (-2.85, side * 0.15), (-3.05, side * 1.4), (-2.75, side * 1.4)]
+        part("Armor", lambda bm, p=plane: _swept_plate(bm, p, BOMBER_AXIS_Z + 0.25, BOMBER_AXIS_Z + 0.3, 0.06,
+                                                        0.03, span_from=0.15, span_to=1.4), name="Tailplane")
+        elevator = [(-2.85, side * 0.2), (-2.98, side * 0.2), (-3.12, side * 1.35), (-3.0, side * 1.35)]
+        part("ArmorDark", lambda bm, p=elevator: _swept_plate(bm, p, BOMBER_AXIS_Z + 0.255, BOMBER_AXIS_Z + 0.305,
+                                                               0.04, 0.025, span_from=0.15, span_to=1.4),
+             name="Elevator")
+
+
+def _add_bomber_turrets():
+    dorsal = Vector((0.6, 0.0, BOMBER_AXIS_Z + 0.48))
+    sphere(GLASS, 0.17, dorsal, scale=(1.0, 1.0, 0.7), segments=12, rings=6, name="DorsalTurret")
+    cylinder("ArmorDark", 0.19, 0.05, dorsal - Vector((0, 0, 0.04)), segments=14, name="TurretRing")
+    for offset in (-0.05, 0.05):
+        cylinder_between("Gunmetal", dorsal + Vector((0.1, offset, 0.02)), dorsal + Vector((0.55, offset, 0.06)),
+                         0.015, 6, name="TurretGun")
+    tail = Vector((-3.15, 0.0, BOMBER_AXIS_Z + 0.05))
+    sphere(GLASS, 0.13, tail, segments=12, rings=6, name="TailTurret")
+    for offset in (-0.04, 0.04):
+        cylinder_between("Gunmetal", tail + Vector((-0.08, offset, 0)), tail + Vector((-0.45, offset, -0.02)),
+                         0.012, 6, name="TailGun")
 
 
 def _flat_plate(bm, outline_xy, z, thickness):
