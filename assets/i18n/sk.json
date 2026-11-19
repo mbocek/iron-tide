@@ -61,6 +61,7 @@
   "+{} power": "+{} energie",
   "{} power": "{} energie",
   "Requires {}": "Vyžaduje {}",
+  "Built at {}": "Vyrába sa v: {}",
   "{}\nCargo {} / {}  ({})": "{}\nNáklad {} / {}  ({})",
   "{}\n{}s build, {}{}": "{}\nvýroba {} s, {}{}",
   "Group {} - {} units": "Skupina {} – {} jednotiek",

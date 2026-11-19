@@ -1577,11 +1577,23 @@ fn describe_item(
             .map(|missing| format!("\n{}", tr_fmt("Requires {}", &[&tr(missing.spec().name)])))
             .unwrap_or_default()
     };
+    let built_at = match item {
+        BuildItem::Unit(kind) => format!(
+            "\n{}",
+            tr_fmt("Built at {}", &[&tr(kind.spec().producer.spec().name)])
+        ),
+        _ => String::new(),
+    };
     (
         format!("{}  ${}", item.name(), item.cost()),
         tr_fmt(
             "{}\n{}s build, {}{}",
-            &[&role, &format!("{build_secs:.0}"), &extra, &requirement],
+            &[
+                &role,
+                &format!("{build_secs:.0}"),
+                &extra,
+                &format!("{requirement}{built_at}"),
+            ],
         ),
     )
 }
@@ -1819,5 +1831,21 @@ pub fn refresh_objective(
         if text.0 != status {
             text.0 = status.clone();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_unit_tooltip_names_the_building_that_builds_it() {
+        let item = BuildItem::Unit(UnitKind::Tank);
+        let (_, details) = describe_item(item, &[], &Production::default(), Team::Player);
+        let factory = UnitKind::Tank.spec().producer.spec().name;
+        assert!(
+            details.contains(&format!("Built at {factory}")),
+            "{details}"
+        );
     }
 }

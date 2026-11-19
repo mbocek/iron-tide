@@ -34,7 +34,7 @@ The game opens in a main menu:
 - **Main menu:** a battle scene from the game sits behind the menu; campaign missions won on this computer are
   marked *WON*, and a mission's description lists its objective, map, sides and units as a table.
 - **Sidebar:** the objective and its progress (time left, credits gathered) sit under the credits; selecting
-  several units shows an icon and a count for each kind. Pointing at a build tile describes it (price, build time, what it needs) in a box beside
+  several units shows an icon and a count for each kind. Pointing at a build tile describes it (price, build time, what it needs and, for a unit, where it is built) in a box beside
   the sidebar, so the selection panel keeps showing the selection.
 - **Pause menu and end screen:** the pause menu shows the mission, its objective, the time and the battle so far
   beside Resume; after a battle the end screen offers *Next mission* (after a campaign victory), *Play again*,
