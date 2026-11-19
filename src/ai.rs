@@ -506,9 +506,10 @@ const VEHICLE_MIX: [(UnitKind, f32); 7] = [
     (UnitKind::FlakTrack, 1.0),
     (UnitKind::MissileTruck, 4.0),
 ];
-const INFANTRY_MIX: [(UnitKind, f32); 5] = [
+const INFANTRY_MIX: [(UnitKind, f32); 6] = [
     (UnitKind::Rifleman, 6.0),
     (UnitKind::Rocketeer, 3.0),
+    (UnitKind::Grenadier, 2.0),
     (UnitKind::Medic, 1.0),
     (UnitKind::Sniper, 1.0),
     (UnitKind::FlameTrooper, 2.0),

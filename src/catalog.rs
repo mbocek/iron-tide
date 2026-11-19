@@ -204,6 +204,7 @@ pub enum UnitKind {
     Sniper,
     FlameTrooper,
     MissileTruck,
+    Grenadier,
 }
 
 pub struct UnitSpec {
@@ -231,9 +232,10 @@ pub struct UnitSpec {
 }
 
 impl UnitKind {
-    pub const INFANTRY: [UnitKind; 6] = [
+    pub const INFANTRY: [UnitKind; 7] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
+        UnitKind::Grenadier,
         UnitKind::Sniper,
         UnitKind::FlameTrooper,
         UnitKind::Medic,
@@ -249,7 +251,7 @@ impl UnitKind {
         UnitKind::Gunship,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 14] = [
+    pub const ALL: [UnitKind; 15] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -264,6 +266,7 @@ impl UnitKind {
         UnitKind::Sniper,
         UnitKind::FlameTrooper,
         UnitKind::MissileTruck,
+        UnitKind::Grenadier,
     ];
 
     pub fn flies(self) -> bool {
@@ -286,6 +289,7 @@ impl UnitKind {
             UnitKind::Sniper => &SNIPER,
             UnitKind::FlameTrooper => &FLAME_TROOPER,
             UnitKind::MissileTruck => &MISSILE_TRUCK,
+            UnitKind::Grenadier => &GRENADIER,
         }
     }
 }
@@ -401,6 +405,21 @@ const TANK_CANNON: WeaponSpec = WeaponSpec {
     versus_structure: 0.8,
     versus_aircraft: 0.0,
     report: Sound::CannonShot,
+};
+
+/// Lobbed, so it lands a little off and blasts whoever stands near; cannot reach aircraft.
+const GRENADE_LAUNCHER: WeaponSpec = WeaponSpec {
+    range: 9.0,
+    damage: 45.0,
+    reload_secs: 2.2,
+    projectile_speed: 14.0,
+    splash_radius: 2.2,
+    style: ProjectileStyle::ArtilleryShell,
+    versus_infantry: 1.0,
+    versus_vehicle: 0.15,
+    versus_structure: 0.9,
+    versus_aircraft: 0.0,
+    report: Sound::GrenadeLaunch,
 };
 
 const HOWITZER: WeaponSpec = WeaponSpec {
@@ -816,6 +835,26 @@ const FLAME_TROOPER: UnitSpec = UnitSpec {
     faction: Some(Faction::Syndicate),
     heal_per_sec: 0.0,
     sight: 9.0,
+};
+
+const GRENADIER: UnitSpec = UnitSpec {
+    name: "Grenadier",
+    role: "Lobs grenades into groups of soldiers and at buildings. Slow to reload, weak against armour.",
+    model_id: "grenadier",
+    cost: 250,
+    build_secs: 7.0,
+    max_health: 80.0,
+    speed: 2.3,
+    turn_rate: 9.0,
+    radius: 0.4,
+    armor: ArmorClass::Infantry,
+    weapon: Some(GRENADE_LAUNCHER),
+    has_turret: false,
+    producer: BuildingKind::Barracks,
+    requires: None,
+    faction: None,
+    heal_per_sec: 0.0,
+    sight: 12.0,
 };
 
 const MISSILE_TRUCK: UnitSpec = UnitSpec {

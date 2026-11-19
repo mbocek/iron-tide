@@ -33,7 +33,8 @@
   Coalition trains Snipers and builds Bulwarks; only the Syndicate trains Flame Troopers (short-range flamers that
   burn infantry and buildings), builds Missile Trucks (wheeled rocket artillery, 18 m range) and Rocket Bunkers
   (a defense that hits vehicles and aircraft). The build menu shows only your own faction's items.
-- **Units:** Rifleman, Rocketeer (anti-armour missiles), Sniper (long-range anti-infantry), Field Medic (heals
+- **Units:** Rifleman, Rocketeer (anti-armour missiles), Grenadier (lobs grenades that blast bunched infantry and
+  buildings, weak against vehicles), Sniper (long-range anti-infantry), Field Medic (heals
   nearby infantry), Engineer, Scout Buggy, Battle Tank, Bulwark (heavy twin-cannon tank), Howitzer (long-range
   artillery with splash damage), Flak Track (mobile anti-aircraft gun), Gunship, Harvester.
 - **Map editor:** EDIT MAP on the battle editor page or on a custom level opens the map in the editor. Paint

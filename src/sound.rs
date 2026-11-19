@@ -43,10 +43,11 @@ pub enum Sound {
     ResearchComplete,
     HarvesterAlert,
     StructureLost,
+    GrenadeLaunch,
 }
 
 impl Sound {
-    const ALL: [Sound; 28] = [
+    const ALL: [Sound; 29] = [
         Sound::RifleShot,
         Sound::MachineGunShot,
         Sound::CannonShot,
@@ -75,6 +76,7 @@ impl Sound {
         Sound::ResearchComplete,
         Sound::HarvesterAlert,
         Sound::StructureLost,
+        Sound::GrenadeLaunch,
     ];
 
     /// File variants; one is picked at random each time so repeats do not sound mechanical.
@@ -110,6 +112,7 @@ impl Sound {
             Sound::FlakShot => &["flak_shot"],
             Sound::SniperShot => &["sniper_shot"],
             Sound::FlameBurst => &["flame_burst"],
+            Sound::GrenadeLaunch => &["grenade_launch_1", "grenade_launch_2"],
         }
     }
 
@@ -128,6 +131,7 @@ impl Sound {
             Sound::FlakShot => &["flak_shot_far"],
             Sound::SniperShot => &["sniper_shot_far"],
             Sound::FlameBurst => &["flame_burst_far"],
+            Sound::GrenadeLaunch => &["grenade_launch_1_far"],
             _ => &[],
         }
     }
@@ -136,7 +140,7 @@ impl Sound {
     fn carry(self) -> f32 {
         match self {
             Sound::BulletImpact => 0.15,
-            Sound::FlameBurst => 0.4,
+            Sound::FlameBurst | Sound::GrenadeLaunch => 0.4,
             Sound::RifleShot | Sound::MachineGunShot => 0.6,
             Sound::FlakShot | Sound::MissileLaunch | Sound::SniperShot => 1.0,
             Sound::CannonShot => 1.2,
@@ -150,7 +154,9 @@ impl Sound {
     /// How much one such sound on screen stirs the battle music; zero for anything but fighting.
     fn fury(self) -> f32 {
         match self {
-            Sound::RifleShot | Sound::MachineGunShot | Sound::FlameBurst => 0.04,
+            Sound::RifleShot | Sound::MachineGunShot | Sound::FlameBurst | Sound::GrenadeLaunch => {
+                0.04
+            }
             Sound::SniperShot | Sound::FlakShot | Sound::MissileLaunch => 0.07,
             Sound::CannonShot | Sound::HeavyCannonShot | Sound::HowitzerShot => 0.1,
             Sound::ShellExplosion => 0.08,
@@ -168,7 +174,8 @@ impl Sound {
             | Sound::ShellExplosion
             | Sound::MissileLaunch
             | Sound::FlakShot
-            | Sound::FlameBurst => 2,
+            | Sound::FlameBurst
+            | Sound::GrenadeLaunch => 2,
             _ => 1,
         }
     }

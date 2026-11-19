@@ -454,6 +454,48 @@ def add_fuel_tanks():
     add_pipe_run([(-0.22, -0.09, 1.08), (-0.1, -0.2, 1.0), (0.15, -0.2, 1.12)], 0.018, material_name="Rubber")
 
 
+def add_grenade_launcher():
+    """A six-shot revolving grenade launcher along the rifle's line: stock, drum and a short fat barrel."""
+    axis = (RIFLE_MUZZLE - RIFLE_BUTT).normalized()
+    frame = Vector((1.0, 0.0, 0.0)).rotation_difference(axis).to_matrix().to_4x4()
+
+    def at(x, y=0.0, z=0.0, rotation=(0.0, 0.0, 0.0)):
+        return Matrix.Translation(RIFLE_BUTT) @ frame @ geo.placement((x, y, z), rotation)
+
+    length = (RIFLE_MUZZLE - RIFLE_BUTT).length
+    box("ArmorDark", (0.2, 0.045, 0.09), matrix=at(0.1, 0, -0.01), bevel=0.014, name="LauncherStock")
+    box("Gunmetal", (0.12, 0.05, 0.07), matrix=at(0.26, 0, 0.0), bevel=0.01, name="LauncherFrame")
+    cylinder("Gunmetal", 0.075, 0.16, matrix=at(0.37, 0, -0.01, FACING_FRONT), segments=12, name="LauncherDrum")
+    for k in range(6):
+        angle = k * math.tau / 6
+        cylinder("ArmorDark", 0.018, 0.165, matrix=at(0.37, math.cos(angle) * 0.05, math.sin(angle) * 0.05 - 0.01,
+                                                     FACING_FRONT), segments=6, name="DrumChamber")
+    cylinder("Gunmetal", 0.032, length - 0.45, matrix=at(0.45 + (length - 0.45) / 2, 0, 0.0, FACING_FRONT),
+             segments=10, name="LauncherBarrel")
+    cylinder("ArmorDark", 0.037, 0.05, matrix=at(length - 0.025, 0, 0.0, FACING_FRONT), segments=10,
+             name="LauncherMuzzle")
+    box("ArmorDark", (0.035, 0.035, 0.09), matrix=at(0.22, 0, -0.07, (0, math.radians(15), 0)), bevel=0.008,
+        name="LauncherGrip")
+    box("ArmorDark", (0.03, 0.03, 0.08), matrix=at(0.55, 0, -0.06), bevel=0.008, name="LauncherForegrip")
+    box("TeamColor", (0.1, 0.055, 0.02), matrix=at(0.26, 0, 0.045), bevel=0.0, name="LauncherTeamBand")
+
+
+def add_grenade_bandolier():
+    """A belt of grenades across the chest and pouches on the back for reloads."""
+    box("Webbing", (0.18, 0.3, 0.3), (-0.21, 0.0, 1.27), bevel=0.04, name="GrenadePack")
+    box("TeamColor", (0.012, 0.24, 0.08), (-0.305, 0.0, 1.33), bevel=0.0, name="GrenadePackTeamFlash")
+    for row, z in enumerate((1.2, 1.32)):
+        for k in range(3):
+            y = (k - 1) * 0.09 + row * 0.03
+            box("Webbing", (0.07, 0.07, 0.1), (-0.32, y, z), bevel=0.015, name="GrenadePouch")
+    for k in range(5):
+        t = k / 4
+        position = Vector((0.13, -0.15, 1.42)).lerp(Vector((0.12, 0.15, 1.12)), t)
+        sphere("Uniform" if k % 2 else "ArmorDark", 0.03, position, scale=(1.0, 1.0, 1.25), segments=8, rings=5,
+               name="BandolierGrenade")
+    cylinder_between("Webbing", (0.11, -0.17, 1.46), (0.1, 0.17, 1.08), 0.022, 6, name="Bandolier")
+
+
 def _elbows(hands, poles):
     return {side: rest_elbow(SHOULDER[side], hands[side], poles[side]) for side in "LR"}
 
@@ -512,6 +554,19 @@ FLAME_TROOPER = SoldierKit(
     add_weapon=add_flamethrower, add_helmet=add_gas_mask_helmet, add_backpack=add_fuel_tanks,
     shouldered_offset=Vector((0.02, 0.05, -0.04)),
 )
+
+
+GRENADIER = SoldierKit(
+    carry=CARRY_RIFLE, weapon_seat=RIFLE_BUTT, weapon_axis=RIFLE_MUZZLE - RIFLE_BUTT,
+    hand={"L": RIFLE_HANDGUARD, "R": RIFLE_GRIP},
+    elbow={"L": Vector((0.2, 0.15, 1.12)), "R": Vector((-0.02, -0.27, 1.13))},
+    add_weapon=add_grenade_launcher, add_helmet=add_combat_helmet, add_backpack=add_grenade_bandolier,
+    shouldered_offset=Vector((0.02, 0.05, -0.04)),
+)
+
+
+def build_grenadier():
+    SoldierBuild(GRENADIER).build()
 
 
 def build_flame_trooper():
