@@ -60,7 +60,7 @@ pub fn spawn_unit(
             treating: false,
         });
     }
-    if kind == UnitKind::Sniper {
+    if kind.hides_when_still() {
         unit.insert(Camouflage::default());
     }
     if kind == UnitKind::Harvester {

@@ -206,6 +206,7 @@ pub enum UnitKind {
     MissileTruck,
     Grenadier,
     RepairTruck,
+    StealthTank,
 }
 
 pub struct UnitSpec {
@@ -243,9 +244,10 @@ impl UnitKind {
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
-    pub const VEHICLES: [UnitKind; 9] = [
+    pub const VEHICLES: [UnitKind; 10] = [
         UnitKind::Scout,
         UnitKind::Tank,
+        UnitKind::StealthTank,
         UnitKind::Bulwark,
         UnitKind::Artillery,
         UnitKind::MissileTruck,
@@ -254,7 +256,7 @@ impl UnitKind {
         UnitKind::RepairTruck,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 16] = [
+    pub const ALL: [UnitKind; 17] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -271,6 +273,7 @@ impl UnitKind {
         UnitKind::MissileTruck,
         UnitKind::Grenadier,
         UnitKind::RepairTruck,
+        UnitKind::StealthTank,
     ];
 
     pub fn flies(self) -> bool {
@@ -295,7 +298,13 @@ impl UnitKind {
             UnitKind::MissileTruck => &MISSILE_TRUCK,
             UnitKind::Grenadier => &GRENADIER,
             UnitKind::RepairTruck => &REPAIR_TRUCK,
+            UnitKind::StealthTank => &STEALTH_TANK,
         }
+    }
+
+    /// Units that blend into the ground after keeping still for a while.
+    pub fn hides_when_still(self) -> bool {
+        matches!(self, UnitKind::Sniper | UnitKind::StealthTank)
     }
 }
 
@@ -425,6 +434,21 @@ const GRENADE_LAUNCHER: WeaponSpec = WeaponSpec {
     versus_structure: 0.9,
     versus_aircraft: 0.0,
     report: Sound::GrenadeLaunch,
+};
+
+/// Fired from hiding: a hard first blow against armour, little use against soldiers.
+const STEALTH_MISSILES: WeaponSpec = WeaponSpec {
+    range: 10.0,
+    damage: 52.0,
+    reload_secs: 2.0,
+    projectile_speed: 30.0,
+    splash_radius: 0.0,
+    style: ProjectileStyle::Missile,
+    versus_infantry: 0.6,
+    versus_vehicle: 1.0,
+    versus_structure: 0.7,
+    versus_aircraft: 0.4,
+    report: Sound::MissileLaunch,
 };
 
 const HOWITZER: WeaponSpec = WeaponSpec {
@@ -860,6 +884,26 @@ const GRENADIER: UnitSpec = UnitSpec {
     faction: None,
     heal_per_sec: 0.0,
     sight: 12.0,
+};
+
+const STEALTH_TANK: UnitSpec = UnitSpec {
+    name: "Stealth Tank",
+    role: "Hides when it keeps still and ambushes armour with missiles. Thin armour in an open fight.",
+    model_id: "stealth_tank",
+    cost: 850,
+    build_secs: 15.0,
+    max_health: 380.0,
+    speed: 4.6,
+    turn_rate: 3.0,
+    radius: 1.2,
+    armor: ArmorClass::Vehicle,
+    weapon: Some(STEALTH_MISSILES),
+    has_turret: true,
+    producer: BuildingKind::Factory,
+    requires: Some(BuildingKind::TechCenter),
+    faction: Some(Faction::Syndicate),
+    heal_per_sec: 0.0,
+    sight: 18.0,
 };
 
 const REPAIR_TRUCK: UnitSpec = UnitSpec {

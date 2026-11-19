@@ -1030,3 +1030,41 @@ def _add_service_crane(base):
     cylinder_between("Steel", boom_end, boom_end - Vector((0, 0, 0.45)), 0.01, 4, name="CraneCable")
     box("Gunmetal", (0.08, 0.06, 0.1), boom_end - Vector((0, 0, 0.5)), bevel=0.01, name="CraneHook")
     box("TeamColor", (0.16, 0.13, 0.06), post_top - Vector((0, 0, 0.25)), bevel=0.0, name="CraneTeamBand")
+
+
+STEALTH_TANK_RECOIL = 0.12
+
+
+def build_stealth_tank():
+    """A low, faceted Syndicate tank in dark paint with a flat turret carrying twin missile pods: it fights from
+    hiding, so it is built small and angular rather than heavy."""
+    length, track_y, track_width, track_height = 3.0, 0.78, 0.4, 0.56
+    make_tracked_chassis(length, track_y, track_width, track_height, 5)
+    deck_z = 0.8
+    hull_profile = [(-1.45, 0.2), (1.2, 0.2), (1.55, 0.5), (1.05, deck_z), (-1.4, deck_z), (-1.5, 0.62)]
+    prism("ArmorDark", hull_profile, 1.18, bevel=0.02, name="LowerHull")
+    upper_profile = [(-1.42, track_height + 0.06), (1.32, track_height + 0.06), (1.0, deck_z), (-1.36, deck_z)]
+    prism("ArmorDark", upper_profile, 1.96, bevel=0.015, name="FacetedHull")
+    for side in (-1, 1):
+        box("Armor", (2.2, 0.04, 0.16), (-0.15, side * 0.99, track_height + 0.1), (side * math.radians(25), 0, 0),
+            bevel=0.0, name="SidePanel")
+        box("TeamColor", (0.5, 0.012, 0.06), (0.6, side * 1.0, track_height + 0.12), (side * math.radians(25), 0, 0),
+            bevel=0.0, name="SideTeamStripe")
+    box("Webbing", (0.7, 1.2, 0.08), (-1.0, 0.0, deck_z + 0.04), bevel=0.03, name="CamouflageNetRoll")
+    add_lamp((1.42, 0.5, 0.62), FACING_FRONT, radius=0.03, depth=0.04, lens="WarningLight")
+    pivot = Vector((-0.05, 0.0, deck_z))
+    with group(TURRET, pivot):
+        turret = [(-0.75, -0.55), (0.55, -0.45), (0.8, 0.0), (0.55, 0.45), (-0.75, 0.55)]
+        slab("ArmorDark", turret, pivot.z, pivot.z + 0.26, top_scale=0.82, location=(pivot.x, 0, 0), bevel=0.015,
+             name="WedgeTurret")
+        box("TeamColor", (0.3, 0.3, 0.012), pivot + Vector((-0.35, 0.0, 0.265)), bevel=0.0, name="TurretTeamPlate")
+        cylinder("Gunmetal", 0.05, 0.12, pivot + Vector((-0.2, 0.3, 0.32)), segments=8, name="Sensor")
+        pod_root = pivot + Vector((0.1, 0.0, 0.36))
+        with group(BARREL, pod_root, parent=TURRET):
+            for side in (-1, 1):
+                pod = pod_root + Vector((0.0, side * 0.42, 0.0))
+                box("Armor", (0.8, 0.22, 0.2), pod, bevel=0.02, name="MissilePod")
+                for row in (-1, 1):
+                    cylinder("Gunmetal", 0.045, 0.04, pod + Vector((0.41, 0.0, row * 0.05)), FACING_FRONT,
+                             segments=8, name="PodMouth")
+    animate_vehicle(ground_speed=3.6, recoil=Vector((-STEALTH_TANK_RECOIL, 0.0, 0.0)))

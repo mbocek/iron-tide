@@ -79,3 +79,27 @@ fn a_repair_truck_mends_vehicles_in_the_field_but_not_soldiers() {
         "the truck treated a soldier"
     );
 }
+
+#[test]
+fn a_stealth_tank_keeping_still_blends_into_the_ground() {
+    let mut battle = Battle::sandbox();
+    let stealth_tank = battle.spawn_unit(UnitKind::StealthTank, Team::Crimson, FIELD);
+    battle.run_for(4.0);
+    let concealed = battle
+        .world()
+        .get::<iron_tide::abilities::Camouflage>(stealth_tank)
+        .is_some_and(|camouflage| camouflage.concealed);
+    assert!(concealed, "the stealth tank stayed in plain sight");
+}
+
+#[test]
+fn a_stealth_tank_caught_in_the_open_falls_to_a_pair_of_battle_tanks() {
+    let mut battle = Battle::sandbox();
+    let stealth_tank = battle.spawn_unit(UnitKind::StealthTank, Team::Crimson, FIELD);
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Player, FIELD + IVec2::new(4, 0));
+    let second_tank = battle.spawn_unit(UnitKind::Tank, Team::Player, FIELD + IVec2::new(4, 2));
+    battle.run_until(60.0, |battle| {
+        !battle.alive(stealth_tank) || !battle.alive(tank) && !battle.alive(second_tank)
+    });
+    assert!(!battle.alive(stealth_tank));
+}

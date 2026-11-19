@@ -497,7 +497,7 @@ fn plan_next_structure(
 
 /// Weighted wish lists, reweighted by what counters the enemies seen lately; anything the mission
 /// forbids is skipped.
-const VEHICLE_MIX: [(UnitKind, f32); 8] = [
+const VEHICLE_MIX: [(UnitKind, f32); 9] = [
     (UnitKind::Tank, 5.0),
     (UnitKind::Bulwark, 4.0),
     (UnitKind::Artillery, 3.0),
@@ -506,6 +506,7 @@ const VEHICLE_MIX: [(UnitKind, f32); 8] = [
     (UnitKind::FlakTrack, 1.0),
     (UnitKind::MissileTruck, 4.0),
     (UnitKind::RepairTruck, 1.0),
+    (UnitKind::StealthTank, 3.0),
 ];
 const INFANTRY_MIX: [(UnitKind, f32); 6] = [
     (UnitKind::Rifleman, 6.0),
