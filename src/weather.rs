@@ -160,11 +160,17 @@ pub fn follow_the_weather(
     };
 
     let season = level.0.season;
+    let illuminance = CLEAR_SUNLIGHT.lerp(RAIN_SUNLIGHT, cloud_cover);
     for mut sun in &mut suns {
-        sun.illuminance = CLEAR_SUNLIGHT.lerp(RAIN_SUNLIGHT, cloud_cover);
-        sun.color = season.sunlight_color();
+        if sun.illuminance != illuminance || sun.color != season.sunlight_color() {
+            sun.illuminance = illuminance;
+            sun.color = season.sunlight_color();
+        }
     }
-    ambient.brightness = CLEAR_AMBIENT.lerp(RAIN_AMBIENT, cloud_cover) * season.ambient_factor();
+    let brightness = CLEAR_AMBIENT.lerp(RAIN_AMBIENT, cloud_cover) * season.ambient_factor();
+    if ambient.brightness != brightness {
+        ambient.brightness = brightness;
+    }
 
     let soaked = if season == Season::Winter {
         0.0

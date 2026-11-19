@@ -1,6 +1,8 @@
 // Wind and hovering computed per vertex on the GPU, so the CPU never touches a plant or a crystal shard and
 // identical meshes still draw together. Shared by motion.wesl (main pass) and motion_prepass.wesl (depth, shadows).
 
+import bevy_pbr::render::mesh_bindings::mesh;
+
 // Same layout as `MotionSettings` in src/motion_material.rs.
 struct MotionSettings {
     sway_lean: f32,
@@ -8,6 +10,29 @@ struct MotionSettings {
     hover_bob: f32,
     hover_loop_secs: f32,
     tint_variation: f32,
+    glow_pulse_speed: f32,
+}
+
+// One slot per material in bindless mode (see `Motion` in src/motion_material.rs), a plain uniform otherwise.
+@if(BINDLESS) {
+struct MotionIndices {
+    settings: u32,
+}
+@group(constants::MATERIAL_BIND_GROUP) @binding(102) var<storage> motion_indices: array<MotionIndices>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(101) var<storage> motion_array: array<MotionSettings>;
+}
+@else {
+@group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> motion_uniform: MotionSettings;
+}
+
+fn motion_settings(instance_index: u32) -> MotionSettings {
+@if(BINDLESS) {
+    let slot = mesh[instance_index].material_and_lightmap_bind_group_slot & 0xffffu;
+    return motion_array[motion_indices[slot].settings];
+}
+@else {
+    return motion_uniform;
+}
 }
 
 struct Moved {
@@ -62,4 +87,12 @@ fn swayed(world_position: vec3<f32>, origin: vec3<f32>, settings: MotionSettings
     let gust = 0.65 + 0.35 * sin(time * TAU / settings.gust_period_secs);
     let lean = settings.sway_lean * gust * (0.6 + 0.4 * sin(time * speed + seed * TAU));
     return world_position + WIND_DIRECTION * lean * (world_position.y - origin.y);
+}
+
+// A glowing crystal core swells and fades.
+fn glow_pulse(settings: MotionSettings, time: f32) -> f32 {
+    if settings.glow_pulse_speed == 0.0 {
+        return 1.0;
+    }
+    return 0.75 + 0.35 * sin(time * settings.glow_pulse_speed);
 }

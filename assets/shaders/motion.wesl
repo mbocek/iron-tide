@@ -1,12 +1,13 @@
 import bevy_pbr::render::{
     mesh_functions,
-    forward_io::{Vertex, VertexOutput, decompress_vertex},
+    forward_io::{Vertex, VertexOutput, FragmentOutput, decompress_vertex},
     mesh_view_bindings::globals,
     view_transformations::position_world_to_clip,
+    pbr_fragment::pbr_input_from_standard_material,
+    pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
 };
-import super::motion_common::{MotionSettings, hovering, swayed, varied_tint};
+import super::motion_common::{glow_pulse, hovering, motion_settings, swayed, varied_tint};
 
-@group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> motion: MotionSettings;
 
 // Bevy's mesh vertex shader without skinning and morph targets, plus the motion.
 @vertex
@@ -15,6 +16,7 @@ fn vertex(vertex_in: Vertex) -> VertexOutput {
     let vertex = decompress_vertex(vertex_in, vertex_in.instance_index);
     let world_from_local = mesh_functions::get_world_from_local(vertex_in.instance_index);
     let origin = world_from_local[3].xyz;
+    let motion = motion_settings(vertex_in.instance_index);
 
     var position = vertex.position;
     var normal = vertex.normal;
@@ -44,5 +46,21 @@ fn vertex(vertex_in: Vertex) -> VertexOutput {
     out.visibility_range_dither = mesh_functions::get_visibility_range_dither_level(
         vertex_in.instance_index, world_from_local[3]);
 
+    return out;
+}
+
+// The standard lit surface, with the emission pulsing where the material asks for it.
+@fragment
+fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> FragmentOutput {
+    var pbr_input = pbr_input_from_standard_material(in, is_front);
+@if(VERTEX_OUTPUT_INSTANCE_INDEX)
+    let motion = motion_settings(in.instance_index);
+@else
+    let motion = motion_settings(0u);
+    let emissive = pbr_input.material.emissive;
+    pbr_input.material.emissive = vec4<f32>(emissive.rgb * glow_pulse(motion, globals.time), emissive.a);
+    var out: FragmentOutput;
+    out.color = apply_pbr_lighting(pbr_input);
+    out.color = main_pass_post_lighting_processing(pbr_input, out.color);
     return out;
 }

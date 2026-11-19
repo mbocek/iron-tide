@@ -6,7 +6,6 @@ use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::prelude::*;
 
-use crate::ambience::CrystalCores;
 use crate::map::CrystalVisual;
 use crate::motion_material::{Motion, MovingMaterial};
 
@@ -63,7 +62,6 @@ pub fn load_crystal_models(
 
 pub fn merge_crystal_models(
     mut library: ResMut<CrystalModelLibrary>,
-    mut cores: ResMut<CrystalCores>,
     gltfs: Res<Assets<Gltf>>,
     gltf_nodes: Res<Assets<GltfNode>>,
     gltf_meshes: Res<Assets<GltfMesh>>,
@@ -93,11 +91,8 @@ pub fn merge_crystal_models(
             let glows = Some(material_id) == core;
             let material = materials.add(MovingMaterial {
                 base: standard_material(source),
-                extension: Motion::hovering(),
+                extension: Motion::hovering(glows),
             });
-            if glows {
-                cores.register(material.clone(), source.emissive);
-            }
             parts.push(CrystalPart {
                 mesh: meshes.add(builder.into_mesh()),
                 material,

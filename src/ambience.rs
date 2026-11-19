@@ -10,7 +10,6 @@ use crate::effects::{EffectAssets, spawn_sparkle};
 use crate::fog::CellSight;
 use crate::local_view::LocalView;
 use crate::map::{GameMap, cell_center, cells_by_distance, crystal_fields, world_to_cell};
-use crate::motion_material::MovingMaterial;
 
 const CRYSTAL_GLOW_COLOR: Color = Color::srgb(0.35, 1.0, 0.9);
 const CRYSTAL_GLOW_INTENSITY: f32 = 120_000.0;
@@ -19,7 +18,6 @@ const CRYSTAL_GLOW_PULSE_SPEED: f32 = 1.3;
 const CRYSTAL_SPARKLES_PER_SEC: f32 = 16.0;
 const MINING_SPARKLES_PER_SEC: f32 = 10.0;
 const HARVESTER_SCOOP_REACH: f32 = 1.9;
-const CORE_PULSE_SPEED: f32 = 1.6;
 const TRAMPLE_REACH: f32 = 0.3;
 const INFANTRY_TRAMPLE: f32 = 0.35;
 /// Fraction of full height a plant recovers per second after being driven over.
@@ -214,28 +212,5 @@ pub fn emit_crystal_sparkles(
             spray,
             rng.random_range(0.05..0.08),
         );
-    }
-}
-
-/// The glowing core material of every crystal model, with its authored emission as the pulse baseline.
-#[derive(Resource, Default)]
-pub struct CrystalCores(Vec<(Handle<MovingMaterial>, LinearRgba)>);
-
-impl CrystalCores {
-    pub fn register(&mut self, material: Handle<MovingMaterial>, authored: LinearRgba) {
-        self.0.push((material, authored));
-    }
-}
-
-pub fn pulse_crystal_cores(
-    time: Res<Time>,
-    cores: Res<CrystalCores>,
-    mut materials: ResMut<Assets<MovingMaterial>>,
-) {
-    let pulse = 0.75 + 0.35 * (time.elapsed_secs() * CORE_PULSE_SPEED).sin();
-    for (handle, authored) in &cores.0 {
-        if let Some(mut material) = materials.get_mut(handle) {
-            material.base.emissive = *authored * pulse;
-        }
     }
 }

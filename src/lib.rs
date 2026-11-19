@@ -302,7 +302,6 @@ impl Plugin for GamePlugin {
             .init_resource::<camera::Cursor>()
             .init_resource::<orders::DragSelection>()
             .init_resource::<orders::OrderMarker>()
-            .init_resource::<ambience::CrystalCores>()
             .init_resource::<crystal_models::CrystalModelLibrary>()
             .init_resource::<animation::AnimationLibrary>()
             .init_resource::<menu::MenuState>()
@@ -622,7 +621,6 @@ impl Plugin for GamePlugin {
                         ambience::trample_vegetation,
                         abilities::show_own_mines,
                         ambience::emit_crystal_sparkles,
-                        ambience::pulse_crystal_cores,
                         ambience::pulse_crystal_glow,
                         effects::animate_sparkles,
                         damage_feedback::spawn_damage_numbers,
