@@ -243,14 +243,25 @@ pub fn draw_rain(
     time: Res<Time>,
     level: Res<ActiveLevel>,
     weather: Option<Res<WeatherCycle>>,
-    cameras: Query<&RtsCamera>,
+    view: Option<LocalView>,
+    cameras: Query<(&RtsCamera, &GlobalTransform)>,
 ) {
     let rainfall = weather.map_or(0.0, |weather| weather.now.rainfall);
     let drops = (RAIN_DROPS as f32 * rainfall) as usize;
     if drops == 0 {
         return;
     }
-    let Ok(camera) = cameras.single() else { return };
+    let Ok((camera, eye)) = cameras.single() else {
+        return;
+    };
+    let eye = eye.translation();
+    let in_the_dark = |drop: Vec3| {
+        view.as_ref().is_some_and(|view| {
+            !view
+                .sight()
+                .is_explored(ground_behind(eye, drop, camera.focus.y))
+        })
+    };
     let snowing = level.0.season == Season::Winter;
     let (color, fall_speed, streak) = if snowing {
         (
@@ -280,6 +291,27 @@ pub fn draw_rain(
                 RAIN_HEIGHT - fallen,
                 offset.y * RAIN_AREA_HALF_SPAN,
             );
+        if in_the_dark(top) {
+            continue;
+        }
         gizmos.line(top, top + streak, color);
+    }
+}
+
+/// The ground a drop is seen against from the camera; under fog of war the drop would hang over the black.
+fn ground_behind(eye: Vec3, drop: Vec3, ground_height: f32) -> Vec3 {
+    let depth = (eye.y - ground_height) / (eye.y - drop.y).max(0.01);
+    eye + (drop - eye) * depth
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_drop_is_judged_by_the_ground_seen_behind_it_not_the_ground_below() {
+        let eye = Vec3::new(0.0, 10.0, 10.0);
+        let drop = Vec3::new(0.0, 5.0, 0.0);
+        assert_eq!(ground_behind(eye, drop, 0.0), Vec3::new(0.0, 0.0, -10.0));
     }
 }
