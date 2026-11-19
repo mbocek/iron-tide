@@ -12,12 +12,13 @@ use crate::components::{Aircraft, Building, Health, Mobile, Unit};
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::levels::{ActiveLevel, LevelDefinition};
-use crate::map::footprint_center;
+use crate::map::{footprint_center, world_to_cell};
 use crate::match_flow::{GameState, MatchClock};
 use crate::movement::FLIGHT_ALTITUDE;
 use crate::outcome::GameOutcome;
 use crate::settings::game_data_directory;
 use crate::ui::{ACCENT, TEXT_MAIN, UiFonts};
+use crate::wall_joints::WallSegment;
 
 const REPLAY_VERSION: u32 = 1;
 const REPLAY_DIRECTORY: &str = "replays";
@@ -612,6 +613,15 @@ fn spawn_actor(commands: &mut Commands, models: &ModelLibrary, actor: Actor) -> 
         WorldAssetRoot(model),
         Transform::default(),
     ));
+    if let Look::Building(kind) = look
+        && kind.is_wall()
+    {
+        let cell = world_to_cell(Vec3::new(actor.position().x, 0.0, actor.position().y));
+        spawned.insert(WallSegment {
+            cell,
+            team: actor.team(),
+        });
+    }
     if let Look::Unit(kind) = look {
         spawned.insert((
             animated_unit_model(kind, actor.team()),

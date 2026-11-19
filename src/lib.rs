@@ -402,6 +402,7 @@ impl Plugin for GamePlugin {
                     battlefield::draw_rain,
                     replay::control_replay,
                     replay::play_replay,
+                    wall_joints::join_walls,
                     replay::fly_replay_shots,
                     effects::animate_blasts,
                     animation::attach_animation_players,

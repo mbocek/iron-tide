@@ -1,12 +1,19 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 
 use crate::assets::ModelLibrary;
 use crate::catalog::Team;
-use crate::components::Building;
-use crate::map::GameMap;
 
 /// The four neighbours a wall can join, as cell steps.
 const NEIGHBOURS: [IVec2; 4] = [IVec2::X, IVec2::Y, IVec2::NEG_X, IVec2::NEG_Y];
+
+/// A wall segment on the ground: a placed wall, or a wall in a replay.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct WallSegment {
+    pub cell: IVec2,
+    pub team: Team,
+}
 
 /// Which neighbours a wall is joined to, one bit per entry of `NEIGHBOURS`.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -16,17 +23,15 @@ pub struct WallJoints(u8);
 pub struct WallRun;
 
 /// Joins every wall post to the wall posts of its own side next to it with a run of wall, so a line of
-/// segments reads as one wall. Purely visual; only rechecked when a structure appears, falls or changes hands.
+/// segments reads as one wall. Purely visual; only rechecked when a segment appears or goes.
 pub fn join_walls(
     mut commands: Commands,
     models: Res<ModelLibrary>,
-    map: Res<GameMap>,
-    mut removed: RemovedComponents<Building>,
-    changed: Query<(), (With<Building>, Or<(Added<Building>, Changed<Team>)>)>,
+    mut removed: RemovedComponents<WallSegment>,
+    added: Query<(), Added<WallSegment>>,
     walls: Query<(
         Entity,
-        &Building,
-        &Team,
+        &WallSegment,
         &Transform,
         Option<&WallJoints>,
         Option<&Children>,
@@ -34,25 +39,16 @@ pub fn join_walls(
     runs: Query<(), With<WallRun>>,
 ) {
     let anything_removed = removed.read().count() > 0;
-    if !anything_removed && changed.is_empty() {
+    if !anything_removed && added.is_empty() {
         return;
     }
-    let wall_of = |entity: Entity| {
-        walls
-            .get(entity)
-            .ok()
-            .filter(|(_, building, ..)| building.kind.is_wall())
-            .map(|(_, _, team, ..)| *team)
-    };
-    for (entity, building, &team, placement, joints, children) in &walls {
-        if !building.kind.is_wall() {
-            continue;
-        }
-        let wanted = joints_with(|step| {
-            map.building_at(building.origin + step)
-                .and_then(wall_of)
-                .is_some_and(|neighbour| neighbour == team)
-        });
+    let teams_by_cell: HashMap<IVec2, Team> = walls
+        .iter()
+        .map(|(_, segment, ..)| (segment.cell, segment.team))
+        .collect();
+    for (entity, segment, placement, joints, children) in &walls {
+        let wanted =
+            joints_with(|step| teams_by_cell.get(&(segment.cell + step)) == Some(&segment.team));
         if joints.copied() == Some(wanted) {
             continue;
         }
@@ -69,7 +65,7 @@ pub fn join_walls(
                 for step in wanted.steps() {
                     post.spawn((
                         WallRun,
-                        WorldAssetRoot(models.wall_link(team)),
+                        WorldAssetRoot(models.wall_link(segment.team)),
                         Transform::from_rotation(Quat::from_rotation_y(
                             yaw_towards(step) - own_yaw,
                         )),

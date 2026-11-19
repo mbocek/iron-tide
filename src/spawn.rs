@@ -11,6 +11,7 @@ use crate::map::{
     CELL_SIZE, GameMap, footprint_center, in_far_half, opposite_cell, opposite_origin,
 };
 use crate::medical::Healer;
+use crate::wall_joints::WallSegment;
 
 const TURRET_TURN_RATE: f32 = 3.5;
 
@@ -104,6 +105,9 @@ pub fn spawn_building(
     }
     if let Some(animated) = animated_building_model(kind, team) {
         building.insert(animated);
+    }
+    if kind.is_wall() {
+        building.insert(WallSegment { cell: origin, team });
     }
     let entity = building.id();
     map.set_building(origin, spec.footprint, Some(entity));
