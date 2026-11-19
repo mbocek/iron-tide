@@ -6,9 +6,9 @@ use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 use serde::{Deserialize, Serialize};
 
-use crate::animation::AnimatedModel;
 use crate::assets::ModelLibrary;
 use crate::catalog::CRYSTAL_PER_CELL;
+use crate::crystal_models::{CRYSTAL_MODELS, CrystalModel};
 use crate::fog_view::FogTexture;
 use crate::levels::ActiveLevel;
 use crate::scenery;
@@ -141,7 +141,6 @@ pub fn in_far_half(origin: IVec2, footprint: IVec2) -> bool {
     origin.x + origin.y > opposite.x + opposite.y
 }
 
-const CRYSTAL_VARIANTS: [&str; 3] = ["crystal_a", "crystal_b", "crystal_c"];
 const RIVER_BLOCKING_DEPTH: f32 = 0.25;
 
 const CARDINAL_COST: u32 = 10;
@@ -430,7 +429,7 @@ pub fn generate_map(mut commands: Commands, models: Res<ModelLibrary>, level: Re
     let landscape = level.0.landscape;
     block_water(&mut map, landscape);
     block_unmirrored_edge(&mut map);
-    seed_crystal_fields(&mut commands, &models, &mut map, &mut rng);
+    seed_crystal_fields(&mut commands, &mut map, &mut rng);
     scenery::scatter(&mut commands, &models, landscape, &mut map, &mut rng);
     commands.insert_resource(map);
 }
@@ -517,12 +516,7 @@ pub fn spawn_terrain_visuals(
     ));
 }
 
-fn seed_crystal_fields(
-    commands: &mut Commands,
-    models: &ModelLibrary,
-    map: &mut GameMap,
-    rng: &mut StdRng,
-) {
+fn seed_crystal_fields(commands: &mut Commands, map: &mut GameMap, rng: &mut StdRng) {
     for field in crystal_fields().iter().step_by(2) {
         let reach = field.radius.ceil() as i32;
         for cell in cells_by_distance(field.center, reach) {
@@ -541,7 +535,7 @@ fn seed_crystal_fields(
             let amount = (CRYSTAL_PER_CELL as f32 * richness) as u32;
             for (index, at) in [(i, cell), (mirror, opposite_cell(cell))] {
                 map.crystal[index] = amount;
-                spawn_crystal_visual(commands, models, rng, at, amount);
+                spawn_crystal_visual(commands, rng, at, amount);
             }
         }
     }
@@ -549,21 +543,20 @@ fn seed_crystal_fields(
 
 pub fn spawn_crystal_visual(
     commands: &mut Commands,
-    models: &ModelLibrary,
     rng: &mut impl RngExt,
     cell: IVec2,
     amount: u32,
 ) {
-    let variant = CRYSTAL_VARIANTS[rng.random_range(0..CRYSTAL_VARIANTS.len())];
+    let model = CRYSTAL_MODELS[rng.random_range(0..CRYSTAL_MODELS.len())];
     commands.spawn((
         CrystalVisual { cell },
-        WorldAssetRoot(models.neutral(variant)),
-        AnimatedModel(variant.to_string()),
+        CrystalModel(model),
         Transform::from_translation(cell_center(cell))
             .with_rotation(Quat::from_rotation_y(
                 rng.random_range(0.0..std::f32::consts::TAU),
             ))
             .with_scale(Vec3::splat(crystal_scale(amount))),
+        Visibility::default(),
     ));
 }
 

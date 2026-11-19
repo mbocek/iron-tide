@@ -16,6 +16,7 @@
 | `headless` | windowless battle harness shared by the tests and the balance tool |
 | `terrain`, `terrain_material` | landscapes (river, lake, plains): terrain height, water, roads, texture layers, WESL shader |
 | `scenery`, `flat_scenery` | forests, meadows, reeds, mountains with boulders; scenery models merged into one mesh each |
+| `crystal_models`, `motion_material` | crystal deposits merged into one mesh per material; GPU vertex motion (wind, hovering shards) |
 | `minimap`, `notifications` | minimap, status messages |
 | `ui`, `overlay` | sidebar (tabs, tiles with icons), health bars, selection |
 | `settings`, `menu`, `perf_overlay`, `frame_pacing` | settings and their persistence, in-game menu, performance overlay, frame rate limit |

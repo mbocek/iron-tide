@@ -15,6 +15,7 @@ pub mod catalog;
 pub mod combat;
 pub mod components;
 pub mod control_groups;
+pub mod crystal_models;
 pub mod damage_feedback;
 pub mod determinism;
 pub mod economy;
@@ -46,6 +47,7 @@ pub mod match_stats;
 pub mod medical;
 pub mod menu;
 pub mod minimap;
+pub mod motion_material;
 pub mod movement;
 pub mod network;
 pub mod network_hud;
@@ -300,6 +302,7 @@ impl Plugin for GamePlugin {
             .init_resource::<orders::DragSelection>()
             .init_resource::<orders::OrderMarker>()
             .init_resource::<ambience::CrystalCores>()
+            .init_resource::<crystal_models::CrystalModelLibrary>()
             .init_resource::<animation::AnimationLibrary>()
             .init_resource::<menu::MenuState>()
             .init_resource::<sound::MusicDirector>()
@@ -350,6 +353,9 @@ impl Plugin for GamePlugin {
                 (
                     flat_scenery::merge_scenery_models,
                     flat_scenery::dress_flat_scenery,
+                    flat_scenery::follow_wind_setting,
+                    crystal_models::merge_crystal_models,
+                    crystal_models::dress_crystals,
                 )
                     .chain(),
             )
@@ -466,6 +472,7 @@ impl Plugin for GamePlugin {
                 capture::CapturePlugin,
                 MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
                 MaterialPlugin::<terrain_material::WaterMaterial>::default(),
+                MaterialPlugin::<motion_material::MovingMaterial>::default(),
             ))
             .add_systems(
                 Startup,
@@ -481,6 +488,7 @@ impl Plugin for GamePlugin {
                     fog_view::create_fog_texture,
                     sound::load_sounds,
                     flat_scenery::load_flat_scenery_sources,
+                    crystal_models::load_crystal_models,
                     battlefield::create_battlefield_assets,
                     abilities::create_mine_look,
                     sound::place_ears,
@@ -609,11 +617,9 @@ impl Plugin for GamePlugin {
                         economy::show_harvester_load,
                         combat::link_turret_nodes,
                         combat::rotate_turret_nodes,
-                        ambience::sway_vegetation,
                         ambience::trample_vegetation,
                         abilities::show_own_mines,
                         ambience::emit_crystal_sparkles,
-                        ambience::discover_crystal_cores,
                         ambience::pulse_crystal_cores,
                         ambience::pulse_crystal_glow,
                         effects::animate_sparkles,
@@ -631,14 +637,11 @@ impl Plugin for GamePlugin {
                         settings::apply_game_speed,
                         settings::persist_settings,
                         graphics::strip_fine_decor_shadows,
-                        graphics::strip_crystal_glow_shadows,
                         graphics::cull_distant_decor,
                         animation::build_animation_graphs,
                         animation::attach_animation_players,
                         animation::animate_soldiers,
                         animation::animate_vehicles,
-                        animation::rest_offscreen_crystals,
-                        animation::animate_crystals,
                         animation::animate_corpses,
                     )
                         .chain(),

@@ -8,7 +8,6 @@ use crate::camera::RtsCamera;
 use crate::fog_view::Shrouded;
 use crate::i18n::{tr_fmt, tr_owned};
 use crate::key_bindings::Action;
-use crate::map::CrystalVisual;
 use crate::notifications::Notifications;
 use crate::settings::{GameSettings, QualityPreset, ShadowQuality};
 
@@ -23,9 +22,6 @@ pub struct FineDecor;
 
 #[derive(Component)]
 pub struct ShadowsStripped;
-
-const FLOATING_SHARD: &str = "FloatingShard";
-const GLOWING_CORE: &str = "CrystalCore";
 
 fn next_preset(preset: QualityPreset) -> QualityPreset {
     match preset {
@@ -133,31 +129,6 @@ pub fn strip_fine_decor_shadows(
             commands.entity(node).insert(NotShadowCaster);
         }
         commands.entity(root).insert(ShadowsStripped);
-    }
-}
-
-/// A crystal is some fifteen meshes; its floating shards and glowing cores add little to its shadow.
-pub fn strip_crystal_glow_shadows(
-    mut commands: Commands,
-    crystals: Query<Entity, (With<CrystalVisual>, Without<ShadowsStripped>)>,
-    children: Query<&Children>,
-    meshes: Query<&Name, With<Mesh3d>>,
-) {
-    for crystal in &crystals {
-        let parts: Vec<(Entity, &Name)> = children
-            .iter_descendants(crystal)
-            .filter_map(|node| meshes.get(node).ok().map(|name| (node, name)))
-            .collect();
-        if parts.is_empty() {
-            continue;
-        }
-        for (part, name) in parts {
-            let glows = name.starts_with(FLOATING_SHARD) || name.ends_with(GLOWING_CORE);
-            if glows {
-                commands.entity(part).insert(NotShadowCaster);
-            }
-        }
-        commands.entity(crystal).insert(ShadowsStripped);
     }
 }
 

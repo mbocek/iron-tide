@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use rand::RngExt;
 use rand::rngs::StdRng;
 
-use crate::ambience::{Sway, Trampleable};
+use crate::ambience::Trampleable;
 use crate::assets::ModelLibrary;
 use crate::components::Building;
 use crate::graphics::FineDecor;
@@ -465,13 +465,10 @@ fn spawn_scenery(
     if is_trampleable(model_id) {
         scenery.insert(Trampleable::default());
     }
-    if let Some(amplitude) = sway_amplitude(model_id) {
-        scenery.insert(Sway {
-            rest: rotation,
-            phase: rng.random_range(0.0..TAU),
-            amplitude,
-            speed: rng.random_range(1.2..2.0),
-        });
+    if sway_amplitude(model_id).is_some() {
+        // The wind moved to the GPU; these two draws stay so every map keeps its trees and rocks where they were.
+        let _sway_phase: f32 = rng.random_range(0.0..TAU);
+        let _sway_speed: f32 = rng.random_range(1.2..2.0);
     }
     scenery.id()
 }
@@ -484,7 +481,7 @@ fn is_trampleable(model_id: &str) -> bool {
 }
 
 /// How far each kind of vegetation leans in the wind, in radians; rigid scenery returns `None`.
-fn sway_amplitude(model_id: &str) -> Option<f32> {
+pub fn sway_amplitude(model_id: &str) -> Option<f32> {
     match model_id {
         "reeds" => Some(0.09),
         "bush" | "bush_round" | "bush_flowering" => Some(0.035),

@@ -380,13 +380,7 @@ pub fn restore_pending_load(
     let mut rng = rand::rng();
     for (index, amount) in map.crystal_amounts().into_iter().enumerate() {
         if amount > 0 {
-            spawn_crystal_visual(
-                &mut commands,
-                &models,
-                &mut rng,
-                cell_of_index(index),
-                amount,
-            );
+            spawn_crystal_visual(&mut commands, &mut rng, cell_of_index(index), amount);
         }
     }
     for saved in &save.buildings {

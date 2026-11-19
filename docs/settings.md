@@ -24,8 +24,10 @@ Profiling a match with `cargo build --release --features bevy/trace_chrome` (per
 trace; capture runs render only the screenshot camera so the numbers match real play) showed the game's own
 systems under 1 ms per second each, and the time in rendering. Every crystal is some fifteen meshes, so the
 crystal fields were thousands of shadow casters: their floating shards and glowing cores no longer cast
-shadows, and crystals off screen stop animating. Shadow queueing fell by about 70 % and the render thread
-by about 10 %. Interface systems now write text, colours and sizes only when they change, because any write
+shadows. Shadow queueing fell by about 70 % and the render thread by about 10 %. Since then a crystal is
+merged into one mesh per material (from some 22 entities to 8), and the wind in the vegetation and the
+hovering crystal shards are computed per vertex on the GPU (`assets/shaders/motion.wesl`) instead of moving
+transforms on the CPU every frame; a match went from about 11 000 entities to 8 300. Interface systems now write text, colours and sizes only when they change, because any write
 makes Bevy measure text and lay out the whole interface again; that took about 7 % off the main thread.
 
 ## Updates

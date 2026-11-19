@@ -1,22 +1,17 @@
 use std::collections::HashMap;
-use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 
-use bevy::gltf::GltfMaterialName;
 use rand::RngExt;
 
-use crate::camera::RtsCamera;
 use crate::catalog::ArmorClass;
 use crate::components::{Armor, BodyRadius, HarvestState, Harvester, Mobile};
 use crate::effects::{EffectAssets, spawn_sparkle};
 use crate::fog::CellSight;
 use crate::local_view::LocalView;
 use crate::map::{GameMap, cell_center, cells_by_distance, crystal_fields, world_to_cell};
-use crate::settings::GameSettings;
+use crate::motion_material::MovingMaterial;
 
-const WIND_DIRECTION: Vec3 = Vec3::new(0.8, 0.0, 0.6);
-const GUST_PERIOD_SECS: f32 = 9.0;
 const CRYSTAL_GLOW_COLOR: Color = Color::srgb(0.35, 1.0, 0.9);
 const CRYSTAL_GLOW_INTENSITY: f32 = 120_000.0;
 const CRYSTAL_GLOW_HEIGHT: f32 = 2.2;
@@ -24,7 +19,6 @@ const CRYSTAL_GLOW_PULSE_SPEED: f32 = 1.3;
 const CRYSTAL_SPARKLES_PER_SEC: f32 = 16.0;
 const MINING_SPARKLES_PER_SEC: f32 = 10.0;
 const HARVESTER_SCOOP_REACH: f32 = 1.9;
-const CRYSTAL_CORE_MATERIAL: &str = "CrystalCore";
 const CORE_PULSE_SPEED: f32 = 1.6;
 const TRAMPLE_REACH: f32 = 0.3;
 const INFANTRY_TRAMPLE: f32 = 0.35;
@@ -32,15 +26,6 @@ const INFANTRY_TRAMPLE: f32 = 0.35;
 const TRAMPLE_RECOVERY_PER_SEC: f32 = 0.12;
 const FLATTENED_HEIGHT: f32 = 0.2;
 const FLATTENED_SPREAD: f32 = 0.3;
-
-/// Gentle wind motion; vegetation pivots around its base, which is the model origin.
-#[derive(Component)]
-pub struct Sway {
-    pub rest: Quat,
-    pub phase: f32,
-    pub amplitude: f32,
-    pub speed: f32,
-}
 
 #[derive(Component)]
 pub struct CrystalGlow {
@@ -54,26 +39,6 @@ fn field_crystal(map: &GameMap, field_index: usize) -> u32 {
     cells_by_distance(field.center, field.radius.ceil() as i32)
         .map(|cell| map.crystal_at(cell))
         .sum()
-}
-
-pub fn sway_vegetation(
-    time: Res<Time>,
-    settings: Res<GameSettings>,
-    cameras: Query<&RtsCamera>,
-    mut plants: Query<(&Sway, &mut Transform)>,
-) {
-    let Ok(camera) = cameras.single() else { return };
-    let range = settings.sway_range();
-    let t = time.elapsed_secs();
-    let gust = 0.65 + 0.35 * (t * TAU / GUST_PERIOD_SECS).sin();
-    let bend_axis = Vec3::Y.cross(WIND_DIRECTION.normalize());
-    for (sway, mut transform) in &mut plants {
-        if transform.translation.xz().distance(camera.focus.xz()) > range {
-            continue;
-        }
-        let lean = sway.amplitude * gust * (0.6 + 0.4 * (t * sway.speed + sway.phase).sin());
-        transform.rotation = Quat::from_axis_angle(bend_axis, lean) * sway.rest;
-    }
 }
 
 pub fn light_crystal_fields(mut commands: Commands, map: Res<GameMap>) {
@@ -254,33 +219,23 @@ pub fn emit_crystal_sparkles(
 
 /// The glowing core material of every crystal model, with its authored emission as the pulse baseline.
 #[derive(Resource, Default)]
-pub struct CrystalCores(Vec<(Handle<StandardMaterial>, LinearRgba)>);
+pub struct CrystalCores(Vec<(Handle<MovingMaterial>, LinearRgba)>);
 
-pub fn discover_crystal_cores(
-    mut cores: ResMut<CrystalCores>,
-    materials: Res<Assets<StandardMaterial>>,
-    named: Query<(&GltfMaterialName, &MeshMaterial3d<StandardMaterial>), Added<GltfMaterialName>>,
-) {
-    for (name, material) in &named {
-        let already_known = cores.0.iter().any(|(handle, _)| *handle == material.0);
-        if name.0 != CRYSTAL_CORE_MATERIAL || already_known {
-            continue;
-        }
-        if let Some(authored) = materials.get(&material.0) {
-            cores.0.push((material.0.clone(), authored.emissive));
-        }
+impl CrystalCores {
+    pub fn register(&mut self, material: Handle<MovingMaterial>, authored: LinearRgba) {
+        self.0.push((material, authored));
     }
 }
 
 pub fn pulse_crystal_cores(
     time: Res<Time>,
     cores: Res<CrystalCores>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<MovingMaterial>>,
 ) {
     let pulse = 0.75 + 0.35 * (time.elapsed_secs() * CORE_PULSE_SPEED).sin();
     for (handle, authored) in &cores.0 {
         if let Some(mut material) = materials.get_mut(handle) {
-            material.emissive = *authored * pulse;
+            material.base.emissive = *authored * pulse;
         }
     }
 }

@@ -7,8 +7,10 @@ use bevy::prelude::*;
 
 use crate::assets::ModelLibrary;
 use crate::levels::ActiveLevel;
-use crate::scenery::FlatScenery;
+use crate::motion_material::{Motion, MovingMaterial};
+use crate::scenery::{FlatScenery, sway_amplitude};
 use crate::season::{Foliage, Season};
+use crate::settings::GameSettings;
 
 /// Trees, rocks and decoration as one merged mesh each. A glTF scene costs a handful of entities per
 /// prop (root, nodes, one per material); thousands of grass tufts made that most of the world.
@@ -22,7 +24,9 @@ pub struct FlatSceneryLibrary {
 struct MergedModel {
     /// Indexed by `Season::index`: the same mesh with its colours turned for each season.
     seasonal_meshes: Vec<Handle<Mesh>>,
-    material: Handle<StandardMaterial>,
+    material: Handle<MovingMaterial>,
+    /// How far it leans in the wind when the wind is on.
+    lean: f32,
 }
 
 pub fn load_flat_scenery_sources(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -47,7 +51,7 @@ pub fn merge_scenery_models(
     gltf_meshes: Res<Assets<GltfMesh>>,
     gltf_materials: Res<Assets<GltfMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<MovingMaterial>>,
 ) {
     if library.merged.len() == library.sources.len() {
         return;
@@ -79,12 +83,17 @@ pub fn merge_scenery_models(
         let Some(parts) = parts.filter(|parts| !parts.is_empty()) else {
             continue;
         };
+        let lean = sway_amplitude(&id).unwrap_or(0.0);
         let merged = merge_parts(&parts).map(|(mesh, material)| MergedModel {
             seasonal_meshes: Season::ALL
                 .iter()
                 .map(|&season| meshes.add(in_season(&mesh, season, Foliage::of_model(&id))))
                 .collect(),
-            material: materials.add(material),
+            material: materials.add(MovingMaterial {
+                base: material,
+                extension: Motion::swaying(lean),
+            }),
+            lean,
         });
         if merged.is_none() {
             warn!("scenery model {id} cannot be merged; it keeps its full scene");
@@ -215,6 +224,25 @@ pub fn dress_flat_scenery(
                     .insert(WorldAssetRoot(models.neutral(scenery.0)));
             }
             None => {}
+        }
+    }
+}
+
+/// Turns the wind in every plant's material on or off with the graphics setting.
+pub fn follow_wind_setting(
+    settings: Res<GameSettings>,
+    library: Res<FlatSceneryLibrary>,
+    mut materials: ResMut<Assets<MovingMaterial>>,
+) {
+    if !settings.is_changed() && !library.is_changed() {
+        return;
+    }
+    for model in library.merged.values().flatten() {
+        let lean = if settings.wind { model.lean } else { 0.0 };
+        if let Some(mut material) = materials.get_mut(&model.material)
+            && material.extension.settings.sway_lean != lean
+        {
+            material.extension.settings.sway_lean = lean;
         }
     }
 }

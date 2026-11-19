@@ -207,14 +207,6 @@ impl GameSettings {
     }
 
     /// Plants farther than this from the camera focus hold still, which saves transform updates.
-    pub fn sway_range(&self) -> f32 {
-        match (self.wind, self.vegetation) {
-            (false, _) => 0.0,
-            (true, VegetationDetail::Far) => 80.0,
-            (true, _) => 50.0,
-        }
-    }
-
     pub fn game_speed_factor(&self) -> f32 {
         match self.game_speed {
             GameSpeed::Slow => 0.75,

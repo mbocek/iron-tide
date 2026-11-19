@@ -115,13 +115,7 @@ impl MapPainter<'_, '_> {
             Brush::Clear => {}
             Brush::Crystal => {
                 self.map.set_crystal(cell, CRYSTAL_PER_CELL);
-                spawn_crystal_visual(
-                    &mut self.commands,
-                    &self.models,
-                    &mut rng,
-                    cell,
-                    CRYSTAL_PER_CELL,
-                );
+                spawn_crystal_visual(&mut self.commands, &mut rng, cell, CRYSTAL_PER_CELL);
             }
             Brush::Forest | Brush::Rock => {
                 let obstacle = if brush == Brush::Forest {
