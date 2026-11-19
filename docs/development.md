@@ -22,10 +22,11 @@ make package          # dist/iron-tide-<version>-<os>-<arch>.tar.gz: the release
 ```
 
 The game loads its assets from the folder next to the executable, so a package just needs unpacking.
-CI (`.github/workflows/ci.yml`) runs `make check`, then packages Linux x86_64, macOS arm64, macOS x86_64
-(Intel, cross-compiled on the Apple Silicon runner) and Windows x86_64 (zip) builds. Both macOS builds also
-come as a disk image with `Iron Tide.app` (`make dmg` builds one locally). Pushing a version tag also
-publishes a GitHub release with all the packages:
+CI (`.github/workflows/ci.yml`) runs `make check` on every push and pull request. Pushing a version tag (or
+starting the workflow by hand) also packages Linux x86_64, macOS arm64, macOS x86_64 (Intel, cross-compiled on
+the Apple Silicon runner) and Windows x86_64 (zip) builds; both macOS builds also come as a disk image with
+`Iron Tide.app` (`make dmg` builds one locally). A version tag then publishes a GitHub release with all the
+packages:
 
 ```sh
 git tag v1.4.0 && git push origin v1.4.0   # the tag should match the version in Cargo.toml
