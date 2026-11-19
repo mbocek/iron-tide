@@ -5,6 +5,7 @@ use crate::components::{AttackTarget, Building, Mobile, Weapon};
 use crate::determinism::{SimId, in_simulation_order};
 use crate::map::{GameMap, cell_center, footprint_center, world_to_cell};
 use crate::movement::order_move;
+use crate::sim_math::{atan2, facing_direction};
 
 /// Close enough to a Helipad's centre to be on its pad, where it is also repaired.
 const ON_THE_PAD: f32 = 3.0;
@@ -16,7 +17,21 @@ pub struct Sortie {
     pub rearms: bool,
     /// Sitting on its pad with nothing to do, so it lands instead of hanging in the air.
     pub parked: bool,
+    /// Circling while it waits in the air; an aeroplane cannot stand still.
+    pub orbit: Option<Orbit>,
 }
+
+/// A holding circle: its centre on the ground plane and where on it the aircraft is, as a `facing_direction`
+/// angle from the centre.
+#[derive(Clone, Copy, Debug)]
+pub struct Orbit {
+    centre: Vec3,
+    angle: f32,
+}
+
+const ORBIT_RADIUS: f32 = 5.0;
+/// Share of its top speed an aircraft keeps while circling.
+const ORBIT_SPEED_SHARE: f32 = 0.5;
 
 /// Sends every aircraft that has dropped its load back to the nearest Helipad of its side and keeps it
 /// from taking on targets until it has rearmed there; an idle one at home lands on the pad.
@@ -65,6 +80,62 @@ pub fn fly_home_to_rearm(
         let pad_cell = world_to_cell(pad);
         if mobile.path.back() != Some(&cell_center(pad_cell)) {
             order_move(&mut mobile, &map, here, pad_cell, false);
+        }
+    }
+}
+
+/// Keeps every waiting aeroplane in the air circling to the left around where it stopped, until it gets an
+/// order, a target or lands.
+pub fn circle_while_waiting(
+    time: Res<Time>,
+    mut aircraft: Query<(&mut Transform, &mut Mobile, &AttackTarget, &mut Sortie)>,
+) {
+    let dt = time.delta_secs();
+    for (mut transform, mut mobile, attack, mut sortie) in &mut aircraft {
+        let waiting = !sortie.parked && !mobile.is_moving() && attack.target.is_none();
+        if !waiting {
+            sortie.orbit = None;
+            continue;
+        }
+        let here = transform.translation;
+        let orbit = sortie
+            .orbit
+            .get_or_insert_with(|| entering_orbit(here, mobile.facing));
+        orbit.angle = (orbit.angle + mobile.speed * ORBIT_SPEED_SHARE / ORBIT_RADIUS * dt)
+            .rem_euclid(std::f32::consts::TAU);
+        let on_the_circle = orbit.centre + facing_direction(orbit.angle) * ORBIT_RADIUS;
+        transform.translation = on_the_circle.with_y(here.y);
+        mobile.facing = orbit.angle + std::f32::consts::FRAC_PI_2;
+    }
+}
+
+/// The circle that starts where the aircraft is and turns left from the way it faces.
+fn entering_orbit(position: Vec3, facing: f32) -> Orbit {
+    let centre = position.with_y(0.0)
+        + facing_direction(facing + std::f32::consts::FRAC_PI_2) * ORBIT_RADIUS;
+    let outward = position.with_y(0.0) - centre;
+    Orbit {
+        centre,
+        angle: atan2(-outward.z, outward.x),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_orbit_begins_where_the_aircraft_is_and_runs_along_its_heading() {
+        let position = Vec3::new(20.0, 6.0, 30.0);
+        for facing in [0.0, 1.2, -2.5] {
+            let orbit = entering_orbit(position, facing);
+            let start = orbit.centre + facing_direction(orbit.angle) * ORBIT_RADIUS;
+            assert!(start.xz().distance(position.xz()) < 1e-4, "facing {facing}");
+            let tangent = facing_direction(orbit.angle + std::f32::consts::FRAC_PI_2);
+            assert!(
+                tangent.distance(facing_direction(facing)) < 1e-4,
+                "facing {facing}"
+            );
         }
     }
 }

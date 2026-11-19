@@ -15,6 +15,8 @@ const WAYPOINT_CROWDED_REACH: f32 = CELL_SIZE * 0.5;
 const WAYPOINT_STALL_SECS: f32 = 1.5;
 const MEANINGFUL_PROGRESS: f32 = 0.05;
 pub const FLIGHT_ALTITUDE: f32 = 6.0;
+/// How far a circling aeroplane leans into its turn, its left wing down.
+const ORBIT_BANK: f32 = 0.35;
 /// A parked aircraft stands on a Helipad's raised pad, not on the ground beneath it.
 const PARKED_ON_THE_PAD: f32 = 0.35;
 const FLIGHT_NOSE_DOWN: f32 = 0.12;
@@ -115,8 +117,11 @@ pub fn settle_on_terrain(
             } else {
                 0.0
             };
+            let banking = sortie.is_some_and(|sortie| sortie.orbit.is_some());
+            let roll = if banking { -ORBIT_BANK } else { 0.0 };
             transform.translation.y = center_height.max(0.0) + FLIGHT_ALTITUDE;
-            transform.rotation = heading * Quat::from_rotation_z(-nose_down);
+            transform.rotation =
+                heading * Quat::from_rotation_z(-nose_down) * Quat::from_rotation_x(roll);
             continue;
         }
         if armor.0 == ArmorClass::Infantry {

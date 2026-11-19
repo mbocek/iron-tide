@@ -253,6 +253,7 @@ impl Plugin for SimulationPlugin {
                         unit_orders::carry_out_orders,
                         sorties::fly_home_to_rearm,
                         movement::follow_paths,
+                        sorties::circle_while_waiting,
                         movement::separate_units,
                         movement::settle_on_terrain,
                         movement::seat_new_buildings,

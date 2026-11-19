@@ -190,3 +190,21 @@ fn a_fighter_shoots_down_a_gunship_but_leaves_ground_units_alone() {
         "the fighter fired at the ground"
     );
 }
+
+#[test]
+fn a_waiting_fighter_circles_where_it_stopped() {
+    let mut battle = Battle::sandbox();
+    let fighter = battle.spawn_unit(UnitKind::Fighter, Team::Player, FIELD);
+    battle.run_for(0.5);
+    let start = battle.position(fighter);
+    let mut farthest: f32 = 0.0;
+    for _ in 0..12 {
+        battle.run_for(0.5);
+        farthest = farthest.max(battle.position(fighter).xz().distance(start.xz()));
+    }
+    assert!(farthest > 3.0, "the fighter hung in the air");
+    assert!(
+        farthest < 11.0,
+        "the fighter wandered off instead of circling"
+    );
+}

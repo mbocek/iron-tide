@@ -65,6 +65,7 @@ pub fn spawn_unit(
         unit.insert(Sortie {
             rearms: kind.rearms_at_pad(),
             parked: false,
+            orbit: None,
         });
     }
     if kind.hides_when_still() {
