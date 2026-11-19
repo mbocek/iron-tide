@@ -460,7 +460,7 @@ fn spawn_build_tile(
         BuildTile(item),
         Node {
             width: Val::Px(TILE_WIDTH),
-            height: Val::Px(TILE_HEIGHT),
+            min_height: Val::Px(TILE_HEIGHT),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
             padding: UiRect::all(Val::Px(3.0)),
@@ -480,8 +480,17 @@ fn spawn_build_tile(
                 ..default()
             },
         ));
-        tile.spawn(fonts.heading(item.name(), 12.0, TEXT_MAIN));
-        tile.spawn(fonts.heading(format!("${}", item.cost()), 12.0, ACCENT));
+        tile.spawn((
+            fonts.heading(item.name(), 12.0, TEXT_MAIN),
+            TextLayout::justify(Justify::Center),
+        ));
+        tile.spawn((
+            fonts.heading(format!("${}", item.cost()), 12.0, ACCENT),
+            Node {
+                margin: UiRect::top(Val::Auto),
+                ..default()
+            },
+        ));
         tile.spawn((
             TileShade(item),
             Node {
