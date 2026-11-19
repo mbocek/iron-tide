@@ -1,3 +1,4 @@
+use crate::campaigns::{Campaign, CampaignLibrary, CampaignRun, find_campaign};
 use crate::map_editor::open_map_editor;
 use crate::map_preview::map_preview;
 use crate::menu::{MenuPlace, MenuState, close_settings, open_settings, spawn_menu};
@@ -16,8 +17,7 @@ use crate::catalog::{Alliance, Faction};
 use crate::i18n::{Language, set_language, tr, tr_fmt, tr_owned};
 use crate::levels::{
     ActiveLevel, BaseSite, Difficulty, LevelDefinition, LevelEntry, LevelSource, ObjectiveKind,
-    SkirmishOptions, TechLevel, Weather, campaign, custom_levels, custom_levels_directory,
-    save_custom_level,
+    SkirmishOptions, TechLevel, Weather, custom_levels, custom_levels_directory, save_custom_level,
 };
 use crate::lobby::{MOST_PLAYERS, NetLobby, network_level};
 use crate::map::MapSize;
@@ -59,6 +59,11 @@ const HUB_GAP: f32 = 16.0;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Selection {
     Level(usize),
+    /// A mission of the campaign at that index in the campaign list.
+    Mission {
+        campaign: usize,
+        mission: usize,
+    },
     Editor,
     Network,
     Replay(usize),
@@ -175,6 +180,8 @@ pub struct ScreenBody;
 
 #[derive(Resource)]
 pub struct MainMenu {
+    campaigns: Vec<Campaign>,
+    campaign_difficulty: Difficulty,
     screen: Screen,
     needs_new_screen: bool,
     entries: Vec<LevelEntry>,
@@ -308,6 +315,9 @@ pub enum MenuCommand {
     WatchReplay,
     CycleLanguage,
     ContinueQuickSave,
+    StartCampaignMission,
+    CycleCampaignDifficulty,
+    ContinueCampaign,
     OpenSettings,
     BackToHub,
     DownloadUpdate,
@@ -325,6 +335,7 @@ impl MenuCommand {
         matches!(
             self,
             MenuCommand::StartSelected
+                | MenuCommand::StartCampaignMission
                 | MenuCommand::StartEditorBattle
                 | MenuCommand::WatchReplay
                 | MenuCommand::HostNetworkBattle
@@ -501,9 +512,7 @@ fn minutes(secs: f32) -> String {
 }
 
 fn all_levels() -> Vec<LevelEntry> {
-    let mut entries = campaign();
-    entries.extend(custom_levels(&custom_levels_directory()));
-    entries
+    custom_levels(&custom_levels_directory())
 }
 
 pub fn build_main_menu(
@@ -511,15 +520,18 @@ pub fn build_main_menu(
     mut commands: Commands,
     fonts: Res<UiFonts>,
     asset_server: Res<AssetServer>,
+    library: Res<CampaignLibrary>,
 ) {
     // The menu is built on the first frame, before the language from the saved settings is otherwise applied.
     set_language(settings.language);
     let menu = MainMenu {
+        campaigns: library.0.clone(),
+        campaign_difficulty: settings.campaign_difficulty,
         screen: Screen::Hub,
         needs_new_screen: true,
         entries: all_levels(),
         replays: list_replays(&replay_directory()),
-        selection: Selection::Level(0),
+        selection: Selection::Nothing(MenuSection::Campaign),
         options: SkirmishOptions::default(),
         random: RandomBattleOptions::default(),
         random_seed: rand::rng().random(),
@@ -640,7 +652,12 @@ fn spawn_title_bar(root: &mut ChildSpawnerCommands, fonts: &UiFonts, settings: &
 }
 
 /// The start screen: a tile for each group, settings, and the quick save to continue from.
-fn spawn_hub(body: &mut ChildSpawnerCommands, fonts: &UiFonts, quick_save: Option<String>) {
+fn spawn_hub(
+    body: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    quick_save: Option<String>,
+    campaign_to_continue: Option<String>,
+) {
     body.spawn(Node {
         flex_direction: FlexDirection::Column,
         row_gap: Val::Px(HUB_GAP),
@@ -662,6 +679,24 @@ fn spawn_hub(body: &mut ChildSpawnerCommands, fonts: &UiFonts, quick_save: Optio
             ))
             .with_children(|button| {
                 button.spawn(fonts.heading(tr("CONTINUE"), 20.0, ACCENT));
+                button.spawn(fonts.text(summary, 14.0, TEXT_DIM));
+            })
+            .observe(run_command);
+        }
+        if let Some(summary) = campaign_to_continue {
+            hub.spawn((
+                MenuCommand::ContinueCampaign,
+                Hovered::default(),
+                Node {
+                    width: Val::Px(HUB_TILE_WIDTH * 2.0 + HUB_GAP),
+                    flex_direction: FlexDirection::Column,
+                    ..button_node(Val::Auto)
+                },
+                BackgroundColor(BUTTON_IDLE),
+                BorderColor::all(ACCENT),
+            ))
+            .with_children(|button| {
+                button.spawn(fonts.heading(tr("CONTINUE CAMPAIGN"), 20.0, ACCENT));
                 button.spawn(fonts.text(summary, 14.0, TEXT_DIM));
             })
             .observe(run_command);
@@ -776,6 +811,7 @@ pub fn rebuild_screen(
     mut commands: Commands,
     fonts: Res<UiFonts>,
     save_directory: Res<SaveDirectory>,
+    settings: Res<GameSettings>,
     menu: Option<ResMut<MainMenu>>,
     bodies: Query<Entity, With<ScreenBody>>,
 ) {
@@ -786,10 +822,25 @@ pub fn rebuild_screen(
         return;
     }
     menu.needs_new_screen = false;
+    let continue_summary =
+        menu.campaign_to_continue(&settings.last_campaign)
+            .map(|(campaign, mission)| {
+                let chosen = &menu.campaigns[campaign];
+                format!(
+                    "{}  ·  {}",
+                    tr_owned(&chosen.title),
+                    tr_owned(&chosen.missions[mission].name)
+                )
+            });
     commands.entity(body).despawn_related::<Children>();
     let screen = menu.screen;
     commands.entity(body).with_children(|body| match screen {
-        Screen::Hub => spawn_hub(body, &fonts, slot_summary(&save_directory, QUICK_SAVE_SLOT)),
+        Screen::Hub => spawn_hub(
+            body,
+            &fonts,
+            slot_summary(&save_directory, QUICK_SAVE_SLOT),
+            continue_summary.clone(),
+        ),
         Screen::Group(group) => spawn_group_screen(body, &fonts, group),
     });
     menu.needs_rebuild = true;
@@ -812,6 +863,210 @@ pub fn step_back_on_escape(
     }
 }
 
+const MISSION_NODE: f32 = 34.0;
+const MISSION_ROW: f32 = 52.0;
+const ROUTE_SWING: f32 = 70.0;
+
+/// The campaign tabs and the route of the chosen campaign's missions, one node per mission joined by a line,
+/// zig-zagging down the column: won ones ticked, the next one lit, locked ones dimmed.
+fn spawn_operations_map(list: &mut ChildSpawnerCommands, fonts: &UiFonts, menu: &MainMenu) {
+    let Selection::Mission {
+        campaign: shown,
+        mission: chosen,
+    } = menu.selection
+    else {
+        return;
+    };
+    list.spawn(Node {
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: Val::Px(6.0),
+        row_gap: Val::Px(6.0),
+        margin: UiRect::bottom(Val::Px(8.0)),
+        ..default()
+    })
+    .with_children(|tabs| {
+        for (index, campaign) in menu.campaigns.iter().enumerate() {
+            let progress = format!(
+                "{}  {}/{}",
+                tr_owned(&campaign.title),
+                campaign.won_count(&menu.completed_missions),
+                campaign.missions.len()
+            );
+            tabs.spawn((
+                ListButton(menu.campaign_page(index)),
+                Hovered::default(),
+                button_node(Val::Auto),
+                BackgroundColor(BUTTON_IDLE),
+                BorderColor::all(if index == shown { ACCENT } else { FRAME }),
+            ))
+            .with_children(|tab| {
+                tab.spawn(fonts.heading(progress, 15.0, TEXT_MAIN));
+            })
+            .observe(select_entry);
+        }
+    });
+    let campaign = &menu.campaigns[shown];
+    let completed = &menu.completed_missions;
+    let next = campaign.next_to_play(completed);
+    let swing = |mission: usize| {
+        if mission.is_multiple_of(2) {
+            0.0
+        } else {
+            ROUTE_SWING
+        }
+    };
+    let height = MISSION_ROW * campaign.missions.len() as f32;
+    list.spawn(Node {
+        height: Val::Px(height),
+        ..default()
+    })
+    .with_children(|route| {
+        for mission in 1..campaign.missions.len() {
+            let from = Vec2::new(swing(mission - 1), MISSION_ROW * (mission - 1) as f32);
+            let to = Vec2::new(swing(mission), MISSION_ROW * mission as f32);
+            for step in 1..8 {
+                let at = from.lerp(to, step as f32 / 8.0) + Vec2::splat(MISSION_NODE / 2.0 - 2.0);
+                let reached = campaign.won(mission - 1, completed);
+                route.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(at.x),
+                        top: Val::Px(at.y),
+                        width: Val::Px(4.0),
+                        height: Val::Px(4.0),
+                        ..default()
+                    },
+                    BackgroundColor(if reached { ACCENT } else { FRAME }),
+                ));
+            }
+        }
+        for (mission, level) in campaign.missions.iter().enumerate() {
+            let won = campaign.won(mission, completed);
+            let unlocked = campaign.unlocked(mission, completed);
+            let (mark, mark_color) = match (won, unlocked) {
+                (true, _) => (format!("{}", mission + 1), GOOD),
+                (false, true) => (format!("{}", mission + 1), ACCENT),
+                (false, false) => ("·".to_string(), TEXT_DIM),
+            };
+            let label_color = if unlocked { TEXT_MAIN } else { TEXT_DIM };
+            route
+                .spawn((
+                    ListButton(Selection::Mission {
+                        campaign: shown,
+                        mission,
+                    }),
+                    Hovered::default(),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(swing(mission)),
+                        top: Val::Px(MISSION_ROW * mission as f32),
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(8.0),
+                        padding: UiRect::right(Val::Px(8.0)),
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    BackgroundColor(BUTTON_IDLE),
+                    BorderColor::all(if mission == chosen {
+                        ACCENT
+                    } else if Some(mission) == next {
+                        GOOD
+                    } else {
+                        FRAME
+                    }),
+                ))
+                .with_children(|node| {
+                    node.spawn(Node {
+                        width: Val::Px(MISSION_NODE),
+                        height: Val::Px(MISSION_NODE),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    })
+                    .with_children(|badge| {
+                        badge.spawn(fonts.heading(mark, 18.0, mark_color));
+                    });
+                    node.spawn(fonts.heading(short_mission_name(level), 15.0, label_color));
+                    if won {
+                        node.spawn(fonts.heading(tr("WON"), 12.0, GOOD));
+                    }
+                })
+                .observe(select_entry);
+        }
+    });
+}
+
+/// A mission's name without the number its title starts with; the node shows the number.
+fn short_mission_name(level: &LevelDefinition) -> String {
+    let name = tr_owned(&level.name);
+    match name.split_once(". ") {
+        Some((number, rest)) if number.len() <= 3 => rest.to_string(),
+        _ => name,
+    }
+}
+
+/// The briefing beside the route: the story, the objective and map, the campaign difficulty and the start.
+fn spawn_mission_briefing(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    menu: &MainMenu,
+    campaign: usize,
+    mission: usize,
+    preview: Option<Handle<Image>>,
+) {
+    let chosen = &menu.campaigns[campaign];
+    let level = chosen.mission_at(mission, menu.campaign_difficulty);
+    panel.spawn(fonts.text(
+        tr_fmt(
+            "{} campaign  ·  mission {} of {}",
+            &[
+                &tr_owned(&chosen.title),
+                &(mission + 1),
+                &chosen.missions.len(),
+            ],
+        ),
+        15.0,
+        TEXT_DIM,
+    ));
+    panel.spawn(fonts.heading(tr_owned(&level.name), 30.0, ACCENT));
+    beside_preview(panel, preview, LARGE_PREVIEW, |column| {
+        column.spawn(fonts.text(tr_owned(&level.briefing), 17.0, TEXT_MAIN));
+        column.spawn(Node {
+            height: Val::Px(4.0),
+            ..default()
+        });
+        spawn_level_facts(column, fonts, &level);
+    });
+    let difficulty = format!(
+        "{}: {}",
+        tr("Campaign difficulty"),
+        tr_owned(&format!("{:?}", menu.campaign_difficulty))
+    );
+    spawn_command_button(
+        panel,
+        fonts,
+        &difficulty,
+        MenuCommand::CycleCampaignDifficulty,
+    );
+    if chosen.unlocked(mission, &menu.completed_missions) {
+        spawn_command_button(
+            panel,
+            fonts,
+            tr("START MISSION"),
+            MenuCommand::StartCampaignMission,
+        );
+    } else {
+        panel.spawn(fonts.text(
+            tr_fmt(
+                "Locked: win {} first.",
+                &[&tr_owned(&chosen.missions[mission - 1].name)],
+            ),
+            16.0,
+            TEXT_DIM,
+        ));
+    }
+}
+
 fn full_width() -> f32 {
     NAV_WIDTH + LIST_WIDTH + DETAIL_WIDTH + 2.0 * BODY_GAP
 }
@@ -827,7 +1082,8 @@ fn spawn_section_column(body: &mut ChildSpawnerCommands, fonts: &UiFonts, group:
     .with_children(|column| {
         spawn_command_button(column, fonts, tr("< Back"), MenuCommand::BackToHub);
         column.spawn(fonts.heading(group.title(), 24.0, ACCENT));
-        for &section in group.sections() {
+        let sections = group.sections();
+        for &section in sections.iter().filter(|_| sections.len() > 1) {
             column
                 .spawn((
                     SectionButton(section),
@@ -994,27 +1250,7 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
     commands
         .entity(list)
         .with_children(|list| match menu.section() {
-            MenuSection::Campaign => {
-                let mut heading = None;
-                for (index, entry) in menu.entries.iter().enumerate() {
-                    if !matches!(entry.source, LevelSource::Campaign(_)) {
-                        continue;
-                    }
-                    let side = entry.level.player_faction;
-                    if heading != Some(side) {
-                        heading = Some(side);
-                        list.spawn(fonts.heading(tr(side.title()), 15.0, TEXT_DIM));
-                    }
-                    let won = menu.completed_missions.contains(&entry.level.name);
-                    spawn_list_button_with_badge(
-                        list,
-                        fonts,
-                        &tr_owned(&entry.level.name),
-                        Selection::Level(index),
-                        won.then_some((tr("WON"), GOOD)),
-                    );
-                }
-            }
+            MenuSection::Campaign => spawn_operations_map(list, fonts, menu),
             MenuSection::Custom => {
                 let mut any = false;
                 for (index, entry) in menu.entries.iter().enumerate() {
@@ -1147,6 +1383,7 @@ impl MainMenu {
                 LevelSource::Custom(_) => MenuSection::Custom,
                 LevelSource::Campaign(_) | LevelSource::Skirmish => MenuSection::Campaign,
             },
+            Selection::Mission { .. } => MenuSection::Campaign,
             Selection::Editor => MenuSection::Editor,
             Selection::Network => MenuSection::Network,
             Selection::Replay(_) => MenuSection::Replays,
@@ -1164,7 +1401,7 @@ impl MainMenu {
                 .map(Selection::Level)
         };
         let first = match section {
-            MenuSection::Campaign => first_level(false),
+            MenuSection::Campaign => Some(self.campaign_page(0)),
             MenuSection::Custom => first_level(true),
             MenuSection::Random => Some(Selection::Random),
             MenuSection::Editor => Some(Selection::Editor),
@@ -1172,6 +1409,23 @@ impl MainMenu {
             MenuSection::Replays => (!self.replays.is_empty()).then_some(Selection::Replay(0)),
         };
         first.unwrap_or(Selection::Nothing(section))
+    }
+
+    /// A campaign's page opens on the mission to play next, or its first once it is finished.
+    fn campaign_page(&self, campaign: usize) -> Selection {
+        let mission = self
+            .campaigns
+            .get(campaign)
+            .and_then(|c| c.next_to_play(&self.completed_missions))
+            .unwrap_or(0);
+        Selection::Mission { campaign, mission }
+    }
+
+    /// The campaign played last and its next mission, while it has one.
+    fn campaign_to_continue(&self, last: &str) -> Option<(usize, usize)> {
+        let campaign = self.campaigns.iter().position(|c| c.key == last)?;
+        let mission = self.campaigns[campaign].next_to_play(&self.completed_missions)?;
+        Some((campaign, mission))
     }
 
     fn open_group(&mut self, group: MenuGroup) {
@@ -1203,7 +1457,7 @@ impl MainMenu {
             self.screen = Screen::Group(group);
             self.needs_new_screen = true;
         }
-        if self.section() != section {
+        if self.section() != section || matches!(self.selection, Selection::Nothing(_)) {
             self.selection = self.first_in(section);
             self.needs_rebuild = true;
         }
@@ -1213,6 +1467,9 @@ impl MainMenu {
     fn previewed_level(&self) -> Option<LevelDefinition> {
         match self.selection {
             Selection::Level(index) => Some(self.entries[index].level.clone()),
+            Selection::Mission { campaign, mission } => {
+                Some(self.campaigns[campaign].mission_at(mission, self.campaign_difficulty))
+            }
             Selection::Random => Some(self.random_level()),
             Selection::Editor => Some(self.options.to_level()),
             Selection::Network | Selection::Replay(_) | Selection::Nothing(_) => None,
@@ -1540,6 +1797,9 @@ fn rebuild_details(
     commands
         .entity(panel)
         .with_children(|panel| match menu.selection {
+            Selection::Mission { campaign, mission } => {
+                spawn_mission_briefing(panel, fonts, menu, campaign, mission, preview.clone())
+            }
             Selection::Level(index) => {
                 let level = &menu.entries[index].level;
                 panel.spawn(fonts.heading(tr_owned(&level.name), 30.0, ACCENT));
@@ -1659,17 +1919,21 @@ fn beside_preview(
 /// A campaign mission won on this computer is remembered and marked in the main menu.
 pub fn remember_won_missions(
     outcome: Res<GameOutcome>,
-    level: Res<ActiveLevel>,
+    run: Option<Res<CampaignRun>>,
+    library: Res<CampaignLibrary>,
     session: Option<Res<NetSession>>,
     mut settings: ResMut<GameSettings>,
 ) {
     if !outcome.is_changed() || *outcome != GameOutcome::Victory || session.is_some() {
         return;
     }
-    let name = &level.0.name;
-    let is_campaign = campaign().iter().any(|entry| entry.level.name == *name);
-    if is_campaign && !settings.completed_missions.contains(name) {
-        settings.completed_missions.push(name.clone());
+    let Some(run) = run else { return };
+    let Some(campaign) = find_campaign(&library.0, &run.key) else {
+        return;
+    };
+    let key = campaign.progress_key(run.mission);
+    if !settings.completed_missions.contains(&key) {
+        settings.completed_missions.push(key);
     }
 }
 
@@ -1712,8 +1976,34 @@ fn start_level(
     next_state: &mut NextState<GameState>,
     level: LevelDefinition,
 ) {
+    commands.remove_resource::<CampaignRun>();
     commands.insert_resource(ActiveLevel(level));
     next_state.set(GameState::Playing);
+}
+
+fn start_campaign_mission(
+    commands: &mut Commands,
+    next_state: &mut NextState<GameState>,
+    settings: &mut GameSettings,
+    menu: &MainMenu,
+    campaign: usize,
+    mission: usize,
+) {
+    let chosen = &menu.campaigns[campaign];
+    if !chosen.unlocked(mission, &menu.completed_missions) {
+        return;
+    }
+    start_level(
+        commands,
+        next_state,
+        chosen.mission_at(mission, menu.campaign_difficulty),
+    );
+    commands.insert_resource(CampaignRun {
+        key: chosen.key.clone(),
+        mission,
+        difficulty: menu.campaign_difficulty,
+    });
+    settings.last_campaign = chosen.key.clone();
 }
 
 fn run_command(
@@ -1807,6 +2097,35 @@ fn run_command(
             next_state.set(GameState::MainMenu);
         }
         MenuCommand::ContinueQuickSave => requests.load = Some(QUICK_SAVE_SLOT),
+        MenuCommand::StartCampaignMission => {
+            if let Selection::Mission { campaign, mission } = menu.selection {
+                start_campaign_mission(
+                    &mut commands,
+                    &mut next_state,
+                    &mut settings,
+                    &menu,
+                    campaign,
+                    mission,
+                );
+            }
+        }
+        MenuCommand::CycleCampaignDifficulty => {
+            menu.campaign_difficulty = cycle(&Difficulty::ALL, menu.campaign_difficulty, true);
+            settings.campaign_difficulty = menu.campaign_difficulty;
+            menu.needs_rebuild = true;
+        }
+        MenuCommand::ContinueCampaign => {
+            if let Some((campaign, mission)) = menu.campaign_to_continue(&settings.last_campaign) {
+                start_campaign_mission(
+                    &mut commands,
+                    &mut next_state,
+                    &mut settings,
+                    &menu,
+                    campaign,
+                    mission,
+                );
+            }
+        }
         MenuCommand::OpenSettings => open_settings(&mut settings_menu),
         MenuCommand::BackToHub => menu.show_hub(),
         MenuCommand::DownloadUpdate => download_update(&mut updates),

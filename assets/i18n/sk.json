@@ -506,5 +506,12 @@
   "Battles over the network, up to four players": "Bitky po sieti až pre štyroch hráčov",
   "Set up battles, paint maps and play your own levels": "Priprav bitky, kresli mapy a hraj vlastné úrovne",
   "Watch your recent matches again": "Pozri si znova posledné zápasy",
-  "Graphics, sound, controls and gameplay": "Grafika, zvuk, ovládanie a hra"
+  "Graphics, sound, controls and gameplay": "Grafika, zvuk, ovládanie a hra",
+  "CONTINUE CAMPAIGN": "POKRAČOVAŤ V KAMPANI",
+  "Campaign difficulty": "Obtiažnosť kampane",
+  "{} campaign  ·  mission {} of {}": "Kampaň {}  ·  misia {} z {}",
+  "{} campaign: mission {} of {}": "Kampaň {}: misia {} z {}",
+  "Unlocked: {}": "Odomknuté: {}",
+  "Campaign complete!": "Kampaň dokončená!",
+  "Locked: win {} first.": "Zamknuté: najprv vyhraj {}."
 }

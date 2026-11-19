@@ -10,6 +10,7 @@ pub mod assets;
 pub mod battle_noise;
 pub mod battlefield;
 pub mod camera;
+pub mod campaigns;
 pub mod capture;
 pub mod catalog;
 pub mod combat;
@@ -306,6 +307,7 @@ impl Plugin for GamePlugin {
             .init_resource::<camera::Cursor>()
             .init_resource::<orders::DragSelection>()
             .init_resource::<orders::OrderMarker>()
+            .init_resource::<campaigns::CampaignLibrary>()
             .init_resource::<minimap::MinimapOrder>()
             .init_resource::<crystal_models::CrystalModelLibrary>()
             .init_resource::<animation::AnimationLibrary>()

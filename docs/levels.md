@@ -4,8 +4,13 @@ The game opens on a start screen of large tiles: *Campaigns*, *Skirmish* (random
 *Multiplayer*, *Editor* (battle editor and custom levels), *Replays* and *Settings* (graphics, sound, controls and
 gameplay, the same pages as in the pause menu), with *Continue* above them when there is a quick save. Each tile
 opens a screen with a *Back* button; Esc goes back too.
-- **Campaign:** ten Coalition missions and six Syndicate missions (S1-S6) (`assets/levels/*.json`), each
-  with its own objective. A level's `player_faction` decides which armoury the player builds from; every computer
+- **Campaigns:** the Coalition campaign of ten missions and the Syndicate campaign of six (S1-S6)
+  (`assets/levels/*.json`), each mission with its own objective. A campaign is played in order: a mission unlocks
+  once the one before it is won, and the start screen offers to *Continue campaign* with the next mission of the
+  campaign played last. The campaign screen shows the route of missions (won, next and locked) beside the
+  briefing of the chosen one: story, objective, map, sides and units. The campaign difficulty (Easy to Brutal)
+  shifts every computer commander from its authored difficulty, one step down on Easy, up to two steps up on
+  Brutal. After a campaign mission the end screen says how far the campaign has come and what victory unlocked. A level's `player_faction` decides which armoury the player builds from; every computer
   side fights for the other faction.
   1. Bridgehead (1 enemy, destroy everything; with a step-by-step tutorial)
   2. Hold the Ford (survive 8 minutes, introduces Rocketeers and Medics; in the rain)

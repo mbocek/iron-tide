@@ -1,4 +1,5 @@
 use crate::abilities::MINE_COST;
+use crate::campaigns::{CampaignLibrary, CampaignRun, find_campaign};
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::key_bindings::{Action, KeyBindings};
 use crate::local_view::LocalView;
@@ -16,7 +17,7 @@ use crate::catalog::{BuildingKind, Faction, HARVESTER_CAPACITY, Team, UnitKind};
 use crate::components::*;
 use crate::control_groups::spawn_group_bar;
 use crate::economy::Economies;
-use crate::levels::{ActiveLevel, LevelDefinition, campaign};
+use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::match_flow::{GameState, MatchClock};
 use crate::menu::{MenuPlace, MenuState, open_menu_from_button, spawn_menu};
 use crate::minimap::{Minimap, jump_camera_on_drag, jump_camera_on_press, order_on_press};
@@ -1003,16 +1004,15 @@ pub struct OutcomeButtons;
 /// What the player can do once the battle is decided; a network battle cannot be replayed on the spot.
 fn outcome_actions(
     outcome: GameOutcome,
-    level: &LevelDefinition,
+    run: Option<&CampaignRun>,
+    library: &CampaignLibrary,
     networked: bool,
 ) -> Vec<OutcomeAction> {
     let mut actions = Vec::new();
-    let missions = campaign();
-    let next_mission = missions
-        .iter()
-        .position(|entry| entry.level.name == level.name)
-        .map(|index| index + 1)
-        .filter(|&next| next < missions.len());
+    let next_mission = run.and_then(|run| {
+        let campaign = find_campaign(&library.0, &run.key)?;
+        Some(run.mission + 1).filter(|&next| next < campaign.missions.len())
+    });
     if let (GameOutcome::Victory, Some(next), false) = (outcome, next_mission, networked) {
         actions.push(OutcomeAction::NextMission(next));
     }
@@ -1021,6 +1021,40 @@ fn outcome_actions(
     }
     actions.extend([OutcomeAction::WatchReplay, OutcomeAction::MainMenu]);
     actions
+}
+
+/// The mission's name, and in a campaign how far it has come and what victory opened next.
+fn campaign_debriefing(
+    level: &LevelDefinition,
+    outcome: GameOutcome,
+    run: Option<&CampaignRun>,
+    library: &CampaignLibrary,
+) -> String {
+    let name = tr_owned(&level.name);
+    let Some((run, campaign)) =
+        run.and_then(|run| Some((run, find_campaign(&library.0, &run.key)?)))
+    else {
+        return name;
+    };
+    let won_now = usize::from(outcome == GameOutcome::Victory);
+    let progress = tr_fmt(
+        "{} campaign: mission {} of {}",
+        &[
+            &tr_owned(&campaign.title),
+            &(run.mission + 1),
+            &campaign.missions.len(),
+        ],
+    );
+    let next = match campaign.missions.get(run.mission + 1) {
+        Some(next) if won_now == 1 => tr_fmt("Unlocked: {}", &[&tr_owned(&next.name)]),
+        None if won_now == 1 => tr("Campaign complete!").to_string(),
+        _ => String::new(),
+    };
+    [name, progress, next]
+        .into_iter()
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("  ·  ")
 }
 
 fn spawn_outcome_button(
@@ -1065,14 +1099,18 @@ fn run_outcome_action(
     actions: Query<&OutcomeAction>,
     mut notifications: ResMut<Notifications>,
     mut next_state: ResMut<NextState<GameState>>,
+    run: Option<ResMut<CampaignRun>>,
+    library: Res<CampaignLibrary>,
 ) {
     let Ok(&action) = actions.get(click.entity) else {
         return;
     };
     match action {
         OutcomeAction::NextMission(index) => {
-            if let Some(next) = campaign().into_iter().nth(index) {
-                commands.insert_resource(ActiveLevel(next.level));
+            let Some(mut run) = run else { return };
+            if let Some(campaign) = find_campaign(&library.0, &run.key) {
+                run.mission = index;
+                commands.insert_resource(ActiveLevel(campaign.mission_at(index, run.difficulty)));
                 next_state.set(GameState::Restarting);
             }
         }
@@ -1765,6 +1803,7 @@ pub fn show_outcome(
     mut subtitle: Query<&mut Text, (With<OutcomeSubtitle>, Without<OutcomeTitle>)>,
     level: Res<ActiveLevel>,
     session: Option<Res<NetSession>>,
+    (run, library): (Option<Res<CampaignRun>>, Res<CampaignLibrary>),
     button_rows: Query<Entity, With<OutcomeButtons>>,
     tables: Query<Entity, With<OutcomeStats>>,
 ) {
@@ -1790,10 +1829,10 @@ pub fn show_outcome(
     }
     if banner.is_some() {
         if let Ok(mut subtitle) = subtitle.single_mut() {
-            subtitle.0 = tr_owned(&level.0.name);
+            subtitle.0 = campaign_debriefing(&level.0, *outcome, run.as_deref(), &library);
         }
         if let Ok(row) = button_rows.single() {
-            let actions = outcome_actions(*outcome, &level.0, session.is_some());
+            let actions = outcome_actions(*outcome, run.as_deref(), &library, session.is_some());
             commands.entity(row).despawn_related::<Children>();
             commands.entity(row).with_children(|row| {
                 for (index, action) in actions.into_iter().enumerate() {

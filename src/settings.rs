@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::{Language, set_language};
 use crate::key_bindings::KeyBindings;
+use crate::levels::Difficulty;
 
 const GAME_DIRECTORY: &str = "iron_tide";
 const SETTINGS_FILE: &str = "settings.json";
@@ -106,6 +107,10 @@ pub struct GameSettings {
     pub join_address: String,
     /// Names of the campaign missions the player has won.
     pub completed_missions: Vec<String>,
+    /// How hard campaign missions are played, against their authored difficulty.
+    pub campaign_difficulty: Difficulty,
+    /// The campaign played last, which the main menu offers to continue; empty before any.
+    pub last_campaign: String,
     /// Field tips the player has already read, by their stored name.
     pub seen_tips: Vec<String>,
 }
@@ -137,6 +142,8 @@ impl Default for GameSettings {
             check_for_updates: true,
             join_address: "127.0.0.1".to_string(),
             completed_missions: Vec::new(),
+            campaign_difficulty: Difficulty::Normal,
+            last_campaign: String::new(),
             seen_tips: Vec::new(),
         };
         settings.apply_preset(QualityPreset::High);
