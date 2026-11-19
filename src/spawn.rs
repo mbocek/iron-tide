@@ -56,6 +56,7 @@ pub fn spawn_unit(
     if spec.heal_per_sec > 0.0 {
         unit.insert(Healer {
             per_sec: spec.heal_per_sec,
+            patients: spec.armor,
             treating: false,
         });
     }

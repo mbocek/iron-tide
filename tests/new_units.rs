@@ -3,6 +3,7 @@ mod common;
 use bevy::prelude::*;
 use common::Battle;
 use iron_tide::catalog::{Team, UnitKind};
+use iron_tide::components::Health;
 
 const FIELD: IVec2 = IVec2::new(20, 45);
 
@@ -44,4 +45,37 @@ fn a_tank_rolls_over_grenadiers() {
     });
     assert!(battle.alive(tank), "the grenadiers destroyed the tank");
     assert_eq!(survivors(&mut battle, &grenadiers), 0);
+}
+
+fn wound(battle: &mut Battle, unit: Entity, share: f32) -> f32 {
+    let mut health = battle.world().get_mut::<Health>(unit).unwrap();
+    health.current = health.max * share;
+    health.current
+}
+
+fn health(battle: &mut Battle, unit: Entity) -> f32 {
+    battle
+        .world()
+        .get::<Health>(unit)
+        .map_or(0.0, |health| health.current)
+}
+
+#[test]
+fn a_repair_truck_mends_vehicles_in_the_field_but_not_soldiers() {
+    let mut battle = Battle::sandbox();
+    battle.spawn_unit(UnitKind::RepairTruck, Team::Player, FIELD);
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Player, FIELD + IVec2::new(4, 0));
+    let rifleman = battle.spawn_unit(UnitKind::Rifleman, Team::Player, FIELD + IVec2::new(-1, 1));
+    let tank_before = wound(&mut battle, tank, 0.4);
+    let rifleman_before = wound(&mut battle, rifleman, 0.4);
+    battle.run_for(12.0);
+    assert!(
+        health(&mut battle, tank) > tank_before + 50.0,
+        "the tank was not repaired"
+    );
+    assert_eq!(
+        health(&mut battle, rifleman),
+        rifleman_before,
+        "the truck treated a soldier"
+    );
 }

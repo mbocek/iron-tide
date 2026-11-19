@@ -6,15 +6,17 @@ use crate::determinism::{SimId, in_simulation_order};
 use crate::map::{GameMap, world_to_cell};
 use crate::movement::order_move;
 
-/// How far a medic looks for wounded soldiers to walk over to.
+/// How far a medic or repair truck looks for patients to go over to.
 const SEEK_RANGE: f32 = 12.0;
-/// Close enough to treat a patient.
-const TREATMENT_RANGE: f32 = 2.2;
+/// Close enough to treat a patient, centre to centre; vehicles are bigger than soldiers.
+const INFANTRY_TREATMENT_RANGE: f32 = 2.2;
+const VEHICLE_TREATMENT_RANGE: f32 = 3.6;
 
-/// A unit that restores health to wounded friendly infantry around it.
+/// A unit that restores health to wounded friendly units of one armour class around it.
 #[derive(Component)]
 pub struct Healer {
     pub per_sec: f32,
+    pub patients: ArmorClass,
     /// True while actually treating someone, which drives the kneeling animation.
     pub treating: bool,
 }
@@ -34,7 +36,7 @@ pub fn treat_wounded(
             .filter(|(entity, owner, _, armor, health)| {
                 *entity != healer_entity
                     && **owner == team
-                    && armor.0 == ArmorClass::Infantry
+                    && armor.0 == healer.patients
                     && health.current < health.max
             })
             .map(|(entity, _, patient_transform, ..)| {
@@ -50,7 +52,12 @@ pub fn treat_wounded(
         let Some((patient, distance)) = patient else {
             continue;
         };
-        if distance <= TREATMENT_RANGE {
+        let reach = if healer.patients == ArmorClass::Infantry {
+            INFANTRY_TREATMENT_RANGE
+        } else {
+            VEHICLE_TREATMENT_RANGE
+        };
+        if distance <= reach {
             if let Ok((.., mut health)) = patients.get_mut(patient) {
                 health.current = (health.current + healer.per_sec * dt).min(health.max);
                 healer.treating = !mobile.is_moving();

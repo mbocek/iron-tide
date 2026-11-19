@@ -205,6 +205,7 @@ pub enum UnitKind {
     FlameTrooper,
     MissileTruck,
     Grenadier,
+    RepairTruck,
 }
 
 pub struct UnitSpec {
@@ -225,7 +226,8 @@ pub struct UnitSpec {
     pub requires: Option<BuildingKind>,
     /// None when both factions can order it.
     pub faction: Option<Faction>,
-    /// Health restored per second to wounded friendly infantry nearby; zero for everyone but medics.
+    /// Health restored per second to wounded friendly units of its own armour class nearby (medics treat
+    /// infantry, repair trucks vehicles); zero for everyone else.
     pub heal_per_sec: f32,
     /// Radius in meters this unit reveals through the fog of war.
     pub sight: f32,
@@ -241,7 +243,7 @@ impl UnitKind {
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
-    pub const VEHICLES: [UnitKind; 8] = [
+    pub const VEHICLES: [UnitKind; 9] = [
         UnitKind::Scout,
         UnitKind::Tank,
         UnitKind::Bulwark,
@@ -249,9 +251,10 @@ impl UnitKind {
         UnitKind::MissileTruck,
         UnitKind::FlakTrack,
         UnitKind::Gunship,
+        UnitKind::RepairTruck,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 15] = [
+    pub const ALL: [UnitKind; 16] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -267,6 +270,7 @@ impl UnitKind {
         UnitKind::FlameTrooper,
         UnitKind::MissileTruck,
         UnitKind::Grenadier,
+        UnitKind::RepairTruck,
     ];
 
     pub fn flies(self) -> bool {
@@ -290,6 +294,7 @@ impl UnitKind {
             UnitKind::FlameTrooper => &FLAME_TROOPER,
             UnitKind::MissileTruck => &MISSILE_TRUCK,
             UnitKind::Grenadier => &GRENADIER,
+            UnitKind::RepairTruck => &REPAIR_TRUCK,
         }
     }
 }
@@ -855,6 +860,26 @@ const GRENADIER: UnitSpec = UnitSpec {
     faction: None,
     heal_per_sec: 0.0,
     sight: 12.0,
+};
+
+const REPAIR_TRUCK: UnitSpec = UnitSpec {
+    name: "Repair Truck",
+    role: "Unarmed. Drives to damaged vehicles nearby and repairs them in the field.",
+    model_id: "repair_truck",
+    cost: 600,
+    build_secs: 10.0,
+    max_health: 220.0,
+    speed: 4.5,
+    turn_rate: 4.5,
+    radius: 1.0,
+    armor: ArmorClass::Vehicle,
+    weapon: None,
+    has_turret: false,
+    producer: BuildingKind::Factory,
+    requires: Some(BuildingKind::RepairBay),
+    faction: Some(Faction::Coalition),
+    heal_per_sec: 12.0,
+    sight: 14.0,
 };
 
 const MISSILE_TRUCK: UnitSpec = UnitSpec {

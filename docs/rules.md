@@ -30,7 +30,7 @@
   Helipad; Barracks → Gun Turret, Flak Cannon, Rocket Bunker, Wall. The Bulwark, the Missile Truck, the Howitzer
   and the Gunship also need a Tech Center.
 - **Factions:** the Coalition and the Syndicate share most of the arsenal, but each has its own: only the
-  Coalition trains Snipers and builds Bulwarks; only the Syndicate trains Flame Troopers (short-range flamers that
+  Coalition trains Snipers and builds Bulwarks and Repair Trucks; only the Syndicate trains Flame Troopers (short-range flamers that
   burn infantry and buildings), builds Missile Trucks (wheeled rocket artillery, 18 m range) and Rocket Bunkers
   (a defense that hits vehicles and aircraft). The build menu shows only your own faction's items.
 - **Units:** Rifleman, Rocketeer (anti-armour missiles), Grenadier (lobs grenades that blast bunched infantry and
@@ -50,7 +50,9 @@
   High-Explosive Warheads ($2000, every weapon deals 15 % more damage) and Combat Drills ($1000, infantry
   reload 25 % faster). The computer researches them too once it has credits to spare.
 - **Field repairs:** a vehicle standing still on a cell touching its own Repair Bay ($800, after the War Factory)
-  regains 4 % of its health per second for free.
+  regains 4 % of its health per second for free. The Coalition's Repair Truck ($600, War Factory, needs a Repair
+  Bay) does the same in the field: it drives to damaged friendly vehicles within 12 m and repairs 12 health per
+  second, for free.
 - **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over
   water, walls and units, and tears through armour with its rocket pods. An aircraft hovering over its own
   Helipad (within 3 m of the pad's centre, not moving) regains 4 % of its health per second for free. Tank cannons and howitzers cannot shoot upwards at all;

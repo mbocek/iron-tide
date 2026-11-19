@@ -988,3 +988,45 @@ def build_missile_truck():
                     cylinder("Gunmetal", 0.06, 0.04, tip, (0, math.pi / 2 - MISSILE_RACK_ELEVATION, 0),
                              segments=8, name="TubeMouth")
     animate_vehicle(ground_speed=4.0, recoil=Vector((-MISSILE_TRUCK_RECOIL, 0.0, 0.0)))
+
+
+def build_repair_truck():
+    """A four-wheeled workshop truck: armoured cab, a small crane on the bed, toolboxes, welding bottles and a
+    flashing beacon, so it reads as the vehicle that fixes others."""
+    wheel_radius, wheel_width, track = 0.36, 0.28, 0.7
+    for x in (0.95, -0.85):
+        for side in (-1, 1):
+            hub = Vector((x, side * track, wheel_radius))
+            name = f"Wheel_{'F' if x > 0 else 'R'}{'L' if side > 0 else 'R'}"
+            with rolling_group(name, hub, wheel_radius):
+                make_wheel(hub, wheel_radius, wheel_width, side=side)
+    box("ArmorDark", (2.6, 1.0, 0.18), (0.0, 0.0, 0.52), bevel=0.02, name="Chassis")
+    cab = [(0.6, 0.62), (1.38, 0.62), (1.45, 1.18), (1.15, 1.42), (0.6, 1.42)]
+    prism("Armor", cab, 1.3, (0, 0, 0), bevel=0.02, name="Cab")
+    box(GLASS, (0.02, 1.0, 0.2), (1.31, 0.0, 1.29), (0, math.radians(-38), 0), bevel=0.0, name="Windscreen")
+    box("TeamColor", (0.45, 1.32, 0.04), (0.9, 0.0, 1.44), bevel=0.0, name="CabRoofTeamPanel")
+    for side in (-1, 1):
+        add_lamp((1.45, side * 0.45, 0.75), FACING_FRONT, radius=0.05, depth=0.05)
+        add_beacon((0.75, side * 0.42, 1.44), radius=0.045, lens="WarningLight")
+    box("Armor", (1.5, 1.3, 0.12), (-0.35, 0.0, 0.67), bevel=0.02, name="Bed")
+    for side in (-1, 1):
+        box("ArmorLight", (1.3, 0.22, 0.32), (-0.4, side * 0.52, 0.89), bevel=0.02, name="Toolbox")
+        box("TeamColor", (1.1, 0.012, 0.08), (-0.4, side * 0.636, 0.93), bevel=0.0, name="ToolboxTeamStripe")
+        box("Gunmetal", (0.05, 0.03, 0.04), (-0.05, side * 0.64, 0.98), bevel=0.0, name="ToolboxLatch")
+        box("Gunmetal", (0.05, 0.03, 0.04), (-0.75, side * 0.64, 0.98), bevel=0.0, name="ToolboxLatch")
+    for k, material_name in enumerate(("WarningLight", "Steel")):
+        cylinder(material_name, 0.08, 0.5, (-0.95, (k - 0.5) * 0.2, 0.98), segments=10, name="WeldingBottle")
+    _add_service_crane(Vector((-0.25, 0.0, 0.73)))
+    add_hazard_stripes((-1.12, 0.0, 0.58), 0.05, 1.0, (0.0, math.pi / 2, 0.0))
+    animate_vehicle(ground_speed=4.5)
+
+
+def _add_service_crane(base):
+    cylinder("ArmorDark", 0.2, 0.12, base + Vector((0, 0, 0.06)), segments=14, name="CraneTurntable")
+    post_top = base + Vector((0.0, 0.0, 0.75))
+    cylinder_between("HazardYellow", base + Vector((0, 0, 0.1)), post_top, 0.08, 10, name="CranePost")
+    boom_end = post_top + Vector((-0.75, 0.0, 0.35))
+    cylinder_between("HazardYellow", post_top, boom_end, 0.06, 8, name="CraneBoom")
+    cylinder_between("Steel", boom_end, boom_end - Vector((0, 0, 0.45)), 0.01, 4, name="CraneCable")
+    box("Gunmetal", (0.08, 0.06, 0.1), boom_end - Vector((0, 0, 0.5)), bevel=0.01, name="CraneHook")
+    box("TeamColor", (0.16, 0.13, 0.06), post_top - Vector((0, 0, 0.25)), bevel=0.0, name="CraneTeamBand")
