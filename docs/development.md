@@ -28,7 +28,7 @@ come as a disk image with `Iron Tide.app` (`make dmg` builds one locally). Pushi
 publishes a GitHub release with all the packages:
 
 ```sh
-git tag v1.3.1 && git push origin v1.3.1   # the tag should match the version in Cargo.toml
+git tag v1.4.0 && git push origin v1.4.0   # the tag should match the version in Cargo.toml
 ```
 
 ## Tests
