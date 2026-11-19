@@ -523,5 +523,14 @@
   "Pick a side and a difficulty. One opponent on a standard map; the land, season, weather and corners are rolled every time.": "Vyber stranu a obtížnost. Jeden protivník na standardní mapě; krajina, roční období, počasí a rohy se vylosují pokaždé znovu.",
   "Your side": "Tvoje strana",
   "RANDOM": "NÁHODNĚ",
-  "START QUICK BATTLE": "SPUSTIT RYCHLOU BITVU"
+  "START QUICK BATTLE": "SPUSTIT RYCHLOU BITVU",
+  "MISSION GENERATOR": "GENERÁTOR MISÍ",
+  "Mission generator": "Generátor misí",
+  "NEW MISSION": "NOVÁ MISE",
+  "Operation {} {}": "Operace {} {}",
+  "The {} has dug in across the valley. Build up, break through and leave nothing of theirs standing.": "Nepřítel ({}) se zakopal na druhé straně údolí. Vybuduj síly, prolom obranu a nenech z jeho základny stát nic.",
+  "Intelligence has found the {} headquarters. Cut off the head: destroy every enemy Command Center.": "Rozvědka našla velitelství nepřítele ({}). Usekni hlavu: znič každé nepřátelské velitelství.",
+  "We need the {} command network intact. Fight your way in and capture their Command Center with an engineer.": "Potřebujeme neporušenou velitelskou síť nepřítele ({}). Probojuj se dovnitř a obsaď jeho velitelství ženistou.",
+  "Reinforcements are {} minutes out. The {} will throw everything at you before then: hold the base.": "Posily dorazí za {} minut. Nepřítel ({}) na tebe do té doby hodí všechno: udrž základnu.",
+  "Command wants ${} in the war chest. Mine the fields hard and keep the {} away from the harvesters.": "Velení chce ve válečné pokladně ${}. Těž naplno a drž nepřítele ({}) daleko od sběračů."
 }

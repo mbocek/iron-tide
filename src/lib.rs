@@ -48,6 +48,7 @@ pub mod match_stats;
 pub mod medical;
 pub mod menu;
 pub mod minimap;
+pub mod mission_generator;
 pub mod motion_material;
 pub mod movement;
 pub mod network;

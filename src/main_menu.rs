@@ -5,6 +5,7 @@ use crate::campaigns::{
 use crate::map_editor::open_map_editor;
 use crate::map_preview::map_preview;
 use crate::menu::{MenuPlace, MenuState, close_settings, open_settings, spawn_menu};
+use crate::mission_generator::generate_mission;
 use crate::network::NetSession;
 use crate::outcome::GameOutcome;
 use crate::random_battle::{
@@ -71,6 +72,7 @@ enum Selection {
     Network,
     Replay(usize),
     Quick,
+    Generated,
     Random,
     /// A section with nothing in it yet.
     Nothing(MenuSection),
@@ -81,6 +83,7 @@ enum Selection {
 pub enum MenuSection {
     Campaign,
     Quick,
+    Generated,
     Random,
     Custom,
     Editor,
@@ -93,6 +96,7 @@ impl MenuSection {
         match self {
             MenuSection::Campaign => tr("CAMPAIGN"),
             MenuSection::Quick => tr("QUICK BATTLE"),
+            MenuSection::Generated => tr("MISSION GENERATOR"),
             MenuSection::Random => tr("RANDOM BATTLE"),
             MenuSection::Custom => tr("CUSTOM LEVELS"),
             MenuSection::Editor => tr("BATTLE EDITOR"),
@@ -105,7 +109,11 @@ impl MenuSection {
     fn has_list(self) -> bool {
         !matches!(
             self,
-            MenuSection::Quick | MenuSection::Random | MenuSection::Editor | MenuSection::Network
+            MenuSection::Quick
+                | MenuSection::Generated
+                | MenuSection::Random
+                | MenuSection::Editor
+                | MenuSection::Network
         )
     }
 }
@@ -152,7 +160,12 @@ impl MenuGroup {
     fn sections(self) -> &'static [MenuSection] {
         match self {
             MenuGroup::Campaigns => &[MenuSection::Campaign],
-            MenuGroup::Skirmish => &[MenuSection::Quick, MenuSection::Random, MenuSection::Custom],
+            MenuGroup::Skirmish => &[
+                MenuSection::Quick,
+                MenuSection::Generated,
+                MenuSection::Random,
+                MenuSection::Custom,
+            ],
             MenuGroup::Multiplayer => &[MenuSection::Network],
             MenuGroup::Editor => &[MenuSection::Editor, MenuSection::Custom],
             MenuGroup::Replays => &[MenuSection::Replays],
@@ -1301,6 +1314,7 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
                 }
             }
             MenuSection::Quick
+            | MenuSection::Generated
             | MenuSection::Random
             | MenuSection::Editor
             | MenuSection::Network => {}
@@ -1406,6 +1420,7 @@ impl MainMenu {
             Selection::Network => MenuSection::Network,
             Selection::Replay(_) => MenuSection::Replays,
             Selection::Quick => MenuSection::Quick,
+            Selection::Generated => MenuSection::Generated,
             Selection::Random => MenuSection::Random,
             Selection::Nothing(section) => section,
         }
@@ -1423,6 +1438,7 @@ impl MainMenu {
             MenuSection::Campaign => Some(self.campaign_page(0)),
             MenuSection::Custom => first_level(true),
             MenuSection::Quick => Some(Selection::Quick),
+            MenuSection::Generated => Some(Selection::Generated),
             MenuSection::Random => Some(Selection::Random),
             MenuSection::Editor => Some(Selection::Editor),
             MenuSection::Network => Some(Selection::Network),
@@ -1467,6 +1483,7 @@ impl MainMenu {
             "campaign" => MenuSection::Campaign,
             "custom" => MenuSection::Custom,
             "quick" => MenuSection::Quick,
+            "generator" => MenuSection::Generated,
             "random" => MenuSection::Random,
             "editor" => MenuSection::Editor,
             "network" => MenuSection::Network,
@@ -1492,6 +1509,7 @@ impl MainMenu {
                 Some(self.campaigns[campaign].mission_at(mission, self.campaign_difficulty))
             }
             Selection::Random => Some(self.random_level()),
+            Selection::Generated => Some(self.generated_mission()),
             Selection::Editor => Some(self.options.to_level()),
             Selection::Network
             | Selection::Replay(_)
@@ -1518,10 +1536,15 @@ impl MainMenu {
         random_battle::generate(&self.random, self.random_seed)
     }
 
+    fn generated_mission(&self) -> LevelDefinition {
+        generate_mission(self.random_seed, self.quick_faction, self.quick_difficulty)
+    }
+
     /// The battle the editor-like pages describe right now.
     fn level_on_page(&self) -> LevelDefinition {
         match self.selection {
             Selection::Random => self.random_level(),
+            Selection::Generated => self.generated_mission(),
             _ => self.options.to_level(),
         }
     }
@@ -1661,6 +1684,21 @@ fn spawn_quick_battle(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, menu: &
         16.0,
         TEXT_DIM,
     ));
+    spawn_side_and_difficulty(panel, fonts, menu);
+    panel.spawn(Node {
+        height: Val::Px(12.0),
+        ..default()
+    });
+    spawn_command_button(
+        panel,
+        fonts,
+        tr("START QUICK BATTLE"),
+        MenuCommand::StartQuickBattle,
+    );
+}
+
+/// The side and difficulty choices the quick battle and the mission generator share.
+fn spawn_side_and_difficulty(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, menu: &MainMenu) {
     let factions = [
         (
             FactionChoice::Fixed(Faction::Coalition),
@@ -1696,15 +1734,40 @@ fn spawn_quick_battle(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, menu: &
             )
         }),
     );
-    panel.spawn(Node {
-        height: Val::Px(12.0),
-        ..default()
+}
+
+/// A whole mission rolled from one seed: the battle, an objective, an operation name and its briefing.
+fn spawn_generated_mission(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    menu: &MainMenu,
+    preview: Option<Handle<Image>>,
+) {
+    panel.spawn(fonts.heading(tr("Mission generator"), 30.0, ACCENT));
+    spawn_side_and_difficulty(panel, fonts, menu);
+    let level = menu.generated_mission();
+    beside_preview(panel, preview, SMALL_PREVIEW, |column| {
+        column.spawn(fonts.heading(&level.name, 20.0, TEXT_MAIN));
+        column.spawn(fonts.text(&level.briefing, 15.0, TEXT_DIM));
+        spawn_level_facts(column, fonts, &level);
     });
     spawn_command_button(
         panel,
         fonts,
-        tr("START QUICK BATTLE"),
-        MenuCommand::StartQuickBattle,
+        tr("START MISSION"),
+        MenuCommand::StartEditorBattle,
+    );
+    spawn_command_button(
+        panel,
+        fonts,
+        tr("NEW MISSION"),
+        MenuCommand::RerollRandomBattle,
+    );
+    spawn_command_button(
+        panel,
+        fonts,
+        tr("SAVE AS CUSTOM LEVEL"),
+        MenuCommand::SaveEditorLevel,
     );
 }
 
@@ -1963,6 +2026,7 @@ fn rebuild_details(
             }
             Selection::Random => spawn_random_battle_details(panel, fonts, menu, preview),
             Selection::Quick => spawn_quick_battle(panel, fonts, menu),
+            Selection::Generated => spawn_generated_mission(panel, fonts, menu, preview),
             Selection::Nothing(section) => {
                 panel.spawn(fonts.heading(section.label(), 30.0, ACCENT));
                 let hint = match section {

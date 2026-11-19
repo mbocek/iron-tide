@@ -65,6 +65,11 @@ opens a screen with a *Back* button; Esc goes back too.
   `~/.config/iron_tide/levels/`; every valid file there is listed under *Custom levels*.
 - **Quick battle:** the first page of *Skirmish*: pick a side (or random) and a difficulty, and one click starts
   a battle against one opponent on a standard map whose land, season, weather and corners are rolled anew.
+- **Mission generator:** the second page of *Skirmish*: with the same side and difficulty choices it rolls a
+  whole mission from one seed (`src/mission_generator.rs`): a random battle given one of the campaign objectives
+  (destroy everything, destroy the Command Centers, capture a Command Center, survive 8-14 minutes or stockpile
+  $6,000-12,000), an English code name (*Operation Silent Anvil*) and a briefing written for the objective in the
+  menu's language. *New mission* rolls another; it can also be saved as a custom level.
 - **Custom campaigns:** a JSON file in `~/.config/iron_tide/levels/campaigns/` chains custom levels into a
   campaign listed beside the built-in ones, with the same unlocking, progress and difficulty:
   `{ "title": "Border Raids", "faction": "Coalition", "levels": ["a.json", "b.json"] }` (level file names in the
