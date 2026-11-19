@@ -49,6 +49,7 @@ TEAM_MODELS = {
     "repair_bay": (buildings.build_repair_bay, BUILDING_TRIANGLE_BUDGET),
     "rocket_bunker": (buildings.build_rocket_bunker, BUILDING_TRIANGLE_BUDGET),
     "wall": (buildings.build_wall, 4_000),
+    "wall_link": (buildings.build_wall_link, 2_000),
 }
 ICON_ONLY_MODELS = {
     "upgrade_armour": upgrades.build_armour_upgrade,

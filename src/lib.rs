@@ -79,6 +79,7 @@ pub mod ui;
 pub mod unit_orders;
 pub mod updates;
 pub mod veterancy;
+pub mod wall_joints;
 pub mod weather;
 
 use bevy::prelude::*;
@@ -458,6 +459,7 @@ impl Plugin for GamePlugin {
                     battlefield::fade_craters,
                     battlefield::leave_wrecks,
                     battlefield::char_wrecks,
+                    wall_joints::join_walls,
                     battlefield::smoulder_and_sink_wrecks,
                     battlefield::draw_rain,
                 )

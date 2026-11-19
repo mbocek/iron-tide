@@ -749,25 +749,63 @@ def _build_defense_turret_head(pivot):
     add_vent_grille(pivot + Vector((-0.35, -0.0, 0.73)), 0.2, 0.3, 3)
 
 
-WALL_HALF_SPAN = 0.99
+# A wall is a post on every cell, joined to each neighbouring wall cell by a run (`wall_link`) reaching from the
+# post to the cell edge, where it meets the neighbour's run: the game adds the runs (src/wall_joints.rs).
+WALL_CELL_HALF = 1.0
+WALL_POST_HEIGHT = 1.6
+WALL_RUN_HEIGHT = 1.35
+WALL_RUN_BASE_HALF_WIDTH = 0.55
+WALL_RUN_TOP_HALF_WIDTH = 0.4
+WALL_BAND = (0.62, 0.72)
 
 
 def build_wall():
-    """A concrete barrier block filling its cell, so neighbouring segments join into one wall."""
-    footing = chamfered_rect(WALL_HALF_SPAN * 2, WALL_HALF_SPAN * 2, 0.08)
-    slab("ConcreteDark", footing, 0.0, 0.12, bevel=0.0, name="WallFooting")
-    body = chamfered_rect(1.9, 1.9, 0.12)
-    slab("Concrete", body, 0.12, 1.25, top_scale=0.82, bevel=0.03, name="WallBlock")
-    coping = chamfered_rect(1.62, 1.62, 0.1)
-    slab("ConcreteDark", coping, 1.25, 1.38, top_scale=0.95, bevel=0.02, name="WallCoping")
-    add_outline_band(chamfered_rect(1.8, 1.8, 0.11), chamfered_rect(1.64, 1.64, 0.1), 0.62, 0.74, "TeamColor",
+    """A concrete post; on its own a bollard block, between joined runs the pier of a continuous wall."""
+    slab("ConcreteDark", chamfered_rect(1.5, 1.5, 0.1), 0.0, 0.12, bevel=0.0, name="WallFooting")
+    slab("Concrete", chamfered_rect(1.3, 1.3, 0.1), 0.12, WALL_POST_HEIGHT, top_scale=0.8, bevel=0.03,
+         name="WallPost")
+    slab("ConcreteDark", chamfered_rect(1.12, 1.12, 0.08), WALL_POST_HEIGHT, WALL_POST_HEIGHT + 0.12,
+         top_scale=0.92, bevel=0.02, name="WallPostCap")
+    band_width = 1.3 * (1.0 - 0.2 * (WALL_BAND[0] - 0.12) / (WALL_POST_HEIGHT - 0.12))
+    add_outline_band(chamfered_rect(band_width + 0.03, band_width + 0.03, 0.1),
+                     chamfered_rect(band_width - 0.02, band_width - 0.02, 0.1), *WALL_BAND, "TeamColor",
                      name="WallTeamBand")
-    for side in (-1, 1):
-        for along in (-0.45, 0.45):
-            box("Sandbag", (0.42, 0.24, 0.16), (along, side * 0.62, 1.46), (0, 0, side * 0.08), bevel=0.06,
-                name="WallSandbag")
-    for corner in ((0.7, 0.7), (-0.7, -0.7), (0.7, -0.7), (-0.7, 0.7)):
-        cylinder("Steel", 0.03, 0.18, (corner[0], corner[1], 1.42), segments=6, name="RebarStub")
+    for corner in ((0.42, 0.42), (-0.42, -0.42), (0.42, -0.42), (-0.42, 0.42)):
+        cylinder("Steel", 0.03, 0.18, (corner[0], corner[1], WALL_POST_HEIGHT + 0.16), segments=6, name="RebarStub")
+
+
+def build_wall_link():
+    """Half a wall run along +X, from the post at the cell centre to the cell edge, sloped only to the sides so
+    two runs meet flush at the edge."""
+    def run_half_width(z):
+        share = (z - 0.12) / (WALL_RUN_HEIGHT - 0.12)
+        return WALL_RUN_BASE_HALF_WIDTH + (WALL_RUN_TOP_HALF_WIDTH - WALL_RUN_BASE_HALF_WIDTH) * share
+
+    _wall_run("ConcreteDark", 0.68, 0.68, 0.0, 0.12, "WallRunFooting")
+    _wall_run("Concrete", WALL_RUN_BASE_HALF_WIDTH, WALL_RUN_TOP_HALF_WIDTH, 0.12, WALL_RUN_HEIGHT, "WallRun")
+    _wall_run("ConcreteDark", 0.46, 0.43, WALL_RUN_HEIGHT, WALL_RUN_HEIGHT + 0.1, "WallRunCoping")
+    _wall_run("TeamColor", run_half_width(WALL_BAND[0]) + 0.015, run_half_width(WALL_BAND[1]) + 0.015, *WALL_BAND,
+              "WallRunTeamBand")
+    for along in (0.32, 0.78):
+        box("Sandbag", (0.4, 0.26, 0.15), (along, 0.0, WALL_RUN_HEIGHT + 0.17), (0, 0, 0.05), bevel=0.06,
+            name="WallSandbag")
+
+
+def _wall_run(material_name, bottom_half_width, top_half_width, z_bottom, z_top, name):
+    """A prism along +X across the half cell, its cross-section a trapezoid narrowing upwards."""
+    def build(bm):
+        corners = []
+        for x in (0.0, WALL_CELL_HALF):
+            corners.append([bm.verts.new((x, -bottom_half_width, z_bottom)), bm.verts.new((x, bottom_half_width, z_bottom)),
+                            bm.verts.new((x, top_half_width, z_top)), bm.verts.new((x, -top_half_width, z_top))])
+        near, far = corners
+        bm.faces.new(list(reversed(near)))
+        bm.faces.new(far)
+        for k in range(4):
+            j = (k + 1) % 4
+            bm.faces.new((near[k], near[j], far[j], far[k]))
+
+    part(material_name, build, name=name)
 
 
 HELIPAD_PAD_RADIUS = 1.45

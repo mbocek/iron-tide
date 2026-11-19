@@ -29,6 +29,8 @@ const NEUTRAL_MODELS: [&str; 22] = [
     "reeds",
 ];
 
+const WALL_LINK_MODEL: &str = "wall_link";
+
 #[derive(Resource)]
 pub struct ModelLibrary {
     scenes: HashMap<String, Handle<WorldAsset>>,
@@ -41,6 +43,11 @@ impl ModelLibrary {
 
     pub fn building(&self, kind: BuildingKind, team: Team) -> Handle<WorldAsset> {
         self.team_model(kind.spec().model_id, team)
+    }
+
+    /// Half a wall run, joining a wall post to its neighbour.
+    pub fn wall_link(&self, team: Team) -> Handle<WorldAsset> {
+        self.team_model(WALL_LINK_MODEL, team)
     }
 
     pub fn neutral(&self, model_id: &str) -> Handle<WorldAsset> {
@@ -69,7 +76,8 @@ fn all_model_keys() -> Vec<String> {
             std::iter::once(BuildingKind::CommandCenter)
                 .chain(BuildingKind::CONSTRUCTIBLE)
                 .map(|kind| kind.spec().model_id),
-        );
+        )
+        .chain(std::iter::once(WALL_LINK_MODEL));
     team_model_ids
         .flat_map(|model_id| Team::ALL.map(|team| team_model_key(model_id, team)))
         .chain(NEUTRAL_MODELS.iter().map(|id| id.to_string()))

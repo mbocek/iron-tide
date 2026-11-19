@@ -14,7 +14,8 @@
 - **Engineer:** unarmed $500 infantry from the Barracks. Right-click an enemy structure (not a wall) with
   engineers selected: they walk in and capture it, damage and all. Right-click a damaged own structure: they
   repair it fully. Either way the engineer is used up. Other selected units attack the structure as usual.
-- **Walls:** $50 concrete segments that block movement. Click the Wall tile, then drag on the map to lay a
+- **Walls:** $50 concrete segments that block movement; segments of one side next to each other join into a
+  continuous wall with a post on every cell. Click the Wall tile, then drag on the map to lay a
   straight line; each segment is paid as it is placed and the mode stays on until right click / Esc. Every
   segment extends the area you may build in, so walls can reach out from the base, but no structure or wall
   goes on ground its side has never explored; a wall dragged into the dark stops at its edge. Walls do not keep a
