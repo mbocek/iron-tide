@@ -41,12 +41,36 @@ def wobble(rng, length, rate_hz, depth):
 
 
 def diesel(rng, length, firing_hz, roughness):
-    """Cylinders firing: a buzzy pulse train, low-passed by the hull, with uneven strokes."""
+    """Cylinders firing: a low buzz the hull carries, the exhaust barking at every stroke and the valves
+    rattling. The bark and rattle sit at 200 Hz-2 kHz; a buzz alone vanishes on small speakers."""
     pulses = saw(firing_hz, length)
     pulses = multiplied(pulses, wobble(rng, length, 12.0, roughness))
     body = one_pole_lowpass(one_pole_lowpass(pulses, firing_hz * 5.0), firing_hz * 7.0)
     exhaust = one_pole_lowpass(multiplied(brown_noise(length, rng), wobble(rng, length, firing_hz, 0.6)), 380.0)
-    return summed(scaled(body, 1.0), scaled(exhaust, 0.8))
+    return summed(scaled(body, 0.5), scaled(exhaust, 0.5), exhaust_bark(rng, length, firing_hz, roughness),
+                  valve_rattle(rng, length, firing_hz))
+
+
+def strokes(rng, length, firing_hz, roughness):
+    """When each cylinder fires, slightly uneven, and how hard."""
+    t = rng.uniform(0.0, 1.0 / firing_hz)
+    while t < length / 44100.0:
+        yield t, rng.uniform(1.0 - roughness, 1.0)
+        t += rng.uniform(1.0 - roughness * 0.3, 1.0 + roughness * 0.3) / firing_hz
+
+
+def exhaust_bark(rng, length, firing_hz, roughness):
+    bark = silence(length)
+    pop_length = samples(min(0.05, 1.6 / firing_hz))
+    for when, strength in strokes(rng, length, firing_hz, roughness):
+        pop = multiplied(white_noise(pop_length, rng), exponential_decay(pop_length, 0.35 / firing_hz))
+        mix_into(bark, pop, samples(when), strength)
+    return scaled(biquad(biquad(bark, "bandpass", firing_hz * 9.0, 0.7), "lowpass", 900.0), 5.0)
+
+
+def valve_rattle(rng, length, firing_hz):
+    rattle = multiplied(white_noise(length, rng), [max(0.0, x - 0.8) for x in wobble(rng, length, firing_hz * 2.0, 1.0)])
+    return scaled(biquad(rattle, "bandpass", 1500.0, 1.2), 1.0)
 
 
 def stereo(mono, spread_rng, wet_mono=None):
@@ -80,11 +104,11 @@ def tracked_engines():
     seconds = 3.0
     length = rendered_length(seconds)
     engine = diesel(rng, length, 31.0, 0.35)
-    tracks = clatter(rng, length, 14.0, 1900.0, 0.5)
+    tracks = clatter(rng, length, 14.0, 1100.0, 2.5)
     squeal = multiplied(sine(1350.0, length), wobble(rng, length, 2.0, 0.9))
     squeal = scaled(multiplied(squeal, [max(0.0, x - 1.4) for x in wobble(rng, length, 1.0, 1.0)]), 0.08)
     ground = one_pole_lowpass(brown_noise(length, rng), 120.0)
-    mono = summed(scaled(engine, 1.0), scaled(ground, 0.7), squeal)
+    mono = summed(scaled(engine, 1.0), scaled(ground, 0.4), squeal)
     return seamless(*stereo(mono, rng, tracks), seconds)
 
 
@@ -96,8 +120,8 @@ def wheeled_engines():
     engine = diesel(rng, length, 48.0, 0.2)
     whine = scaled(multiplied(sine(310.0, length), wobble(rng, length, 1.5, 0.3)), 0.05)
     tyres = biquad(pink_noise(length, rng), "bandpass", 700.0, 0.6)
-    gravel = clatter(rng, length, 30.0, 2600.0, 0.18)
-    mono = summed(scaled(engine, 0.9), whine, scaled(tyres, 0.35))
+    gravel = clatter(rng, length, 30.0, 2200.0, 0.4)
+    mono = summed(scaled(engine, 0.9), whine, scaled(tyres, 0.8))
     return seamless(*stereo(mono, rng, gravel), seconds)
 
 

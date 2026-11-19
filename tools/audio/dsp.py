@@ -262,7 +262,7 @@ def _comb(signal, delay, gain):
     return out
 
 
-def _allpass(signal, delay, gain):
+def allpass(signal, delay, gain):
     out = [-gain * x for x in signal[:delay]]
     for start in range(delay, len(signal), delay):
         out.extend([
@@ -281,7 +281,7 @@ def _reverb_channel(signal, decay_seconds, spread):
         gain = 10.0 ** (-3.0 * delay / (decay_seconds * SAMPLE_RATE))
         mix_into(combined, _comb(signal, delay, gain), 0, 1.0 / comb_count)
     for base_delay in FREEVERB_ALLPASS_DELAYS:
-        combined = _allpass(combined, base_delay + spread, 0.5)
+        combined = allpass(combined, base_delay + spread, 0.5)
     return combined
 
 

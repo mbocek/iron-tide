@@ -1,15 +1,14 @@
-"""Building blocks for believable outdoor gunfire and explosions.
+"""Places recorded gunfire and explosions on an open battlefield.
 
-A real shot is several sounds arriving together: the blast from the muzzle (an N-shaped pressure wave),
-for rifles the crack of the bullet breaking the sound barrier, the mechanism, and then the battlefield
-answering - reflections off ground, trees and hills arriving tens to hundreds of milliseconds later,
-duller with every bounce. Heard from far away the high frequencies are gone and the reflections dominate.
+The recordings are dry; outdoors the battlefield answers - reflections off ground, trees and hills arriving
+tens to hundreds of milliseconds later, duller with every bounce. Heard from far away the high frequencies
+are gone and the reflections dominate.
 """
 import random
 
 from dsp import (
-    biquad, brown_noise, exponential_decay, exponential_glide, fade_in, fit_length, mix_into, multiplied,
-    normalized_stereo, one_pole_lowpass, pan_gains, reverb, samples, scaled, silence, sine, white_noise,
+    allpass, biquad, exponential_decay, fade_in, fit_length, mix_into, multiplied, normalized_stereo,
+    one_pole_lowpass, pan_gains, reverb, samples, silence, white_noise,
 )
 
 SFX_PEAK_DBFS = -1.5
@@ -20,56 +19,34 @@ DISTANT_REVERB_WET = 0.7
 DISTANT_ONSET_SECONDS = 0.018
 
 
-def n_wave(length, duration):
-    """The pressure signature of a supersonic shock or a muzzle blast: a jump up, a linear fall, a jump back."""
-    wave = silence(length)
-    span = max(2, samples(duration))
-    for i in range(min(span, length)):
-        wave[i] = 1.0 - 2.0 * i / span
-    return wave
-
-
-def muzzle_blast(rng, length, body_hz, size):
-    """The expanding gas: a broadband thump whose weight grows with the calibre (`size` roughly 0.5-3)."""
-    impulse = n_wave(length, 0.0015 * size)
-    thump = one_pole_lowpass(one_pole_lowpass(impulse, body_hz * 2.0), body_hz * 2.0)
-    blast = multiplied(white_noise(length, rng), exponential_decay(length, 0.008 * size))
-    blast = biquad(blast, "lowpass", 5200.0 / size ** 0.4)
-    low = multiplied(sine(exponential_glide(body_hz * 1.6, body_hz * 0.6, length, 0.02 * size), length),
-                     exponential_decay(length, 0.03 * size))
-    return [a * 2.2 + b * 1.4 + c * 0.9 * size ** 0.5 for a, b, c in zip(thump, blast, low)]
-
-
-def supersonic_crack(rng, length):
-    """The bullet's shock wave: a very short, bright N-wave, the sharpest part of a rifle shot."""
-    crack = n_wave(length, 0.0004)
-    hiss = multiplied(white_noise(length, rng), exponential_decay(length, 0.0015))
-    return [a * 0.9 + b * 0.5 for a, b in zip(biquad(crack, "highpass", 1800.0), biquad(hiss, "highpass", 3000.0))]
-
-
-def mechanism(rng, length, at_seconds, pitch_hz):
-    """Bolt or breech clatter: a couple of short metallic ticks."""
-    clatter = silence(length)
-    for offset in (0.0, rng.uniform(0.012, 0.025)):
-        tick = biquad(multiplied(white_noise(samples(0.01), rng), exponential_decay(samples(0.01), 0.0015)),
-                      "bandpass", pitch_hz * rng.uniform(0.9, 1.15), 4.0)
-        mix_into(clatter, tick, samples(at_seconds + offset), 0.6)
-    return clatter
+def pressure_punch(rng, length, centre_hz, decay):
+    """A push of air felt in the chest: band-limited noise rather than a tone, which would ring like a drum."""
+    punch = multiplied(white_noise(length, rng), exponential_decay(length, decay))
+    punch = biquad(biquad(punch, "lowpass", centre_hz * 2.2, 0.8), "lowpass", centre_hz * 2.2, 0.8)
+    return biquad(punch, "highpass", centre_hz * 0.45, 0.7)
 
 
 def outdoor_reflections(rng, dry, count, first, last, cutoff_hz, level):
-    """Echoes from terrain and woods, each later one quieter and duller, scattered across the stereo field."""
+    """Echoes from terrain and woods, each later one quieter, duller and more smeared, scattered across the
+    stereo field. Exact copies of the shot would comb-filter into a metallic ring and repeat it like a drum."""
     length = len(dry)
     left, right = silence(length), silence(length)
     for index in range(count):
         when = first + (last - first) * (index / max(1, count - 1)) ** 1.3 + rng.uniform(-0.01, 0.01)
         dullness = cutoff_hz / (1.0 + index * 0.6)
-        echo = one_pole_lowpass(one_pole_lowpass(dry, dullness), dullness)
+        echo = scattered(rng, one_pole_lowpass(one_pole_lowpass(dry, dullness), dullness), 0.004 + 0.003 * index)
         gain = level * (0.75 ** index) * rng.uniform(0.7, 1.0)
         pan_left, pan_right = pan_gains(rng.uniform(-0.9, 0.9))
         mix_into(left, echo, samples(when), gain * pan_left)
         mix_into(right, echo, samples(when), gain * pan_right)
     return left, right
+
+
+def scattered(rng, signal, spread_seconds):
+    """Smears a reflection over `spread_seconds` the way trees, grass and uneven ground scatter it."""
+    for share in (1.0, 0.61, 0.37):
+        signal = allpass(signal, max(1, samples(spread_seconds * share * rng.uniform(0.85, 1.15))), 0.6)
+    return signal
 
 
 def outdoor_shot(dry, rng, duration, reflections=6, first=0.03, last=0.32, reflection_cutoff=2400.0,
@@ -110,31 +87,16 @@ def distant_version(render):
 
 
 def debris(rng, length, count, start, end, gain):
-    """Earth, stones and metal raining down after a blast."""
+    """Earth and stones raining down after a blast: dull thuds and gravel, never ringing tin."""
     shower = silence(length)
     for _ in range(count):
         when = rng.uniform(start, end)
         loudness = gain * rng.uniform(0.25, 1.0) * (1.0 - 0.7 * (when - start) / max(0.01, end - start))
-        piece_length = samples(0.06)
-        piece = multiplied(white_noise(piece_length, rng), exponential_decay(piece_length, rng.uniform(0.003, 0.012)))
-        piece = biquad(piece, "bandpass", rng.uniform(500.0, 3500.0), 1.3)
-        mix_into(shower, piece, samples(when), loudness * 1.8)
+        piece_length = samples(0.08)
+        piece = multiplied(white_noise(piece_length, rng), exponential_decay(piece_length, rng.uniform(0.006, 0.02)))
+        piece = biquad(piece, "lowpass", rng.uniform(350.0, 1600.0), 0.6)
+        mix_into(shower, piece, samples(when), loudness * 2.6)
     return shower
-
-
-def explosion_blast(rng, length, size):
-    """An explosive's shock, fireball roar and ground rumble; `size` 1 is a shell, 2-3 a vehicle or building."""
-    shock = n_wave(length, 0.004 * size)
-    shock = one_pole_lowpass(shock, 1800.0 / size ** 0.5)
-    roar_cutoff = exponential_glide(6000.0 / size ** 0.3, 160.0, length, 0.12 * size)
-    roar_envelope = multiplied([min(1.0, i / max(1, samples(0.004))) for i in range(length)],
-                               exponential_decay(length, 0.12 * size))
-    roar = multiplied(white_noise(length, rng), roar_envelope)
-    roar = one_pole_lowpass(one_pole_lowpass(roar, roar_cutoff), roar_cutoff)
-    boom = multiplied(sine(exponential_glide(70.0 / size ** 0.3, 24.0, length, 0.15 * size), length),
-                      exponential_decay(length, 0.16 * size))
-    rumble = one_pole_lowpass(multiplied(brown_noise(length, rng), exponential_decay(length, 0.3 * size)), 220.0)
-    return [s * 4.0 + r * 4.0 + b * 1.4 + u * 1.2 for s, r, b, u in zip(shock, roar, boom, rumble)]
 
 
 def seeded(seed):

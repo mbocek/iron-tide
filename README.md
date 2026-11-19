@@ -9,7 +9,8 @@
 
 An original real-time strategy game written in Rust with [Bevy](https://bevyengine.org): build a base,
 harvest crystals, keep the power up and destroy the enemy. Every line of code, every 3D model (generated
-procedurally in Blender), every sound and every piece of music is original.
+procedurally in Blender) and every piece of music is original; the sounds are synthesized, except gunfire
+and explosions, which are built from public-domain recordings.
 
 ![A Coalition base under attack in winter](docs/screenshot.jpg)
 
@@ -50,7 +51,7 @@ make help          # every target
 | [Rules](docs/rules.md) | factions, units, structures, research, economy, veterancy |
 | [Missions and custom levels](docs/levels.md) | campaign, random battles, battle editor, level file format |
 | [Settings, saves and updates](docs/settings.md) | where settings and saves live, performance notes, update check |
-| [Sound and music](docs/audio.md) | synthesized effects and music, positional sound, voice reports |
+| [Sound and music](docs/audio.md) | effects, recorded gunfire, music, positional sound, voice reports |
 | [Languages](docs/languages.md) | translations and how to edit them |
 | [Determinism and multiplayer](docs/determinism.md) | lockstep simulation, network play, replays |
 | [Balance](docs/balance.md) | the balance tool and its latest results |
@@ -62,6 +63,10 @@ make help          # every target
 
 - Terrain textures (`assets/textures/terrain/`): [Poly Haven](https://polyhaven.com), CC0 -
   leafy_grass, forrest_ground_01, rocks_ground_05, river_small_rocks, gravel_concrete_02.
+- Gunfire and explosion recordings (`tools/audio/recordings/`), CC0, from OpenGameArt:
+  [The Free Firearm Sound Library](https://opengameart.org/content/the-free-firearm-sound-library),
+  [25 CC0 bang / firework SFX](https://opengameart.org/content/25-cc0-bang-firework-sfx) and
+  [Tiny Naval Battle Sounds Set](https://opengameart.org/content/tiny-naval-battle-sounds-set) (Iwan Gabovitch).
 - Font Rajdhani (`assets/fonts/`): Indian Type Foundry, SIL Open Font License 1.1 (`assets/fonts/OFL.txt`).
 
 (c) 2026 Iron Tide

@@ -1,24 +1,31 @@
 # Sound and music
 
-All sound effects and music are original and synthesized by code (`tools/audio/generate_audio.py`,
-pure Python plus ffmpeg), so there are no third-party licenses:
+Sound effects and music are made by code (`tools/audio/generate_audio.py`, pure Python plus ffmpeg):
 
 ```sh
 python3 tools/audio/generate_audio.py --out assets/audio
 ```
 
-Gunfire is built like the real thing (`tools/audio/acoustics.py`): the muzzle blast as an N-shaped pressure
-wave, a rifle bullet's supersonic crack, the bolt or breech, and the terrain answering with echoes 30 ms to
-1.4 s later, each duller than the one before. Explosions add the shock, the fireball and debris falling. Every
-weapon and blast also has a version heard from afar: no highs, a soft onset, mostly echo.
+Gunfire and explosions start from real recordings, because synthesized shots kept sounding artificial: AK-47
+and SKS for riflemen, an AR-15 for the scout's machine gun, a .30-06 hunting rifle for the sniper, a naval
+gun recorded by the US military for tanks and artillery, and fireworks charges and a metal blast for
+explosions. All are public domain (CC0, sources in `tools/audio/import_recordings.py`), cut into short dry
+excerpts in `tools/audio/recordings`. Bigger guns and shells play a recording slower and deeper. The code
+places each one outdoors (`tools/audio/acoustics.py`): the terrain answering with echoes 30 ms to 1.4 s
+later, each duller and more smeared than the one before, plus band-limited noise for the push of a shell and
+earth and stones falling after a blast. Every weapon and blast also has a version heard from afar: no highs,
+a soft onset, mostly echo.
 
 Where a sound is on screen decides how it is heard: the middle of the view is loudest and centred, the edges
 are quieter and come from the left or right speaker, and off screen a sound fades by how far its kind
 carries (a rifle half a screen, a collapsing building nearly three). Sounds off screen play their distant
 version and arrive late, at the speed of sound; zooming out makes the battle quieter and distant too.
-Sounds under the fog of war stay silent, and repeated sounds are throttled so a firing squad stays readable.
+Sounds under the fog of war stay silent, and repeated sounds are throttled so a firing squad stays readable;
+two copies of a sound starting together play different recordings, since one recording on top of itself
+sounds hollow and metallic.
 
-Units also make steady noise: tracked and wheeled engines that idle quietly and roar when they drive, the
+Units also make steady noise: tracked and wheeled engines that idle quietly and roar when they drive (their
+exhaust bark, valves and track links carry them on small speakers, which drop the low diesel buzz), the
 Gunship's rotors, a squad's boots on the march, a harvester grinding crystal and engineers hammering and
 welding at a structure under repair or just placed. Each is one seamless loop for every unit making it,
 louder the more of them are in view (but ten tanks are not ten times one) and coming from where most of them

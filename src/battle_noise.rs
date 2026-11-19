@@ -47,10 +47,10 @@ impl Noise {
     /// The loops differ a lot in density; this evens them out against the gunfire.
     fn base_volume(self) -> f32 {
         match self {
-            Noise::TrackedEngines => 0.22,
-            Noise::WheeledEngines => 0.2,
+            Noise::TrackedEngines => 0.4,
+            Noise::WheeledEngines => 0.25,
             Noise::Rotors => 0.3,
-            Noise::Footsteps => 0.55,
+            Noise::Footsteps => 0.4,
             Noise::Harvesting => 0.2,
             Noise::Construction => 0.45,
         }

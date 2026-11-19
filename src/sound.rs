@@ -175,7 +175,8 @@ impl Sound {
 
     fn base_volume(self) -> f32 {
         match self {
-            Sound::RifleShot | Sound::MachineGunShot => 0.45,
+            Sound::RifleShot | Sound::MachineGunShot => 0.7,
+            Sound::CannonShot | Sound::HeavyCannonShot | Sound::HowitzerShot => 0.5,
             Sound::BulletImpact => 0.35,
             Sound::UiClick | Sound::UnitAcknowledge => 0.5,
             _ => 0.8,
@@ -245,6 +246,8 @@ pub fn load_sounds(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 const THROTTLE_WINDOW_SECS: f32 = 0.12;
+/// The same recording started again this soon blends with itself into a hollow, metallic flanger.
+const SELF_BLEND_SECS: f32 = 0.05;
 const PITCH_VARIATION: f32 = 0.06;
 /// Where the two ears that turn a pan into stereo sit, far below the battlefield.
 pub const EARS_AT: Vec3 = Vec3::new(0.0, -1000.0, 0.0);
@@ -254,6 +257,26 @@ const FURY_HALF_LIFE_SECS: f32 = 6.0;
 #[derive(Default)]
 pub struct Throttle {
     recent: HashMap<Sound, (f32, usize)>,
+    /// Which recording of each sound started last, and when.
+    last_variant: HashMap<Sound, (usize, f32)>,
+}
+
+impl Throttle {
+    /// A recording other than the one just started, or `None` when the only one would blend with itself.
+    fn pick_variant(&mut self, sound: Sound, count: usize, now: f32, roll: usize) -> Option<usize> {
+        let mut variant = roll % count;
+        if let Some(&(last, started)) = self.last_variant.get(&sound)
+            && last % count == variant
+            && now - started < SELF_BLEND_SECS
+        {
+            if count == 1 {
+                return None;
+            }
+            variant = (variant + 1) % count;
+        }
+        self.last_variant.insert(sound, (variant, now));
+        Some(variant)
+    }
 }
 
 /// Sounds from afar, waiting until they would have travelled to the player.
@@ -345,7 +368,6 @@ pub fn play_sound_cues(
         if *played >= sound.burst_limit() {
             continue;
         }
-        *played += 1;
         let distant = library
             .distant_effects
             .get(&sound)
@@ -355,7 +377,14 @@ pub fn play_sound_cues(
         else {
             continue;
         };
-        let source = variants[rng.random_range(0..variants.len())].clone();
+        let roll = rng.random_range(0..variants.len());
+        let Some(variant) = throttle.pick_variant(sound, variants.len(), now, roll) else {
+            continue;
+        };
+        if let Some((_, played)) = throttle.recent.get_mut(&sound) {
+            *played += 1;
+        }
+        let source = variants[variant].clone();
         let volume = sound.base_volume()
             * heard.gain
             * settings.effects_volume
@@ -554,6 +583,17 @@ pub fn count_match_start(mut director: ResMut<MusicDirector>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_sound_started_twice_at_once_never_blends_with_its_own_recording() {
+        let mut throttle = Throttle::default();
+        let first = throttle.pick_variant(Sound::ShellExplosion, 3, 0.0, 1);
+        let second = throttle.pick_variant(Sound::ShellExplosion, 3, 0.01, 1);
+        assert_ne!(first, second);
+        assert_eq!(throttle.pick_variant(Sound::FlakShot, 1, 0.0, 0), Some(0));
+        assert_eq!(throttle.pick_variant(Sound::FlakShot, 1, 0.01, 0), None);
+        assert_eq!(throttle.pick_variant(Sound::FlakShot, 1, 0.2, 0), Some(0));
+    }
 
     #[test]
     fn every_sound_has_its_files() {
