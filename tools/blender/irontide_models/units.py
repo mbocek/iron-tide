@@ -1282,3 +1282,62 @@ def _flat_plate(bm, outline_xy, z, thickness):
     for k in range(count):
         j = (k + 1) % count
         bm.faces.new((bottom[k], bottom[j], top[j], top[k]))
+
+
+FIGHTER_AXIS_Z = 0.85
+
+
+def build_fighter():
+    """A single-seat interceptor facing +X: needle nose, bubble canopy, delta wings with air-to-air missiles
+    on the tips, twin tail fins and an afterburner nozzle, on short landing gear for the pad."""
+    profile = [(0.0, -2.3), (0.22, -2.2), (0.3, -1.4), (0.32, -0.2), (0.28, 0.8), (0.18, 1.6), (0.07, 2.2),
+               (0.0, 2.45)]
+    lathe("Armor", profile, (0.0, 0.0, FIGHTER_AXIS_Z), ALONG_X, segments=18, name="Fuselage")
+    lathe("ArmorDark", [(0.0, 2.1), (0.08, 2.2), (0.0, 2.6)], (0.0, 0.0, FIGHTER_AXIS_Z), ALONG_X, segments=12,
+          name="Radome")
+    sphere(GLASS, 0.24, (1.0, 0.0, FIGHTER_AXIS_Z + 0.25), scale=(2.0, 0.85, 0.75), segments=16, rings=8,
+           name="Canopy")
+    box("Gunmetal", (0.03, 0.4, 0.03), (0.75, 0.0, FIGHTER_AXIS_Z + 0.4), bevel=0.0, name="CanopyFrame")
+    lathe("Gunmetal", [(0.22, 0.0), (0.26, -0.25)], (-2.25, 0.0, FIGHTER_AXIS_Z), ALONG_X, segments=16,
+          cap_start=False, name="Nozzle")
+    cylinder("WarningLight", 0.2, 0.02, (-2.52, 0.0, FIGHTER_AXIS_Z), ALONG_X, segments=16, name="Afterburner")
+    box("TeamColor", (2.4, 0.08, 0.02), (-0.2, 0.0, FIGHTER_AXIS_Z + 0.32), bevel=0.0, name="SpineTeamStripe")
+    for side in (-1, 1):
+        intake = Vector((0.2, side * 0.36, FIGHTER_AXIS_Z - 0.05))
+        box("ArmorDark", (1.2, 0.16, 0.3), intake, bevel=0.03, name="Intake")
+        box("Rubber", (0.02, 0.12, 0.24), intake + Vector((0.6, 0, 0)), bevel=0.0, name="IntakeMouth")
+        wing = [(0.5, side * 0.3), (-1.7, side * 0.3), (-1.85, side * 2.1), (-1.35, side * 2.1)]
+        part("Armor", lambda bm, w=wing: _swept_plate(bm, w, FIGHTER_AXIS_Z - 0.08, FIGHTER_AXIS_Z - 0.12, 0.08,
+                                                       0.03, span_from=0.3, span_to=2.1), name="DeltaWing")
+        roundel = Vector((-1.15, side * 1.35, FIGHTER_AXIS_Z - 0.04))
+        cylinder("MedicalWhite", 0.22, 0.01, roundel, segments=16, name="RoundelRing")
+        cylinder("TeamColor", 0.16, 0.014, roundel, segments=16, name="Roundel")
+        rail = Vector((-1.5, side * 2.15, FIGHTER_AXIS_Z - 0.12))
+        lathe("MedicalWhite", [(0.0, -0.6), (0.05, -0.5), (0.05, 0.4), (0.0, 0.62)], rail, ALONG_X, segments=10,
+              name="WingtipMissile")
+        for fin in range(4):
+            box("ArmorDark", (0.12, 0.01, 0.1), rail - Vector((0.5, 0, 0)), (fin * math.pi / 2, 0, 0), bevel=0.0,
+                name="MissileFin")
+        pylon = Vector((-0.6, side * 1.0, FIGHTER_AXIS_Z - 0.2))
+        box("ArmorDark", (0.3, 0.04, 0.08), pylon + Vector((0, 0, 0.05)), bevel=0.0, name="Pylon")
+        lathe("MedicalWhite", [(0.0, -0.5), (0.045, -0.4), (0.045, 0.35), (0.0, 0.52)], pylon - Vector((0, 0, 0.06)),
+              ALONG_X, segments=10, name="UnderwingMissile")
+        tail = [(-1.6, FIGHTER_AXIS_Z + 0.15), (-2.25, FIGHTER_AXIS_Z + 0.15), (-2.35, FIGHTER_AXIS_Z + 0.95),
+                (-2.05, FIGHTER_AXIS_Z + 0.95)]
+        prism("Armor", tail, 0.06, (0.0, side * 0.3, 0.0), (side * math.radians(-12), 0, 0), bevel=0.0,
+              name="TailFin")
+        cant = math.radians(12)
+        panel_height = FIGHTER_AXIS_Z + 0.65
+        panel = (-2.1, side * (0.3 + math.sin(cant) * panel_height), math.cos(cant) * panel_height)
+        box("TeamColor", (0.3, 0.065, 0.2), panel, (side * -cant, 0, 0), bevel=0.0, name="FinTeamPanel")
+        stab = [(-1.75, side * 0.3), (-2.3, side * 0.3), (-2.45, side * 1.0), (-2.15, side * 1.0)]
+        part("Armor", lambda bm, t=stab: _swept_plate(bm, t, FIGHTER_AXIS_Z, FIGHTER_AXIS_Z - 0.03, 0.04, 0.02,
+                                                       span_from=0.3, span_to=1.0), name="Stabiliser")
+        light = "SignalGreen" if side > 0 else "WarningLight"
+        sphere(light, 0.04, (-1.35, side * 2.08, FIGHTER_AXIS_Z - 0.1), name="NavigationLight")
+        leg_top = Vector((-0.6, side * 0.5, FIGHTER_AXIS_Z - 0.2))
+        axle = Vector((-0.6, side * 0.6, 0.13))
+        cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.05)), 0.03, 8, name="MainGearLeg")
+        make_wheel(axle, 0.13, 0.08, side=side)
+    cylinder_between("Steel", (1.3, 0.0, FIGHTER_AXIS_Z - 0.25), (1.35, 0.0, 0.16), 0.025, 8, name="NoseGearLeg")
+    make_wheel(Vector((1.35, 0.0, 0.11)), 0.1, 0.07, side=1)

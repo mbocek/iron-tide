@@ -209,6 +209,7 @@ pub enum UnitKind {
     StealthTank,
     RaiderBike,
     Bomber,
+    Fighter,
 }
 
 pub struct UnitSpec {
@@ -246,7 +247,7 @@ impl UnitKind {
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
-    pub const VEHICLES: [UnitKind; 12] = [
+    pub const VEHICLES: [UnitKind; 13] = [
         UnitKind::Scout,
         UnitKind::RaiderBike,
         UnitKind::Tank,
@@ -257,10 +258,11 @@ impl UnitKind {
         UnitKind::FlakTrack,
         UnitKind::Gunship,
         UnitKind::Bomber,
+        UnitKind::Fighter,
         UnitKind::RepairTruck,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 19] = [
+    pub const ALL: [UnitKind; 20] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -280,6 +282,7 @@ impl UnitKind {
         UnitKind::StealthTank,
         UnitKind::RaiderBike,
         UnitKind::Bomber,
+        UnitKind::Fighter,
     ];
 
     pub fn flies(self) -> bool {
@@ -307,12 +310,18 @@ impl UnitKind {
             UnitKind::StealthTank => &STEALTH_TANK,
             UnitKind::RaiderBike => &RAIDER_BIKE,
             UnitKind::Bomber => &BOMBER,
+            UnitKind::Fighter => &FIGHTER,
         }
     }
 
     /// Aircraft that strike once and fly back to a Helipad to rearm before the next run.
     pub fn rearms_at_pad(self) -> bool {
         self == UnitKind::Bomber
+    }
+
+    /// Aircraft that land on their Helipad when idle there instead of hovering, as only a helicopter can.
+    pub fn lands_on_pad(self) -> bool {
+        matches!(self, UnitKind::Bomber | UnitKind::Fighter)
     }
 
     /// Units that blend into the ground after keeping still for a while.
@@ -490,6 +499,21 @@ const BOMB_LOAD: WeaponSpec = WeaponSpec {
     versus_vehicle: 1.0,
     versus_structure: 1.4,
     versus_aircraft: 0.0,
+    report: Sound::MissileLaunch,
+};
+
+/// Air-to-air missiles: nothing on the ground is a target.
+const INTERCEPTOR_MISSILES: WeaponSpec = WeaponSpec {
+    range: 12.0,
+    damage: 48.0,
+    reload_secs: 1.8,
+    projectile_speed: 40.0,
+    splash_radius: 0.0,
+    style: ProjectileStyle::Missile,
+    versus_infantry: 0.0,
+    versus_vehicle: 0.0,
+    versus_structure: 0.0,
+    versus_aircraft: 1.5,
     report: Sound::MissileLaunch,
 };
 
@@ -946,6 +970,26 @@ const BOMBER: UnitSpec = UnitSpec {
     faction: Some(Faction::Coalition),
     heal_per_sec: 0.0,
     sight: 18.0,
+};
+
+const FIGHTER: UnitSpec = UnitSpec {
+    name: "Fighter",
+    role: "Fast interceptor with air-to-air missiles. Hunts gunships and bombers, cannot touch the ground.",
+    model_id: "fighter",
+    cost: 1000,
+    build_secs: 14.0,
+    max_health: 220.0,
+    speed: 11.0,
+    turn_rate: 4.0,
+    radius: 1.2,
+    armor: ArmorClass::Aircraft,
+    weapon: Some(INTERCEPTOR_MISSILES),
+    has_turret: false,
+    producer: BuildingKind::Helipad,
+    requires: Some(BuildingKind::TechCenter),
+    faction: None,
+    heal_per_sec: 0.0,
+    sight: 22.0,
 };
 
 const RAIDER_BIKE: UnitSpec = UnitSpec {

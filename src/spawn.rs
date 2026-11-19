@@ -61,8 +61,11 @@ pub fn spawn_unit(
             treating: false,
         });
     }
-    if kind.rearms_at_pad() {
-        unit.insert(Sortie::default());
+    if kind.lands_on_pad() {
+        unit.insert(Sortie {
+            rearms: kind.rearms_at_pad(),
+            parked: false,
+        });
     }
     if kind.hides_when_still() {
         unit.insert(Camouflage::default());

@@ -171,3 +171,22 @@ fn a_bomber_strikes_once_then_lands_on_its_helipad_to_rearm() {
         "the bomber hangs over the pad instead of landing: {back}"
     );
 }
+
+#[test]
+fn a_fighter_shoots_down_a_gunship_but_leaves_ground_units_alone() {
+    let mut battle = Battle::sandbox();
+    let fighter = battle.spawn_unit(UnitKind::Fighter, Team::Player, FIELD);
+    let gunship = battle.spawn_unit(UnitKind::Gunship, Team::Crimson, FIELD + IVec2::new(5, 0));
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Crimson, FIELD + IVec2::new(3, 2));
+    let tank_full = health(&mut battle, tank);
+    battle.run_until(30.0, |battle| {
+        !battle.alive(gunship) || !battle.alive(fighter)
+    });
+    assert!(!battle.alive(gunship), "the gunship survived the fighter");
+    assert!(battle.alive(fighter));
+    assert_eq!(
+        health(&mut battle, tank),
+        tank_full,
+        "the fighter fired at the ground"
+    );
+}

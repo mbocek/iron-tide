@@ -497,7 +497,7 @@ fn plan_next_structure(
 
 /// Weighted wish lists, reweighted by what counters the enemies seen lately; anything the mission
 /// forbids is skipped.
-const VEHICLE_MIX: [(UnitKind, f32); 11] = [
+const VEHICLE_MIX: [(UnitKind, f32); 12] = [
     (UnitKind::Tank, 5.0),
     (UnitKind::Bulwark, 4.0),
     (UnitKind::Artillery, 3.0),
@@ -509,6 +509,7 @@ const VEHICLE_MIX: [(UnitKind, f32); 11] = [
     (UnitKind::StealthTank, 3.0),
     (UnitKind::RaiderBike, 3.0),
     (UnitKind::Bomber, 2.0),
+    (UnitKind::Fighter, 1.5),
 ];
 const INFANTRY_MIX: [(UnitKind, f32); 6] = [
     (UnitKind::Rifleman, 6.0),
@@ -520,6 +521,20 @@ const INFANTRY_MIX: [(UnitKind, f32); 6] = [
 ];
 const AIR_THREAT_SHARE: f32 = 0.25;
 const FLAK_CANNONS_UNDER_AIR_THREAT: usize = 2;
+
+/// A unit that can only shoot aircraft is wasted until the enemy has shown some.
+fn hunts_only_aircraft(kind: UnitKind) -> bool {
+    kind.spec().weapon.is_some_and(|weapon| {
+        weapon.can_hit(ArmorClass::Aircraft)
+            && [
+                ArmorClass::Infantry,
+                ArmorClass::Vehicle,
+                ArmorClass::Structure,
+            ]
+            .iter()
+            .all(|&armor| !weapon.can_hit(armor))
+    })
+}
 
 fn pick_weighted(
     rng: &mut SimulationRng,
@@ -579,6 +594,7 @@ fn train_units(
         .into_iter()
         .filter(|&kind| production.allows(team, BuildItem::Unit(kind)))
         .filter(|&kind| BuildItem::Unit(kind).missing_requirement(owned).is_none())
+        .filter(|&kind| !hunts_only_aircraft(kind) || sightings.share(ArmorClass::Aircraft) > 0.0)
         .collect();
     let allowed = |kind: UnitKind| permitted.contains(&kind);
 

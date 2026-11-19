@@ -59,7 +59,9 @@
 - **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over
   water, walls and units, and tears through armour with its rocket pods. The Coalition's Bomber (Helipad and Tech
   Center, $1500) flies one bombing run, a single heavy stick of bombs with a wide blast, then flies back to the
-  nearest own Helipad and takes no new target until it has rearmed (18 s); idle on its pad it lands. An aircraft hovering over its own
+  nearest own Helipad and takes no new target until it has rearmed (18 s); idle on its pad it lands. The Fighter (Helipad and Tech
+  Center, $1000, both factions) hunts aircraft with air-to-air missiles, cannot hit anything on the ground and also
+  lands on its pad when idle there. Aircraft are selected and targeted by clicking them where they fly. An aircraft hovering over its own
   Helipad (within 3 m of the pad's centre, not moving) regains 4 % of its health per second for free. Tank cannons and howitzers cannot shoot upwards at all;
   riflemen and turrets hit it weakly, scout buggies better and rocketeers well. The dedicated counters are
   the Flak Track ($700, War Factory) and the Flak Cannon ($700 structure, after the Barracks), whose bursting

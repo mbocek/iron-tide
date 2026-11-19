@@ -80,6 +80,7 @@ fn authored_drive_speed(kind: UnitKind) -> f32 {
         UnitKind::StealthTank => 3.6,
         UnitKind::RaiderBike => 6.0,
         UnitKind::Bomber => 9.0,
+        UnitKind::Fighter => 11.0,
     }
 }
 

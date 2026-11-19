@@ -9,9 +9,11 @@ use crate::movement::order_move;
 /// Close enough to a Helipad's centre to be on its pad, where it is also repaired.
 const ON_THE_PAD: f32 = 3.0;
 
-/// An aircraft that strikes once and flies home to a Helipad to rearm.
+/// An aircraft that lands on its Helipad when idle there, and if `rearms`, strikes once and flies home to
+/// rearm before the next run.
 #[derive(Component, Default)]
 pub struct Sortie {
+    pub rearms: bool,
     /// Sitting on its pad with nothing to do, so it lands instead of hanging in the air.
     pub parked: bool,
 }
@@ -53,7 +55,7 @@ pub fn fly_home_to_rearm(
             });
         let at_home = home.is_some_and(|pad| pad.xz().distance(here.xz()) <= ON_THE_PAD);
         sortie.parked = at_home && !mobile.is_moving() && attack.target.is_none();
-        if weapon.cooldown <= 0.0 {
+        if !sortie.rearms || weapon.cooldown <= 0.0 {
             continue;
         }
         attack.clear();
