@@ -103,3 +103,41 @@ fn a_stealth_tank_caught_in_the_open_falls_to_a_pair_of_battle_tanks() {
     });
     assert!(!battle.alive(stealth_tank));
 }
+
+#[test]
+fn raider_bikes_run_down_a_howitzer() {
+    let mut battle = Battle::sandbox();
+    let howitzer = battle.spawn_unit(UnitKind::Artillery, Team::Player, FIELD);
+    let bikes = squad(
+        &mut battle,
+        UnitKind::RaiderBike,
+        Team::Crimson,
+        FIELD + IVec2::new(4, 0),
+        2,
+    );
+    battle.run_until(40.0, |battle| {
+        !battle.alive(howitzer) || survivors(battle, &bikes) == 0
+    });
+    assert!(!battle.alive(howitzer), "the howitzer held off the bikes");
+}
+
+#[test]
+fn riflemen_shoot_raider_bikes_off_the_road() {
+    let mut battle = Battle::sandbox();
+    let bikes = squad(&mut battle, UnitKind::RaiderBike, Team::Crimson, FIELD, 2);
+    let riflemen = squad(
+        &mut battle,
+        UnitKind::Rifleman,
+        Team::Player,
+        FIELD + IVec2::new(4, 0),
+        7,
+    );
+    battle.run_until(40.0, |battle| {
+        survivors(battle, &bikes) == 0 || survivors(battle, &riflemen) == 0
+    });
+    assert_eq!(
+        survivors(&mut battle, &bikes),
+        0,
+        "the bikes beat the riflemen"
+    );
+}

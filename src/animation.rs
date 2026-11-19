@@ -78,6 +78,7 @@ fn authored_drive_speed(kind: UnitKind) -> f32 {
         UnitKind::MissileTruck => 4.0,
         UnitKind::RepairTruck => 4.5,
         UnitKind::StealthTank => 3.6,
+        UnitKind::RaiderBike => 6.0,
     }
 }
 

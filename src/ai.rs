@@ -31,7 +31,7 @@ const MAX_WAVE_SIZE: usize = 16;
 const SPLIT_WAVES_FROM: usize = 6;
 const FLANK_OFFSET: f32 = 24.0;
 const RAID_SIZE: usize = 3;
-const RAIDERS: [UnitKind; 2] = [UnitKind::Scout, UnitKind::Gunship];
+const RAIDERS: [UnitKind; 3] = [UnitKind::Scout, UnitKind::RaiderBike, UnitKind::Gunship];
 const WAVE_GROWTH: usize = 2;
 /// With no enemy soldier in sight for this long, whatever waits at home goes hunting.
 const QUIET_FRONT_SECS: f32 = 90.0;
@@ -497,7 +497,7 @@ fn plan_next_structure(
 
 /// Weighted wish lists, reweighted by what counters the enemies seen lately; anything the mission
 /// forbids is skipped.
-const VEHICLE_MIX: [(UnitKind, f32); 9] = [
+const VEHICLE_MIX: [(UnitKind, f32); 10] = [
     (UnitKind::Tank, 5.0),
     (UnitKind::Bulwark, 4.0),
     (UnitKind::Artillery, 3.0),
@@ -507,6 +507,7 @@ const VEHICLE_MIX: [(UnitKind, f32); 9] = [
     (UnitKind::MissileTruck, 4.0),
     (UnitKind::RepairTruck, 1.0),
     (UnitKind::StealthTank, 3.0),
+    (UnitKind::RaiderBike, 3.0),
 ];
 const INFANTRY_MIX: [(UnitKind, f32); 6] = [
     (UnitKind::Rifleman, 6.0),

@@ -207,6 +207,7 @@ pub enum UnitKind {
     Grenadier,
     RepairTruck,
     StealthTank,
+    RaiderBike,
 }
 
 pub struct UnitSpec {
@@ -244,8 +245,9 @@ impl UnitKind {
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
-    pub const VEHICLES: [UnitKind; 10] = [
+    pub const VEHICLES: [UnitKind; 11] = [
         UnitKind::Scout,
+        UnitKind::RaiderBike,
         UnitKind::Tank,
         UnitKind::StealthTank,
         UnitKind::Bulwark,
@@ -256,7 +258,7 @@ impl UnitKind {
         UnitKind::RepairTruck,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 17] = [
+    pub const ALL: [UnitKind; 18] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -274,6 +276,7 @@ impl UnitKind {
         UnitKind::Grenadier,
         UnitKind::RepairTruck,
         UnitKind::StealthTank,
+        UnitKind::RaiderBike,
     ];
 
     pub fn flies(self) -> bool {
@@ -299,6 +302,7 @@ impl UnitKind {
             UnitKind::Grenadier => &GRENADIER,
             UnitKind::RepairTruck => &REPAIR_TRUCK,
             UnitKind::StealthTank => &STEALTH_TANK,
+            UnitKind::RaiderBike => &RAIDER_BIKE,
         }
     }
 
@@ -448,6 +452,20 @@ const STEALTH_MISSILES: WeaponSpec = WeaponSpec {
     versus_vehicle: 1.0,
     versus_structure: 0.7,
     versus_aircraft: 0.4,
+    report: Sound::MissileLaunch,
+};
+
+const BIKE_ROCKETS: WeaponSpec = WeaponSpec {
+    range: 8.0,
+    damage: 38.0,
+    reload_secs: 2.4,
+    projectile_speed: 28.0,
+    splash_radius: 0.0,
+    style: ProjectileStyle::Missile,
+    versus_infantry: 0.3,
+    versus_vehicle: 1.0,
+    versus_structure: 0.4,
+    versus_aircraft: 0.3,
     report: Sound::MissileLaunch,
 };
 
@@ -884,6 +902,26 @@ const GRENADIER: UnitSpec = UnitSpec {
     faction: None,
     heal_per_sec: 0.0,
     sight: 12.0,
+};
+
+const RAIDER_BIKE: UnitSpec = UnitSpec {
+    name: "Raider Bike",
+    role: "Fast, cheap motorbike with anti-armour rockets. Hunts harvesters and artillery, dies to gunfire.",
+    model_id: "raider_bike",
+    cost: 350,
+    build_secs: 7.0,
+    max_health: 140.0,
+    speed: 8.0,
+    turn_rate: 6.0,
+    radius: 0.7,
+    armor: ArmorClass::Vehicle,
+    weapon: Some(BIKE_ROCKETS),
+    has_turret: false,
+    producer: BuildingKind::Factory,
+    requires: None,
+    faction: Some(Faction::Syndicate),
+    heal_per_sec: 0.0,
+    sight: 20.0,
 };
 
 const STEALTH_TANK: UnitSpec = UnitSpec {

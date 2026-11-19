@@ -12,7 +12,7 @@ from .details import (add_ammo_box, add_antenna, add_jerrycan, add_outline_band,
 from .nature import add_boulder
 from .ore import Crystal, add_crystal
 from .parts import (AUTO_SMOOTH, TURRET, batch, box, current_assembly, cylinder, cylinder_between, group, lathe,
-                    part, prism, slab)
+                    part, prism, slab, sphere)
 from .running_gear import TrackLayout, make_track_assembly, make_wheel, rolling_group
 
 GLASS = "Glass"
@@ -1068,3 +1068,41 @@ def build_stealth_tank():
                     cylinder("Gunmetal", 0.045, 0.04, pod + Vector((0.41, 0.0, row * 0.05)), FACING_FRONT,
                              segments=8, name="PodMouth")
     animate_vehicle(ground_speed=3.6, recoil=Vector((-STEALTH_TANK_RECOIL, 0.0, 0.0)))
+
+
+def build_raider_bike():
+    """A Syndicate dirt bike with its rider and a twin rocket pod over the front wheel: cheap, fast and fragile."""
+    wheel_radius, wheel_width = 0.34, 0.16
+    for name, x in (("Wheel_F", 0.72), ("Wheel_R", -0.62)):
+        hub = Vector((x, 0.0, wheel_radius))
+        with rolling_group(name, hub, wheel_radius):
+            make_wheel(hub, wheel_radius, wheel_width, side=1)
+    cylinder_between("Gunmetal", (0.72, 0.0, 0.34), (0.48, 0.0, 0.95), 0.035, 8, name="FrontFork")
+    cylinder_between("Gunmetal", (-0.62, 0.0, 0.34), (-0.1, 0.0, 0.55), 0.035, 8, name="SwingArm")
+    frame = [(-0.45, 0.5), (0.35, 0.55), (0.5, 0.82), (0.05, 0.85), (-0.5, 0.75)]
+    prism("ArmorDark", frame, 0.26, bevel=0.02, name="Frame")
+    box("Armor", (0.5, 0.3, 0.18), (0.18, 0.0, 0.88), bevel=0.04, name="FuelTank")
+    box("TeamColor", (0.3, 0.31, 0.04), (0.2, 0.0, 0.93), bevel=0.0, name="TankTeamStripe")
+    box("Webbing", (0.55, 0.26, 0.08), (-0.28, 0.0, 0.88), bevel=0.03, name="Seat")
+    cylinder_between("Gunmetal", (0.48, -0.32, 1.0), (0.48, 0.32, 1.0), 0.02, 6, name="Handlebar")
+    add_lamp((0.62, 0.0, 0.92), FACING_FRONT, radius=0.05, depth=0.05)
+    cylinder_between("Steel", (-0.3, 0.16, 0.5), (-0.75, 0.16, 0.62), 0.04, 8, name="Exhaust")
+    for side in (-1, 1):
+        pod = Vector((0.42, side * 0.26, 0.78))
+        box("Armor", (0.42, 0.12, 0.12), pod, bevel=0.015, name="RocketPod")
+        cylinder("Gunmetal", 0.035, 0.03, pod + Vector((0.22, 0.0, 0.0)), FACING_FRONT, segments=8, name="PodMouth")
+    _add_bike_rider()
+    animate_vehicle(ground_speed=6.0)
+
+
+def _add_bike_rider():
+    """A crouched rider in the saddle; part of the bike's mesh, as the bike carries no skeleton."""
+    box("Uniform", (0.32, 0.3, 0.24), (-0.25, 0.0, 1.0), bevel=0.04, name="RiderHips")
+    box("Uniform", (0.34, 0.34, 0.42), (-0.08, 0.0, 1.28), (0, math.radians(-35), 0), bevel=0.05, name="RiderTorso")
+    box("Webbing", (0.16, 0.3, 0.34), (-0.27, 0.0, 1.32), (0, math.radians(-35), 0), bevel=0.03, name="RiderPack")
+    sphere("Armor", 0.13, (0.12, 0.0, 1.55), name="RiderHelmet")
+    box("TeamColor", (0.05, 0.2, 0.06), (0.24, 0.0, 1.56), bevel=0.0, name="RiderVisorBand")
+    for side in (-1, 1):
+        cylinder_between("Uniform", (0.0, side * 0.17, 1.42), (0.42, side * 0.3, 1.02), 0.05, 6, name="RiderArm")
+        cylinder_between("Uniform", (-0.22, side * 0.15, 0.98), (0.08, side * 0.2, 0.7), 0.065, 6, name="RiderThigh")
+        cylinder_between("Uniform", (0.08, side * 0.2, 0.7), (-0.05, side * 0.2, 0.4), 0.055, 6, name="RiderShin")
