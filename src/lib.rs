@@ -79,6 +79,7 @@ pub mod ui;
 pub mod unit_orders;
 pub mod updates;
 pub mod veterancy;
+pub mod weather;
 
 use bevy::prelude::*;
 
@@ -354,6 +355,7 @@ impl Plugin for GamePlugin {
                     flat_scenery::merge_scenery_models,
                     flat_scenery::dress_flat_scenery,
                     flat_scenery::follow_wind_setting,
+                    weather::follow_the_weather,
                     crystal_models::merge_crystal_models,
                     crystal_models::dress_crystals,
                 )
@@ -382,7 +384,7 @@ impl Plugin for GamePlugin {
                     map_edits::apply_map_edits,
                     map::spawn_terrain_visuals,
                     camera::focus_on_player_base,
-                    battlefield::set_the_weather,
+                    weather::begin_weather,
                     replay::spawn_replay_hud,
                 )
                     .chain(),
@@ -422,7 +424,7 @@ impl Plugin for GamePlugin {
                     map_edits::apply_map_edits,
                     map::spawn_terrain_visuals,
                     camera::focus_on_player_base,
-                    battlefield::set_the_weather,
+                    weather::begin_weather,
                 )
                     .chain(),
             )
@@ -510,7 +512,7 @@ impl Plugin for GamePlugin {
                     structure_tools::prepare_structure_tools,
                     tutorial::start_tutorial,
                     field_tips::spawn_tip_panel,
-                    battlefield::set_the_weather,
+                    weather::begin_weather,
                     replay::start_recording,
                     orders::spawn_selection_box,
                     ambience::light_crystal_fields,

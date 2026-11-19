@@ -72,6 +72,10 @@ mod uniforms {
         pub snow_cover: f32,
         /// The fog texture spans the playable map, whose size depends on the level.
         pub map_world_size: f32,
+        /// 0 dry, 1 soaked by rain: darker, glossier ground.
+        pub wet_ground: f32,
+        /// 0 broken clouds casting moving shadows, 1 an even overcast with none.
+        pub cloud_cover: f32,
     }
 }
 
@@ -171,6 +175,8 @@ pub fn assemble_terrain_material(
                 water_level: crate::terrain::WATER_LEVEL,
                 snow_cover: Season::Summer.snow_cover(),
                 map_world_size: map_world_size(),
+                wet_ground: 0.0,
+                cloud_cover: 0.0,
             },
             albedo_roughness: images.add(mipmapped_array(
                 &albedo_layers,

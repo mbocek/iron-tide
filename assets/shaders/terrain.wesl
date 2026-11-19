@@ -12,6 +12,8 @@ struct TerrainSettings {
     water_level: f32,
     snow_cover: f32,
     map_world_size: f32,
+    wet_ground: f32,
+    cloud_cover: f32,
 };
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> terrain: TerrainSettings;
@@ -143,6 +145,12 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     albedo *= mix(1.0, 0.55, wetness);
     roughness = mix(roughness, 0.25, wetness);
 
+    // Rain soaks low and flat ground first, so puddles show before the slopes darken.
+    let pooling = value_noise(world_xz * 0.45) * 0.5 + smoothstep(0.85, 1.0, pbr_input.world_normal.y) * 0.5;
+    let soaked = terrain.wet_ground * smoothstep(0.15, 0.6, pooling + terrain.wet_ground * 0.4);
+    albedo *= mix(1.0, 0.62, soaked);
+    roughness = mix(roughness, 0.22, soaked);
+
     let shoreline = 1.0 - smoothstep(0.0, FOAM_BAND, abs(in.world_position.y - (terrain.water_level + 0.03)));
     let foam_ripple = value_noise(world_xz * 2.3 + vec2<f32>(globals.time * 0.6, globals.time * 0.35));
     let foam = shoreline * smoothstep(0.35, 0.75, foam_ripple);
@@ -151,7 +159,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
 
     let cloud_uv = (world_xz + CLOUD_DRIFT * globals.time) * CLOUD_SCALE;
     let cloud = value_noise(cloud_uv) * 0.65 + value_noise(cloud_uv * 2.7 + vec2<f32>(5.2, 1.3)) * 0.35;
-    albedo *= 1.0 - CLOUD_SHADOW_DEPTH * smoothstep(0.52, 0.72, cloud);
+    albedo *= 1.0 - CLOUD_SHADOW_DEPTH * (1.0 - terrain.cloud_cover) * smoothstep(0.52, 0.72, cloud);
 
     let geometry_normal = pbr_input.world_normal;
     let tangent = normalize(vec3<f32>(1.0, 0.0, 0.0) - geometry_normal * geometry_normal.x);

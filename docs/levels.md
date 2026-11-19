@@ -103,6 +103,10 @@ green; a warmer sun) or `Winter` (snow on open flat ground and on top of rocks, 
 leaves, a colder sun, and rain falls as snow). Each scenery model's colours are turned once per season when
 it is loaded, so seasons cost nothing while playing. The campaign's third and eighth missions are fought in winter, its fifth, seventh and
 ninth in autumn.
+Weather: `Clear` or `Rain` is how a match starts. From there the sky changes on its own: clear spells of a
+few minutes, clouds that dim the sun and smooth away the moving cloud shadows, and showers that fade in,
+soak the ground darker and glossier and dry off slowly afterwards. The forecast comes from the map seed, so
+every player of a network match sees the same sky; it does not affect play.
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel

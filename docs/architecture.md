@@ -48,5 +48,6 @@
 | `outcome`, `match_stats` | mission objectives, victory and defeat; the tally shown at the end of a match |
 | `replay` | recording matches, storing and listing replays, watching them |
 | `battlefield` | scorch marks, vehicle wrecks and rain |
+| `weather` | the sky changing during a match: clouds, showers, wet ground |
 | `capture` | `IRON_TIDE_CAPTURE=shot.png` saves a screenshot and quits (for development; `_SAVE_SLOT` / `_LOAD_SLOT` test saves, `_REPLAY=1` watches the newest replay, `_SELECT_ALL=1` selects every own unit, `_ZOOM=150` sets the camera distance, `_MENU=keys` opens that menu page; `_MISSION` numbers past the campaign
 continue with the custom levels) |

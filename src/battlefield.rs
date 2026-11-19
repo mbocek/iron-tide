@@ -8,9 +8,10 @@ use crate::camera::RtsCamera;
 use crate::catalog::ArmorClass;
 use crate::combat::{DamageSource, Destroyed, Impact};
 use crate::effects::{BlastSize, EffectAssets, spawn_blast};
-use crate::levels::{ActiveLevel, Weather};
+use crate::levels::ActiveLevel;
 use crate::local_view::LocalView;
 use crate::season::Season;
+use crate::weather::WeatherCycle;
 
 const CRATER_LIFETIME_SECS: f32 = 40.0;
 const MAX_CRATERS: usize = 80;
@@ -30,10 +31,6 @@ const RAIN_STREAK: Vec3 = Vec3::new(0.12, -0.9, 0.05);
 const SNOW_FALL_SPEED: f32 = 2.2;
 const SNOWFLAKE: Vec3 = Vec3::new(0.05, -0.12, 0.0);
 const SNOW_FLUTTER: f32 = 0.5;
-const CLEAR_SUNLIGHT: f32 = 7_000.0;
-const RAIN_SUNLIGHT: f32 = 3_200.0;
-const CLEAR_AMBIENT: f32 = 280.0;
-const RAIN_AMBIENT: f32 = 190.0;
 
 #[derive(Resource)]
 pub struct BattlefieldAssets {
@@ -231,26 +228,6 @@ pub fn smoulder_and_sink_wrecks(
     }
 }
 
-/// Rain dims the sun and the sky light; clear weather restores them.
-pub fn set_the_weather(
-    level: Res<ActiveLevel>,
-    mut suns: Query<&mut DirectionalLight>,
-    mut ambient: ResMut<GlobalAmbientLight>,
-) {
-    let raining = level.0.weather == Weather::Rain;
-    let season = level.0.season;
-    for mut sun in &mut suns {
-        sun.illuminance = if raining {
-            RAIN_SUNLIGHT
-        } else {
-            CLEAR_SUNLIGHT
-        };
-        sun.color = season.sunlight_color();
-    }
-    let brightness = if raining { RAIN_AMBIENT } else { CLEAR_AMBIENT };
-    ambient.brightness = brightness * season.ambient_factor();
-}
-
 fn drop_hash(index: usize, salt: u32) -> f32 {
     let mut h = (index as u32).wrapping_mul(0x9e37_79b9) ^ salt.wrapping_mul(0x85eb_ca6b);
     h ^= h >> 15;
@@ -259,14 +236,18 @@ fn drop_hash(index: usize, salt: u32) -> f32 {
     (h & 0x00ff_ffff) as f32 / 0x00ff_ffff as f32
 }
 
-/// Streaks of rain, or in winter drifting snowflakes, falling around the point the camera looks at.
+/// Streaks of rain, or in winter drifting snowflakes, falling around the point the camera looks at, as
+/// thick as the weather says.
 pub fn draw_rain(
     mut gizmos: Gizmos,
     time: Res<Time>,
     level: Res<ActiveLevel>,
+    weather: Option<Res<WeatherCycle>>,
     cameras: Query<&RtsCamera>,
 ) {
-    if level.0.weather != Weather::Rain {
+    let rainfall = weather.map_or(0.0, |weather| weather.now.rainfall);
+    let drops = (RAIN_DROPS as f32 * rainfall) as usize;
+    if drops == 0 {
         return;
     }
     let Ok(camera) = cameras.single() else { return };
@@ -285,7 +266,7 @@ pub fn draw_rain(
         )
     };
     let elapsed = time.elapsed_secs();
-    for index in 0..RAIN_DROPS {
+    for index in 0..drops {
         let offset = Vec2::new(drop_hash(index, 1), drop_hash(index, 2)) * 2.0 - Vec2::ONE;
         let fallen = (elapsed * fall_speed + drop_hash(index, 3) * RAIN_HEIGHT) % RAIN_HEIGHT;
         let flutter = if snowing {
