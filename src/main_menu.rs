@@ -1,4 +1,7 @@
-use crate::campaigns::{Campaign, CampaignLibrary, CampaignRun, find_campaign};
+use crate::campaigns::{
+    Campaign, CampaignLibrary, CampaignRun, add_to_my_campaign, built_in_campaigns,
+    custom_campaigns, find_campaign,
+};
 use crate::map_editor::open_map_editor;
 use crate::map_preview::map_preview;
 use crate::menu::{MenuPlace, MenuState, close_settings, open_settings, spawn_menu};
@@ -318,6 +321,7 @@ pub enum MenuCommand {
     StartCampaignMission,
     CycleCampaignDifficulty,
     ContinueCampaign,
+    AddToMyCampaign,
     OpenSettings,
     BackToHub,
     DownloadUpdate,
@@ -1814,6 +1818,12 @@ fn rebuild_details(
                 spawn_command_button(panel, fonts, tr("START MISSION"), MenuCommand::StartSelected);
                 if matches!(menu.entries[index].source, LevelSource::Custom(_)) {
                     spawn_command_button(panel, fonts, tr("EDIT MAP"), MenuCommand::EditMap);
+                    spawn_command_button(
+                        panel,
+                        fonts,
+                        tr("ADD TO MY CAMPAIGN"),
+                        MenuCommand::AddToMyCampaign,
+                    );
                 }
             }
             Selection::Replay(index) => {
@@ -2112,6 +2122,28 @@ fn run_command(
         MenuCommand::CycleCampaignDifficulty => {
             menu.campaign_difficulty = cycle(&Difficulty::ALL, menu.campaign_difficulty, true);
             settings.campaign_difficulty = menu.campaign_difficulty;
+            menu.needs_rebuild = true;
+        }
+        MenuCommand::AddToMyCampaign => {
+            let Selection::Level(index) = menu.selection else {
+                return;
+            };
+            let entry = &menu.entries[index];
+            let LevelSource::Custom(path) = &entry.source else {
+                return;
+            };
+            let added =
+                add_to_my_campaign(&custom_levels_directory(), path, entry.level.player_faction);
+            menu.message = Some(match added {
+                Ok(count) => tr_fmt(
+                    "Added - My campaign now has {} missions under Campaigns.",
+                    &[&count],
+                ),
+                Err(error) => tr_fmt("Could not add the level: {}", &[&error]),
+            });
+            let mut campaigns = built_in_campaigns();
+            campaigns.extend(custom_campaigns(&custom_levels_directory()));
+            menu.campaigns = campaigns;
             menu.needs_rebuild = true;
         }
         MenuCommand::ContinueCampaign => {

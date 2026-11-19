@@ -576,8 +576,10 @@ impl Plugin for GamePlugin {
                 (
                     match_flow::unpause,
                     lobby::end_network_battle,
+                    campaigns::reload_campaigns,
                     main_menu::build_main_menu,
-                ),
+                )
+                    .chain(),
             )
             .add_systems(
                 Update,

@@ -1,7 +1,23 @@
+use std::path::{Path, PathBuf};
+
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::catalog::Faction;
-use crate::levels::{Difficulty, LevelDefinition, campaign};
+use crate::levels::{Difficulty, LevelDefinition, campaign, custom_levels_directory};
+
+/// Custom campaigns live in this folder inside the custom levels folder, one JSON file each.
+const CUSTOM_CAMPAIGNS_FOLDER: &str = "campaigns";
+const MY_CAMPAIGN_FILE: &str = "my_campaign.json";
+
+/// A custom campaign as written on disk: its levels are file names in the custom levels folder, in order.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct CampaignFile {
+    pub title: String,
+    #[serde(default)]
+    pub faction: Faction,
+    pub levels: Vec<String>,
+}
 
 /// A chain of missions played in order, each unlocked by winning the one before.
 #[derive(Clone, Debug)]
@@ -91,6 +107,84 @@ pub fn built_in_campaigns() -> Vec<Campaign> {
     .collect()
 }
 
+pub fn custom_campaigns_directory(levels_directory: &Path) -> PathBuf {
+    levels_directory.join(CUSTOM_CAMPAIGNS_FOLDER)
+}
+
+/// Every readable custom campaign whose levels all load, sorted by file name.
+pub fn custom_campaigns(levels_directory: &Path) -> Vec<Campaign> {
+    let Ok(entries) = std::fs::read_dir(custom_campaigns_directory(levels_directory)) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+        .collect();
+    paths.sort();
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            let file: CampaignFile =
+                serde_json::from_str(&std::fs::read_to_string(&path).ok()?).ok()?;
+            let missions = file
+                .levels
+                .iter()
+                .map(|name| {
+                    let json = std::fs::read_to_string(levels_directory.join(name)).ok()?;
+                    let level: LevelDefinition = serde_json::from_str(&json).ok()?;
+                    level.problems().is_empty().then_some(level)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let stem = path.file_stem()?.to_string_lossy();
+            (!missions.is_empty()).then(|| Campaign {
+                key: format!("custom:{stem}"),
+                title: file.title,
+                faction: file.faction,
+                missions,
+                built_in: false,
+            })
+        })
+        .collect()
+}
+
+/// Appends a custom level to the player's own campaign file, creating it on first use.
+pub fn add_to_my_campaign(
+    levels_directory: &Path,
+    level_file: &Path,
+    faction: Faction,
+) -> std::io::Result<usize> {
+    let folder = custom_campaigns_directory(levels_directory);
+    std::fs::create_dir_all(&folder)?;
+    let path = folder.join(MY_CAMPAIGN_FILE);
+    let mut file = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|json| serde_json::from_str::<CampaignFile>(&json).ok())
+        .unwrap_or(CampaignFile {
+            title: "My campaign".to_string(),
+            faction,
+            levels: Vec::new(),
+        });
+    let name = level_file
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .ok_or_else(|| std::io::Error::other("the level has no file name"))?;
+    if !file.levels.contains(&name) {
+        file.levels.push(name);
+    }
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&file).map_err(std::io::Error::other)?,
+    )?;
+    Ok(file.levels.len())
+}
+
+/// Reloads the campaigns on returning to the main menu, so custom ones written meanwhile appear.
+pub fn reload_campaigns(mut library: ResMut<CampaignLibrary>) {
+    let mut campaigns = built_in_campaigns();
+    campaigns.extend(custom_campaigns(&custom_levels_directory()));
+    library.0 = campaigns;
+}
+
 pub fn find_campaign<'a>(campaigns: &'a [Campaign], key: &str) -> Option<&'a Campaign> {
     campaigns.iter().find(|campaign| campaign.key == key)
 }
@@ -141,6 +235,35 @@ mod tests {
         let first_won = vec![coalition.progress_key(0)];
         assert!(coalition.unlocked(1, &first_won));
         assert_eq!(coalition.next_to_play(&first_won), Some(1));
+    }
+
+    #[test]
+    fn a_custom_campaign_chains_levels_from_the_custom_folder_and_skips_broken_ones() {
+        let folder =
+            std::env::temp_dir().join(format!("iron_tide_campaigns_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let level = LevelDefinition::default();
+        let level_path = crate::levels::save_custom_level(&folder, &level).unwrap();
+        assert_eq!(
+            add_to_my_campaign(&folder, &level_path, Faction::Coalition).unwrap(),
+            1
+        );
+        assert_eq!(
+            add_to_my_campaign(&folder, &level_path, Faction::Coalition).unwrap(),
+            1
+        );
+        std::fs::write(
+            custom_campaigns_directory(&folder).join("broken.json"),
+            r#"{"title": "Broken", "levels": ["missing.json"]}"#,
+        )
+        .unwrap();
+        let found = custom_campaigns(&folder);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].title, "My campaign");
+        assert_eq!(found[0].missions.len(), 1);
+        assert!(found[0].progress_key(0).starts_with("custom:my_campaign/"));
+        let _ = std::fs::remove_dir_all(&folder);
     }
 
     #[test]

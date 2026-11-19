@@ -513,5 +513,9 @@
   "{} campaign: mission {} of {}": "Kampaň {}: mise {} z {}",
   "Unlocked: {}": "Odemčeno: {}",
   "Campaign complete!": "Kampaň dokončena!",
-  "Locked: win {} first.": "Zamčeno: nejdřív vyhraj {}."
+  "Locked: win {} first.": "Zamčeno: nejdřív vyhraj {}.",
+  "ADD TO MY CAMPAIGN": "PŘIDAT DO MÉ KAMPANĚ",
+  "Added - My campaign now has {} missions under Campaigns.": "Přidáno - Moje kampaň má teď {} misí v Kampaních.",
+  "Could not add the level: {}": "Úroveň se nepodařilo přidat: {}",
+  "My campaign": "Moje kampaň"
 }

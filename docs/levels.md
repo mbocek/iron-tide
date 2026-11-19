@@ -63,6 +63,11 @@ opens a screen with a *Back* button; Esc goes back too.
   (destroy everything / destroy Command Centers / survive 10 minutes / stockpile credits), available units,
   map variant and your starting corner. *Save as custom level* writes a JSON file to
   `~/.config/iron_tide/levels/`; every valid file there is listed under *Custom levels*.
+- **Custom campaigns:** a JSON file in `~/.config/iron_tide/levels/campaigns/` chains custom levels into a
+  campaign listed beside the built-in ones, with the same unlocking, progress and difficulty:
+  `{ "title": "Border Raids", "faction": "Coalition", "levels": ["a.json", "b.json"] }` (level file names in the
+  custom levels folder, in order). *Add to my campaign* on a custom level appends it to `my_campaign.json`; a
+  campaign whose level files are missing or invalid is left out.
 - **Continue:** resumes the quick save. Saves remember their level.
 - **Replays:** every match is recorded and saved when it ends (or as *Unfinished* when you leave it or close
   the game). The newest 10 are listed under *Replays* and kept in `~/.config/iron_tide/replays/`. Watching one
