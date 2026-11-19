@@ -118,17 +118,32 @@ def add_leaf_cards(bm, centre, radius, seed, count, amplitude):
         bm.faces.new((back[3], back[2], back[0]))
 
 
-def add_crown(limb_paths, leaf_materials, rng, seed, end_radius, mid_radius, top_clusters, inner_clusters):
-    """Leaf clusters at limb tips and along limbs, plus crown top and shaded inner clusters."""
-    for index, path in enumerate(limb_paths):
-        tip_size = end_radius * rng.uniform(0.85, 1.15)
-        leaf_cluster(leaf_materials[index % 2], path[-1] + UP * tip_size * 0.25, tip_size, seed + index)
-        mid = path[-2].lerp(path[-1], 0.3) + UP * mid_radius * 0.4
-        leaf_cluster(leaf_materials[2], mid, mid_radius * rng.uniform(0.85, 1.1), seed + 50 + index, 2)
-    for index, (centre, radius) in enumerate(top_clusters):
-        leaf_cluster(leaf_materials[1 if index % 2 else 0], centre, radius, seed + 100 + index)
-    for index, (centre, radius) in enumerate(inner_clusters):
-        leaf_cluster(leaf_materials[3], centre, radius, seed + 150 + index, 2)
+def add_crown(limb_paths, rng, seed, centre, reach, height, cluster_count, cluster_size):
+    """A crown of many overlapping leaf clusters filling one lumpy envelope around the limb tips, shaded by
+    where light reaches: sunlit on top and outside, deep green underneath and within. A few big uniform
+    balls read as broccoli."""
+    centre = Vector(centre)
+    spots = [path[-1] + UP * cluster_size * 0.3 for path in limb_paths]
+    while len(spots) < cluster_count:
+        direction = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1) + 0.25)).normalized()
+        depth = rng.uniform(0.5, 1.0) ** 0.5
+        flatten = 0.65 if direction.z < 0 else 1.0
+        spots.append(centre + Vector((direction.x * reach, direction.y * reach,
+                                      direction.z * height * flatten)) * depth)
+    for index, spot in enumerate(spots):
+        offset = spot - centre
+        uplift = (offset.z / height + 1.0) * 0.5
+        outward = min(1.0, Vector((offset.x / reach, offset.y / reach, offset.z / height)).length)
+        light = 0.65 * uplift + 0.35 * outward + rng.uniform(-0.08, 0.08)
+        size = cluster_size * rng.uniform(0.75, 1.2) * (0.85 + 0.3 * outward)
+        leaf_cluster(_leaf_in_light(light), spot, size, seed + index, subdivisions=2, amplitude=0.4, cards=14)
+
+
+def _leaf_in_light(light):
+    for threshold, material_name in ((0.78, "LeafSun"), (0.55, "LeafMid"), (0.36, "LeafOlive")):
+        if light > threshold:
+            return material_name
+    return "LeafDeep"
 
 
 def build_tree_broadleaf():
@@ -139,11 +154,8 @@ def build_tree_broadleaf():
                   rng.uniform(1.6, 2.0), rng.uniform(1.0, 1.5), 0.17) for k in range(5)]
     paths = add_limbs("Bark", limbs, rng)
     add_twigs("Bark", paths, rng)
-    add_crown(paths, ("LeafMid", "LeafSun", "LeafOlive", "LeafDeep"), rng, 2010, end_radius=0.95, mid_radius=0.75,
-              top_clusters=[(Vector((0.0, 0.0, 3.75)), 1.15), (Vector((0.35, -0.3, 4.3)), 0.8),
-                            (Vector((-0.5, 0.4, 4.15)), 0.75)],
-              inner_clusters=[(Vector((math.cos(a) * 0.9, math.sin(a) * 0.9, 2.85)), 0.8)
-                              for a in (0.3, 1.9, 3.5, 5.1)])
+    add_crown(paths, rng, 2010, centre=(0.0, 0.0, 3.35), reach=2.0, height=1.25, cluster_count=22,
+              cluster_size=0.85)
 
 
 def build_tree():
@@ -155,9 +167,8 @@ def build_tree():
                   rng.uniform(0.9, 1.15), rng.uniform(1.0, 1.4), 0.12) for k in range(4)]
     paths = add_limbs("Bark", limbs, rng, segments=6)
     add_twigs("Bark", paths, rng, length=0.45, radius=0.028)
-    add_crown(paths, ("LeafOlive", "LeafMid", "LeafSun", "LeafDeep"), rng, 2110, end_radius=0.78, mid_radius=0.6,
-              top_clusters=[(Vector((0.1, 0.05, 3.55)), 0.95), (Vector((0.0, 0.0, 4.0)), 0.6)],
-              inner_clusters=[(Vector((math.cos(a) * 0.55, math.sin(a) * 0.55, 2.7)), 0.65) for a in (0.8, 2.9, 5.0)])
+    add_crown(paths, rng, 2110, centre=(0.05, 0.02, 3.25), reach=1.4, height=1.1, cluster_count=15,
+              cluster_size=0.7)
 
 
 def build_tree_birch():

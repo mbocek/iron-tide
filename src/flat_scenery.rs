@@ -91,7 +91,7 @@ pub fn merge_scenery_models(
                 .collect(),
             material: materials.add(MovingMaterial {
                 base: material,
-                extension: Motion::swaying(lean),
+                extension: Motion::scenery(lean),
             }),
             lean,
         });

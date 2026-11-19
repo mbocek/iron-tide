@@ -4,7 +4,7 @@ import bevy_pbr::render::{
     mesh_view_bindings::globals,
     view_transformations::position_world_to_clip,
 };
-import super::motion_common::{MotionSettings, hovering, swayed};
+import super::motion_common::{MotionSettings, hovering, swayed, varied_tint};
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> motion: MotionSettings;
 
@@ -37,7 +37,7 @@ fn vertex(vertex_in: Vertex) -> VertexOutput {
     out.world_tangent = mesh_functions::mesh_tangent_local_to_world(
         world_from_local, vertex.tangent, vertex_in.instance_index);
 @if(VERTEX_COLORS)
-    out.color = vertex.color;
+    out.color = varied_tint(vertex.color, origin, motion);
 @if(VERTEX_OUTPUT_INSTANCE_INDEX)
     out.instance_index = vertex_in.instance_index;
 @if(VISIBILITY_RANGE_DITHER)

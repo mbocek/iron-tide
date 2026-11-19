@@ -3,13 +3,15 @@ use bevy::prelude::*;
 use bevy::render::render_resource::AsBindGroup;
 use bevy::shader::ShaderRef;
 
-/// A standard material whose vertices the GPU moves: plants lean in the wind and crystal shards hover.
+/// A standard material whose vertices the GPU moves: plants lean in the wind and crystal shards hover;
+/// scenery also varies its colour a little per instance.
 /// Doing it per vertex keeps the CPU out of it and lets identical meshes keep drawing together.
 pub type MovingMaterial = ExtendedMaterial<StandardMaterial, Motion>;
 
 const GUST_PERIOD_SECS: f32 = 9.0;
 const SHARD_BOB: f32 = 0.08;
 const SHARD_LOOP_SECS: f32 = 4.0;
+const SCENERY_TINT_VARIATION: f32 = 0.14;
 
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
 pub struct Motion {
@@ -34,17 +36,21 @@ mod uniforms {
         pub hover_bob: f32,
         /// Zero leaves shard data in the mesh unused.
         pub hover_loop_secs: f32,
+        /// How far each instance's colour strays from the model's, so a forest is not one tree copied.
+        pub tint_variation: f32,
     }
 }
 
 impl Motion {
-    pub fn swaying(lean: f32) -> Self {
+    /// Scenery standing in the wind; `lean` zero for anything rigid.
+    pub fn scenery(lean: f32) -> Self {
         Self {
             settings: MotionSettings {
                 sway_lean: lean,
                 gust_period_secs: GUST_PERIOD_SECS,
                 hover_bob: 0.0,
                 hover_loop_secs: 0.0,
+                tint_variation: SCENERY_TINT_VARIATION,
             },
         }
     }
@@ -56,6 +62,7 @@ impl Motion {
                 gust_period_secs: GUST_PERIOD_SECS,
                 hover_bob: SHARD_BOB,
                 hover_loop_secs: SHARD_LOOP_SECS,
+                tint_variation: 0.0,
             },
         }
     }

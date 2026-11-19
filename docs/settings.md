@@ -27,7 +27,8 @@ crystal fields were thousands of shadow casters: their floating shards and glowi
 shadows. Shadow queueing fell by about 70 % and the render thread by about 10 %. Since then a crystal is
 merged into one mesh per material (from some 22 entities to 8), and the wind in the vegetation and the
 hovering crystal shards are computed per vertex on the GPU (`assets/shaders/motion.wesl`) instead of moving
-transforms on the CPU every frame; a match went from about 11 000 entities to 8 300. Interface systems now write text, colours and sizes only when they change, because any write
+transforms on the CPU every frame; a match went from about 11 000 entities to 8 300. The same shader gives
+each tree, bush and rock a slightly different shade from where it stands, so forests need no extra models. Interface systems now write text, colours and sizes only when they change, because any write
 makes Bevy measure text and lay out the whole interface again; that took about 7 % off the main thread.
 
 ## Updates

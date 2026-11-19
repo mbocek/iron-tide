@@ -7,6 +7,7 @@ struct MotionSettings {
     gust_period_secs: f32,
     hover_bob: f32,
     hover_loop_secs: f32,
+    tint_variation: f32,
 }
 
 struct Moved {
@@ -37,13 +38,26 @@ fn hovering(position: vec3<f32>, normal: vec3<f32>, pivot: vec2<f32>, shard: vec
     );
 }
 
+// A pseudo-random number in 0..1 for an instance, from where it stands.
+fn instance_seed(origin: vec3<f32>) -> f32 {
+    return fract(sin(dot(origin.xz, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+}
+
+// Each instance a little lighter or darker, greener or more yellow, around the model's own colours.
+fn varied_tint(color: vec4<f32>, origin: vec3<f32>, settings: MotionSettings) -> vec4<f32> {
+    let seed = instance_seed(origin + vec3<f32>(31.7, 0.0, 17.3));
+    let shade = 1.0 + (seed - 0.5) * 2.0 * settings.tint_variation;
+    let warmth = (fract(seed * 13.7) - 0.5) * settings.tint_variation;
+    return vec4<f32>(color.rgb * shade * vec3<f32>(1.0 + warmth, 1.0, 1.0 - warmth), color.a);
+}
+
 // A plant leans away from the wind around its base (the model origin), more the higher the vertex, in gusts.
 // Each plant's rhythm comes from where it stands, so no per-plant data is needed.
 fn swayed(world_position: vec3<f32>, origin: vec3<f32>, settings: MotionSettings, time: f32) -> vec3<f32> {
     if settings.sway_lean == 0.0 {
         return world_position;
     }
-    let seed = fract(sin(dot(origin.xz, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+    let seed = instance_seed(origin);
     let speed = 1.2 + 0.8 * fract(seed * 7.13);
     let gust = 0.65 + 0.35 * sin(time * TAU / settings.gust_period_secs);
     let lean = settings.sway_lean * gust * (0.6 + 0.4 * sin(time * speed + seed * TAU));
