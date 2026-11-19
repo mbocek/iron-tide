@@ -4,7 +4,7 @@ use crate::catalog::{BuildingKind, HARVESTER_CAPACITY, STARTING_CREDITS, Team};
 use crate::components::*;
 use crate::determinism::{SimId, in_simulation_order};
 use crate::map::{
-    CrystalVisual, GameMap, cell_center, cells_by_distance, crystal_scale, world_to_cell,
+    CrystalVisual, GameMap, cell_center, cells_by_distance, crystal_scale, map_cells, world_to_cell,
 };
 use crate::movement::order_move;
 use crate::player_commands::LocalTeam;
@@ -115,6 +115,7 @@ pub fn run_harvesters(
                     let search_from = harvester.preferred_field.unwrap_or(world_to_cell(position));
                     nearest_free_crystal(&map, search_from, &claimed)
                         .or_else(|| map.nearest_crystal(search_from, FIELD_SEARCH_RADIUS))
+                        .or_else(|| distant_field(&map, search_from))
                         .filter(|&cell| order_move(&mut mobile, &map, position, cell, false))
                         .map(HarvestState::TravellingToField)
                 }
@@ -208,6 +209,14 @@ fn claimed_crystal(state: HarvestState) -> Option<IVec2> {
         HarvestState::TravellingToField(cell) | HarvestState::Mining { cell, .. } => Some(cell),
         _ => None,
     }
+}
+
+/// Once the fields within reach are mined out, a harvester drives to the nearest crystal anywhere on the map
+/// rather than idling beside its refinery.
+fn distant_field(map: &GameMap, from: IVec2) -> Option<IVec2> {
+    map.has_crystal_left()
+        .then(|| map.nearest_crystal(from, map_cells()))
+        .flatten()
 }
 
 /// Harvesters spread over a field instead of crowding onto one cell and shoving each other off it.

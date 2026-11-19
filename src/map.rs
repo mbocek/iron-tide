@@ -152,6 +152,8 @@ pub struct GameMap {
     pub(crate) terrain_blocked: Vec<bool>,
     building: Vec<Option<Entity>>,
     crystal: Vec<u32>,
+    /// How many cells still hold crystal, so a search of the whole map can be skipped once it is mined out.
+    crystal_cells: usize,
 }
 
 #[derive(Component)]
@@ -168,6 +170,7 @@ impl GameMap {
             terrain_blocked: vec![false; cells],
             building: vec![None; cells],
             crystal: vec![0; cells],
+            crystal_cells: 0,
         }
     }
 
@@ -214,6 +217,7 @@ impl GameMap {
     /// Restores a saved crystal grid and forgets every building footprint, ready for buildings to be respawned.
     pub fn reset_for_load(&mut self, crystal: Vec<u32>) {
         if crystal.len() == self.crystal.len() {
+            self.crystal_cells = crystal.iter().filter(|&&amount| amount > 0).count();
             self.crystal = crystal;
         }
         self.building.fill(None);
@@ -221,8 +225,18 @@ impl GameMap {
 
     pub fn set_crystal(&mut self, cell: IVec2, amount: u32) {
         if let Some(i) = Self::index(cell) {
+            let had = self.crystal[i] > 0;
             self.crystal[i] = amount;
+            match (had, amount > 0) {
+                (false, true) => self.crystal_cells += 1,
+                (true, false) => self.crystal_cells -= 1,
+                _ => {}
+            }
         }
+    }
+
+    pub fn has_crystal_left(&self) -> bool {
+        self.crystal_cells > 0
     }
 
     pub fn set_obstacle(&mut self, cell: IVec2, blocked: bool) {
@@ -241,7 +255,11 @@ impl GameMap {
             return (0, true);
         };
         let mined = wanted.min(self.crystal[i]);
+        let depleted = mined > 0 && mined == self.crystal[i];
         self.crystal[i] -= mined;
+        if depleted {
+            self.crystal_cells -= 1;
+        }
         (mined, self.crystal[i] == 0)
     }
 
@@ -567,17 +585,17 @@ fn seed_crystal_fields(commands: &mut Commands, map: &mut GameMap, rng: &mut Std
             if !(inside || stray) || map.terrain_blocked[i] {
                 continue;
             }
-            let Some(mirror) = GameMap::index(opposite_cell(cell)) else {
+            if GameMap::index(opposite_cell(cell)).is_none() {
                 continue;
-            };
+            }
             let richness = if inside {
                 1.0 - 0.5 * (distance / edge).min(1.0)
             } else {
                 STRAY_RICHNESS
             };
             let amount = (CRYSTAL_PER_CELL as f32 * richness) as u32;
-            for (index, at) in [(i, cell), (mirror, opposite_cell(cell))] {
-                map.crystal[index] = amount;
+            for at in [cell, opposite_cell(cell)] {
+                map.set_crystal(at, amount);
                 spawn_crystal_visual(commands, rng, at, amount);
             }
         }
@@ -794,7 +812,7 @@ mod tests {
     fn mining_takes_at_most_what_is_left_and_reports_depletion() {
         let mut map = GameMap::empty();
         let cell = IVec2::new(3, 3);
-        map.crystal[GameMap::index(cell).unwrap()] = 30;
+        map.set_crystal(cell, 30);
         assert_eq!(map.mine_crystal(cell, 25), (25, false));
         assert_eq!(map.mine_crystal(cell, 25), (5, true));
         assert_eq!(map.crystal_at(cell), 0);
