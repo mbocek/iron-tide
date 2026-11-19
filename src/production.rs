@@ -10,7 +10,9 @@ use crate::catalog::{BuildingKind, Faction, Team, UnitKind};
 use crate::components::*;
 use crate::determinism::SimulationRng;
 use crate::economy::Economies;
+use crate::fog::{CellSight, FogOfWar};
 use crate::i18n::{tr, tr_fmt};
+use crate::intel::Intel;
 use crate::map::{
     CELL_SIZE, GameMap, cell_center, footprint_cells, footprint_center, world_to_cell,
 };
@@ -473,13 +475,18 @@ pub struct PlacementContext<'a> {
     pub map: &'a GameMap,
     pub own_buildings: Vec<(IVec2, IVec2)>,
     pub occupied_cells: Vec<IVec2>,
+    /// What the builder has explored; `None` builds blind, as a match does when it lays out the bases.
+    pub known_ground: Option<&'a FogOfWar>,
 }
 
 impl PlacementContext<'_> {
     pub fn can_place(&self, kind: BuildingKind, origin: IVec2) -> bool {
         let footprint = kind.spec().footprint;
-        let ground_clear = footprint_cells(origin, footprint)
-            .all(|cell| self.map.is_buildable(cell) && !self.occupied_cells.contains(&cell));
+        let ground_clear = footprint_cells(origin, footprint).all(|cell| {
+            self.map.is_buildable(cell)
+                && !self.occupied_cells.contains(&cell)
+                && self.has_explored(cell)
+        });
         ground_clear
             && self
                 .own_buildings
@@ -487,6 +494,11 @@ impl PlacementContext<'_> {
                 .any(|&(other_origin, other_footprint)| {
                     cell_gap(origin, footprint, other_origin, other_footprint) <= BUILD_RADIUS_CELLS
                 })
+    }
+
+    fn has_explored(&self, cell: IVec2) -> bool {
+        self.known_ground
+            .is_none_or(|fog| fog.sight_at(cell) != CellSight::Unexplored)
     }
 }
 
@@ -501,11 +513,13 @@ fn cell_gap(a_origin: IVec2, a_size: IVec2, b_origin: IVec2, b_size: IVec2) -> i
 pub fn placement_context<'a>(
     map: &'a GameMap,
     team: Team,
+    known_ground: &'a FogOfWar,
     buildings: &Query<(&Building, &Team)>,
     units: &Query<&Transform, With<Unit>>,
 ) -> PlacementContext<'a> {
     PlacementContext {
         map,
+        known_ground: Some(known_ground),
         own_buildings: buildings
             .iter()
             .filter(|(_, owner)| **owner == team)
@@ -604,6 +618,8 @@ pub fn place_structure(
     map: Res<GameMap>,
     mut placement: ResMut<Placement>,
     economies: Res<Economies>,
+    intel: Res<Intel>,
+    player_fog: Res<FogOfWar>,
     buildings: Query<(&Building, &Team)>,
     units: Query<&Transform, With<Unit>>,
     mut ghosts: Query<
@@ -639,7 +655,9 @@ pub fn place_structure(
     };
     let origin = placement_origin(ground, footprint);
     let team = issuer.team();
-    let valid = placement_context(&map, team, &buildings, &units).can_place(kind, origin);
+    let known_ground = intel.vision(team, &player_fog);
+    let valid =
+        placement_context(&map, team, known_ground, &buildings, &units).can_place(kind, origin);
     if let Ok((mut transform, mut material)) = ghosts.get_mut(ghost) {
         transform.translation = footprint_center(origin, footprint) + Vec3::Y * 0.2;
         material.0 = if valid {
@@ -661,7 +679,7 @@ pub fn place_structure(
         placement.wall_anchor = None;
         let credits = economies.of(team).credits;
         let segments = {
-            let mut context = placement_context(&map, team, &buildings, &units);
+            let mut context = placement_context(&map, team, known_ground, &buildings, &units);
             affordable_wall_line(&mut context, anchor, origin, credits)
         };
         if segments.is_empty() {
@@ -721,6 +739,41 @@ mod tests {
     }
 
     #[test]
+    fn nothing_is_built_on_ground_never_explored() {
+        let map = GameMap::open_field();
+        let command_center = IVec2::new(10, 10);
+        let mut fog = FogOfWar::new(true);
+        fog.reveal_around([(cell_center(IVec2::new(11, 11)), 9.0)]);
+        let in_reach_but_unexplored = IVec2::new(17, 11);
+        let blind = PlacementContext {
+            map: &map,
+            own_buildings: vec![(command_center, IVec2::splat(3))],
+            occupied_cells: Vec::new(),
+            known_ground: None,
+        };
+        assert!(blind.can_place(BuildingKind::Wall, in_reach_but_unexplored));
+
+        let mut context = PlacementContext {
+            known_ground: Some(&fog),
+            ..blind
+        };
+        assert!(context.can_place(BuildingKind::Wall, IVec2::new(14, 11)));
+        assert!(!context.can_place(BuildingKind::Wall, in_reach_but_unexplored));
+
+        let wall = affordable_wall_line(
+            &mut context,
+            IVec2::new(14, 11),
+            IVec2::new(20, 11),
+            100_000,
+        );
+        assert!(!wall.is_empty());
+        assert!(
+            wall.iter()
+                .all(|&cell| fog.sight_at(cell) != CellSight::Unexplored)
+        );
+    }
+
+    #[test]
     fn walls_extend_the_base_and_stop_when_the_credits_run_out() {
         let map = GameMap::open_field();
         let command_center = IVec2::new(10, 10);
@@ -728,6 +781,7 @@ mod tests {
             map: &map,
             own_buildings: vec![(command_center, IVec2::splat(3))],
             occupied_cells: Vec::new(),
+            known_ground: None,
         };
         let start = IVec2::new(14, 11);
         let far_end = start + IVec2::new(BUILD_RADIUS_CELLS * 3, 0);
@@ -742,6 +796,7 @@ mod tests {
             map: &map,
             own_buildings: vec![(command_center, IVec2::splat(3))],
             occupied_cells: Vec::new(),
+            known_ground: None,
         };
         let three_segments = BuildingKind::Wall.spec().cost * 3 + 10;
         assert_eq!(
@@ -895,6 +950,7 @@ mod tests {
             map: &map,
             own_buildings: vec![command_center],
             occupied_cells: vec![IVec2::new(16, 10)],
+            known_ground: None,
         };
         assert!(context.can_place(BuildingKind::PowerPlant, IVec2::new(14, 10)));
         assert!(

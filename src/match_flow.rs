@@ -150,6 +150,7 @@ fn deploy_force(
             map,
             own_buildings: own_buildings.clone(),
             occupied_cells: Vec::new(),
+            known_ground: None,
         };
         let Some(origin) = find_building_site(&context, base, kind) else {
             warn!("no room for a starting {kind:?} of {team:?}");

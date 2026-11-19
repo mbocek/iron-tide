@@ -152,6 +152,7 @@ pub fn command_enemies(
             &models,
             &mut map,
             &mut production,
+            intel.vision(ai.team, &player_fog),
             &buildings,
             &unit_positions,
         );
@@ -363,12 +364,13 @@ fn place_finished_structure(
     models: &ModelLibrary,
     map: &mut GameMap,
     production: &mut Production,
+    known_ground: &FogOfWar,
     buildings: &Query<(&Building, &Team)>,
     unit_positions: &Query<&Transform, With<Unit>>,
 ) -> Option<BuildingKind> {
     let kind = production.lane(ai.team, Lane::Structures).ready?;
     let site = {
-        let context = placement_context(map, ai.team, buildings, unit_positions);
+        let context = placement_context(map, ai.team, known_ground, buildings, unit_positions);
         find_building_site(&context, ai.base, kind)
     };
     let origin = site?;

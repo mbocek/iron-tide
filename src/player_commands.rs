@@ -1,5 +1,7 @@
 use crate::abilities::{Mine, lay_mine};
+use crate::fog::FogOfWar;
 use crate::i18n::tr;
+use crate::intel::Intel;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -219,6 +221,8 @@ pub struct Battlefield<'w, 's> {
     owners: Query<'w, 's, (&'static Building, &'static Team)>,
     positions: Query<'w, 's, &'static Transform, With<Unit>>,
     mines: Query<'w, 's, &'static Mine>,
+    intel: Res<'w, Intel>,
+    player_fog: Res<'w, FogOfWar>,
 }
 
 pub fn carry_out_player_commands(
@@ -468,8 +472,10 @@ impl Battlefield<'_, '_> {
         if lane.ready != Some(kind) || kind.is_wall() {
             return;
         }
-        let placeable = placement_context(&self.map, team, &self.owners, &self.positions)
-            .can_place(kind, origin);
+        let known_ground = self.intel.vision(team, &self.player_fog);
+        let placeable =
+            placement_context(&self.map, team, known_ground, &self.owners, &self.positions)
+                .can_place(kind, origin);
         if !placeable {
             return;
         }
@@ -493,7 +499,9 @@ impl Battlefield<'_, '_> {
         }
         let credits = self.economies.of(team).credits;
         let segments = {
-            let mut context = placement_context(&self.map, team, &self.owners, &self.positions);
+            let known_ground = self.intel.vision(team, &self.player_fog);
+            let mut context =
+                placement_context(&self.map, team, known_ground, &self.owners, &self.positions);
             affordable_wall_line(&mut context, from, to, credits)
         };
         for &cell in &segments {
