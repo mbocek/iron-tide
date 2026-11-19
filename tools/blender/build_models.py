@@ -100,6 +100,8 @@ REQUIRED_NODES = {
     "flame_trooper": INFANTRY_NODES,
     "grenadier": INFANTRY_NODES,
     "gunship": ("Rotor", "TailRotor"),
+    "bomber": ("LandingGearL", "LandingGearR", "LandingGearN"),
+    "fighter": ("LandingGearL", "LandingGearR", "LandingGearN"),
     "bulwark": ("Turret", "Barrel", "Sprocket_L", "Sprocket_R", "Idler_L", "Idler_R",
                 *(f"RoadWheel_{side}{index}" for side in "LR" for index in range(1, 8))),
 }

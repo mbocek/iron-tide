@@ -1109,6 +1109,8 @@ def _add_bike_rider():
 
 
 BOMBER_AXIS_Z = 1.0
+# The game folds every node whose name starts with this into the airframe once the aircraft lifts off.
+LANDING_GEAR = "LandingGear"
 ALONG_X = (0.0, math.pi / 2, 0.0)
 
 
@@ -1125,6 +1127,7 @@ def build_bomber():
     _add_bomber_tail()
     _add_bomber_turrets()
     _add_bomber_nose_gear()
+    _add_lift_nozzles(BOMBER_AXIS_Z, [(1.0, 0.42), (1.0, -0.42), (-1.0, 0.42), (-1.0, -0.42)], 0.11)
 
 
 def _add_bomber_fuselage():
@@ -1222,19 +1225,30 @@ def _add_bomber_engine(side):
 def _add_bomber_main_gear(side):
     leg_top = Vector((0.35, side * 1.35, BOMBER_AXIS_Z - 0.32))
     axle = Vector((0.35, side * 1.35, 0.19))
-    cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.08)), 0.04, 8, name="MainGearLeg")
-    cylinder_between("Gunmetal", leg_top - Vector((0.25, 0, 0.05)), axle + Vector((0, 0, 0.2)), 0.025, 6,
-                     name="MainGearBrace")
-    for offset in (-0.09, 0.09):
-        make_wheel(axle + Vector((0, offset, 0)), 0.19, 0.1, side=side)
+    with group(f"{LANDING_GEAR}{'L' if side > 0 else 'R'}", leg_top):
+        cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.08)), 0.04, 8, name="MainGearLeg")
+        cylinder_between("Gunmetal", leg_top - Vector((0.25, 0, 0.05)), axle + Vector((0, 0, 0.2)), 0.025, 6,
+                         name="MainGearBrace")
+        for offset in (-0.09, 0.09):
+            make_wheel(axle + Vector((0, offset, 0)), 0.19, 0.1, side=side)
     box("ArmorDark", (0.5, 0.02, 0.26), leg_top + Vector((0, side * 0.24, -0.08)), bevel=0.0, name="GearDoor")
 
 
 def _add_bomber_nose_gear():
     leg_top = Vector((2.2, 0.0, BOMBER_AXIS_Z - 0.36))
     axle = Vector((2.25, 0.0, 0.15))
-    cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.06)), 0.035, 8, name="NoseGearLeg")
-    make_wheel(axle, 0.15, 0.1, side=1)
+    with group(f"{LANDING_GEAR}N", leg_top):
+        cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.06)), 0.035, 8, name="NoseGearLeg")
+        make_wheel(axle, 0.15, 0.1, side=1)
+
+
+def _add_lift_nozzles(axis_z, positions, radius):
+    """Swivelling nozzles under the fuselage, turned down: the jets that lift it straight off the pad."""
+    for x, y in positions:
+        top = Vector((x, y, axis_z - 0.15))
+        cylinder_between("Gunmetal", top, top - Vector((0.05, 0, 0.32)), radius, 10, end_radius=radius * 0.8,
+                         name="LiftNozzle")
+        cylinder("WarningLight", radius * 0.75, 0.02, top - Vector((0.05, 0, 0.33)), segments=10, name="LiftGlow")
 
 
 def _add_bomber_tail():
@@ -1337,7 +1351,11 @@ def build_fighter():
         sphere(light, 0.04, (-1.35, side * 2.08, FIGHTER_AXIS_Z - 0.1), name="NavigationLight")
         leg_top = Vector((-0.6, side * 0.5, FIGHTER_AXIS_Z - 0.2))
         axle = Vector((-0.6, side * 0.6, 0.13))
-        cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.05)), 0.03, 8, name="MainGearLeg")
-        make_wheel(axle, 0.13, 0.08, side=side)
-    cylinder_between("Steel", (1.3, 0.0, FIGHTER_AXIS_Z - 0.25), (1.35, 0.0, 0.16), 0.025, 8, name="NoseGearLeg")
-    make_wheel(Vector((1.35, 0.0, 0.11)), 0.1, 0.07, side=1)
+        with group(f"{LANDING_GEAR}{'L' if side > 0 else 'R'}", leg_top):
+            cylinder_between("Steel", leg_top, axle + Vector((0, 0, 0.05)), 0.03, 8, name="MainGearLeg")
+            make_wheel(axle, 0.13, 0.08, side=side)
+    nose_top = Vector((1.3, 0.0, FIGHTER_AXIS_Z - 0.25))
+    with group(f"{LANDING_GEAR}N", nose_top):
+        cylinder_between("Steel", nose_top, (1.35, 0.0, 0.16), 0.025, 8, name="NoseGearLeg")
+        make_wheel(Vector((1.35, 0.0, 0.11)), 0.1, 0.07, side=1)
+    _add_lift_nozzles(FIGHTER_AXIS_Z, [(0.3, 0.42), (0.3, -0.42), (-1.0, 0.3), (-1.0, -0.3)], 0.08)

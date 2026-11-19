@@ -17,8 +17,6 @@ const MEANINGFUL_PROGRESS: f32 = 0.05;
 pub const FLIGHT_ALTITUDE: f32 = 6.0;
 /// How far a circling aeroplane leans into its turn, its left wing down.
 const ORBIT_BANK: f32 = 0.35;
-/// A parked aircraft stands on a Helipad's raised pad, not on the ground beneath it.
-const PARKED_ON_THE_PAD: f32 = 0.35;
 const FLIGHT_NOSE_DOWN: f32 = 0.12;
 /// Vehicles drive forward only once roughly facing their next waypoint, so they turn on the spot like tracked vehicles.
 const DRIVE_ALIGNMENT_TOLERANCE: f32 = 0.7;
@@ -50,9 +48,12 @@ pub fn order_move(
     true
 }
 
-pub fn follow_paths(time: Res<Time>, mut movers: Query<(&mut Mobile, &mut Transform)>) {
+pub fn follow_paths(
+    time: Res<Time>,
+    mut movers: Query<(&mut Mobile, &mut Transform, Option<&Sortie>)>,
+) {
     let dt = time.delta_secs();
-    for (mut mobile, mut transform) in &mut movers {
+    for (mut mobile, mut transform, sortie) in &mut movers {
         let Some(&waypoint) = mobile.path.front() else {
             mobile.ordered_move = false;
             continue;
@@ -68,7 +69,8 @@ pub fn follow_paths(time: Res<Time>, mut movers: Query<(&mut Mobile, &mut Transf
         let desired_yaw = yaw_towards(transform.translation, waypoint);
         mobile.facing = rotate_towards(mobile.facing, desired_yaw, mobile.turn_rate * dt);
         let misalignment = shortest_angle(mobile.facing, desired_yaw).abs();
-        if misalignment < DRIVE_ALIGNMENT_TOLERANCE {
+        let lifting_off = sortie.is_some_and(Sortie::climbing);
+        if misalignment < DRIVE_ALIGNMENT_TOLERANCE && !lifting_off {
             let step = (mobile.speed * dt).min(distance);
             transform.translation += to_waypoint / distance * step;
         }
@@ -106,11 +108,6 @@ pub fn settle_on_terrain(
         let heading = Quat::from_rotation_y(mobile.facing);
         let position = transform.translation;
         let center_height = landscape.height(position.x, position.z);
-        if mobile.flying && sortie.is_some_and(|sortie| sortie.parked) {
-            transform.translation.y = center_height.max(0.0) + PARKED_ON_THE_PAD;
-            transform.rotation = heading;
-            continue;
-        }
         if mobile.flying {
             let nose_down = if mobile.is_moving() {
                 FLIGHT_NOSE_DOWN
@@ -119,7 +116,8 @@ pub fn settle_on_terrain(
             };
             let banking = sortie.is_some_and(|sortie| sortie.orbit.is_some());
             let roll = if banking { -ORBIT_BANK } else { 0.0 };
-            transform.translation.y = center_height.max(0.0) + FLIGHT_ALTITUDE;
+            let altitude = sortie.map_or(FLIGHT_ALTITUDE, |sortie| sortie.altitude);
+            transform.translation.y = center_height.max(0.0) + altitude;
             transform.rotation =
                 heading * Quat::from_rotation_z(-nose_down) * Quat::from_rotation_x(roll);
             continue;

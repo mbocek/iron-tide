@@ -208,3 +208,30 @@ fn a_waiting_fighter_circles_where_it_stopped() {
         "the fighter wandered off instead of circling"
     );
 }
+
+#[test]
+fn a_bomber_lifts_straight_off_its_pad_before_flying_away() {
+    use iron_tide::catalog::BuildingKind;
+    let mut battle = Battle::sandbox();
+    let pad_origin = IVec2::new(12, 50);
+    battle.construct(BuildingKind::Helipad, Team::Player, pad_origin);
+    let bomber = battle.spawn_unit(UnitKind::Bomber, Team::Player, pad_origin + IVec2::ONE);
+    battle.run_for(1.0);
+    let on_pad = battle.position(bomber);
+    battle.order_move(bomber, pad_origin + IVec2::new(20, 0));
+    battle.run_for(1.0);
+    let lifting = battle.position(bomber);
+    assert!(
+        lifting.y > on_pad.y + 1.0,
+        "it did not rise: {on_pad} -> {lifting}"
+    );
+    assert!(
+        lifting.xz().distance(on_pad.xz()) < 0.5,
+        "it flew off before climbing: {on_pad} -> {lifting}"
+    );
+    battle.run_for(4.0);
+    assert!(
+        battle.position(bomber).xz().distance(on_pad.xz()) > 5.0,
+        "it never flew off"
+    );
+}

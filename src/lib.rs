@@ -251,7 +251,7 @@ impl Plugin for SimulationPlugin {
                         combat::acquire_targets,
                         combat::chase_targets,
                         unit_orders::carry_out_orders,
-                        sorties::fly_home_to_rearm,
+                        (sorties::fly_home_to_rearm, sorties::climb_and_descend).chain(),
                         movement::follow_paths,
                         sorties::circle_while_waiting,
                         movement::separate_units,
@@ -339,7 +339,12 @@ impl Plugin for GamePlugin {
             )
             .add_systems(
                 Update,
-                (animation::link_rotor_nodes, animation::spin_rotors)
+                (
+                    animation::link_rotor_nodes,
+                    animation::spin_rotors,
+                    sorties::find_landing_gear,
+                    sorties::fold_landing_gear,
+                )
                     .chain()
                     .in_set(FramePhase::Presentation),
             )

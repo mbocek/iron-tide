@@ -4,17 +4,19 @@ use crate::catalog::{BuildingKind, Team};
 use crate::components::{AttackTarget, Building, Mobile, Weapon};
 use crate::determinism::{SimId, in_simulation_order};
 use crate::map::{GameMap, cell_center, footprint_center, world_to_cell};
-use crate::movement::order_move;
+use crate::movement::{FLIGHT_ALTITUDE, order_move};
 use crate::sim_math::{atan2, facing_direction};
 
 /// Close enough to a Helipad's centre to be on its pad, where it is also repaired.
 const ON_THE_PAD: f32 = 3.0;
 
-/// An aircraft that lands on its Helipad when idle there, and if `rearms`, strikes once and flies home to
-/// rearm before the next run.
+/// An aircraft that takes off and lands straight up and down on its Helipad, landing when idle there, and
+/// if `rearms`, strikes once and flies home to rearm before the next run.
 #[derive(Component, Default)]
 pub struct Sortie {
     pub rearms: bool,
+    /// Height above the ground; it climbs to `FLIGHT_ALTITUDE` before flying off and sinks onto the pad.
+    pub altitude: f32,
     /// Sitting on its pad with nothing to do, so it lands instead of hanging in the air.
     pub parked: bool,
     /// Circling while it waits in the air; an aeroplane cannot stand still.
@@ -30,6 +32,12 @@ pub struct Orbit {
 }
 
 const ORBIT_RADIUS: f32 = 5.0;
+/// A parked aircraft stands on a Helipad's raised pad, not on the ground beneath it.
+pub const ON_THE_PAD_HEIGHT: f32 = 0.35;
+/// Metres per second it rises or sinks, straight up and down.
+const VERTICAL_SPEED: f32 = 2.5;
+/// Close enough to cruising height to start flying forward.
+const CLIMB_SLACK: f32 = 0.3;
 /// Share of its top speed an aircraft keeps while circling.
 const ORBIT_SPEED_SHARE: f32 = 0.5;
 
@@ -117,6 +125,86 @@ fn entering_orbit(position: Vec3, facing: f32) -> Orbit {
     Orbit {
         centre,
         angle: atan2(-outward.z, outward.x),
+    }
+}
+
+/// Lifts every aircraft off its pad towards cruising height when it has somewhere to go, and lets it down
+/// onto the pad once it is parked.
+pub fn climb_and_descend(time: Res<Time>, mut aircraft: Query<&mut Sortie>) {
+    let step = VERTICAL_SPEED * time.delta_secs();
+    for mut sortie in &mut aircraft {
+        let wanted = if sortie.parked {
+            ON_THE_PAD_HEIGHT
+        } else {
+            FLIGHT_ALTITUDE
+        };
+        sortie.altitude += (wanted - sortie.altitude).clamp(-step, step);
+    }
+}
+
+impl Sortie {
+    pub fn new(rearms: bool) -> Self {
+        Self {
+            rearms,
+            altitude: ON_THE_PAD_HEIGHT,
+            parked: false,
+            orbit: None,
+        }
+    }
+
+    /// Still rising from the pad, so it must not fly forward yet.
+    pub fn climbing(&self) -> bool {
+        !self.parked && self.altitude < FLIGHT_ALTITUDE - CLIMB_SLACK
+    }
+}
+
+/// The landing gear legs of an aircraft model, with their rest scale.
+#[derive(Component)]
+pub struct LandingGear(Vec<(Entity, Vec3)>);
+
+/// Model nodes whose names start with this fold away in flight (tools/blender/irontide_models/units.py).
+const LANDING_GEAR_NODE: &str = "LandingGear";
+/// Height above the pad by which the gear is fully folded.
+const GEAR_FOLDED_ABOVE_PAD: f32 = 1.2;
+/// Folded legs keep a sliver of their size, as a zero scale breaks their lighting.
+const FOLDED_GEAR_SCALE: f32 = 0.01;
+
+pub fn find_landing_gear(
+    mut commands: Commands,
+    aircraft: Query<Entity, (With<Sortie>, Without<LandingGear>)>,
+    children: Query<&Children>,
+    nodes: Query<(&Name, &Transform)>,
+) {
+    for entity in &aircraft {
+        let legs: Vec<(Entity, Vec3)> = children
+            .iter_descendants(entity)
+            .filter_map(|node| {
+                let (name, transform) = nodes.get(node).ok()?;
+                name.as_str()
+                    .starts_with(LANDING_GEAR_NODE)
+                    .then_some((node, transform.scale))
+            })
+            .collect();
+        if !legs.is_empty() {
+            commands.entity(entity).insert(LandingGear(legs));
+        }
+    }
+}
+
+/// Folds the gear up into the airframe as the aircraft rises off the pad and lets it down again to land.
+pub fn fold_landing_gear(
+    aircraft: Query<(&Sortie, &LandingGear)>,
+    mut nodes: Query<&mut Transform, Without<Sortie>>,
+) {
+    for (sortie, gear) in &aircraft {
+        let lowered =
+            1.0 - ((sortie.altitude - ON_THE_PAD_HEIGHT) / GEAR_FOLDED_ABOVE_PAD).clamp(0.0, 1.0);
+        let share = FOLDED_GEAR_SCALE + (1.0 - FOLDED_GEAR_SCALE) * lowered;
+        for &(leg, rest) in &gear.0 {
+            if let Ok(mut transform) = nodes.get_mut(leg) {
+                transform.scale = rest * share;
+            }
+        }
     }
 }
 
