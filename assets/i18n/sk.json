@@ -517,5 +517,11 @@
   "ADD TO MY CAMPAIGN": "PRIDAŤ DO MOJEJ KAMPANE",
   "Added - My campaign now has {} missions under Campaigns.": "Pridané - Moja kampaň má teraz {} misií v Kampaniach.",
   "Could not add the level: {}": "Úroveň sa nepodarilo pridať: {}",
-  "My campaign": "Moja kampaň"
+  "My campaign": "Moja kampaň",
+  "QUICK BATTLE": "RÝCHLA BITKA",
+  "Quick battle": "Rýchla bitka",
+  "Pick a side and a difficulty. One opponent on a standard map; the land, season, weather and corners are rolled every time.": "Vyber stranu a obtiažnosť. Jeden protivník na štandardnej mape; krajina, ročné obdobie, počasie a rohy sa vylosujú zakaždým nanovo.",
+  "Your side": "Tvoja strana",
+  "RANDOM": "NÁHODNE",
+  "START QUICK BATTLE": "SPUSTIŤ RÝCHLU BITKU"
 }

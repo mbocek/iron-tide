@@ -70,6 +70,7 @@ enum Selection {
     Editor,
     Network,
     Replay(usize),
+    Quick,
     Random,
     /// A section with nothing in it yet.
     Nothing(MenuSection),
@@ -79,6 +80,7 @@ enum Selection {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MenuSection {
     Campaign,
+    Quick,
     Random,
     Custom,
     Editor,
@@ -90,6 +92,7 @@ impl MenuSection {
     fn label(self) -> &'static str {
         match self {
             MenuSection::Campaign => tr("CAMPAIGN"),
+            MenuSection::Quick => tr("QUICK BATTLE"),
             MenuSection::Random => tr("RANDOM BATTLE"),
             MenuSection::Custom => tr("CUSTOM LEVELS"),
             MenuSection::Editor => tr("BATTLE EDITOR"),
@@ -102,7 +105,7 @@ impl MenuSection {
     fn has_list(self) -> bool {
         !matches!(
             self,
-            MenuSection::Random | MenuSection::Editor | MenuSection::Network
+            MenuSection::Quick | MenuSection::Random | MenuSection::Editor | MenuSection::Network
         )
     }
 }
@@ -149,7 +152,7 @@ impl MenuGroup {
     fn sections(self) -> &'static [MenuSection] {
         match self {
             MenuGroup::Campaigns => &[MenuSection::Campaign],
-            MenuGroup::Skirmish => &[MenuSection::Random, MenuSection::Custom],
+            MenuGroup::Skirmish => &[MenuSection::Quick, MenuSection::Random, MenuSection::Custom],
             MenuGroup::Multiplayer => &[MenuSection::Network],
             MenuGroup::Editor => &[MenuSection::Editor, MenuSection::Custom],
             MenuGroup::Replays => &[MenuSection::Replays],
@@ -185,6 +188,8 @@ pub struct ScreenBody;
 pub struct MainMenu {
     campaigns: Vec<Campaign>,
     campaign_difficulty: Difficulty,
+    quick_faction: FactionChoice,
+    quick_difficulty: Difficulty,
     screen: Screen,
     needs_new_screen: bool,
     entries: Vec<LevelEntry>,
@@ -311,6 +316,9 @@ pub struct ChatDraftText;
 #[derive(Component, Clone, Copy)]
 pub enum MenuCommand {
     StartSelected,
+    QuickFaction(FactionChoice),
+    QuickDifficulty(Difficulty),
+    StartQuickBattle,
     StartEditorBattle,
     SaveEditorLevel,
     EditMap,
@@ -339,6 +347,7 @@ impl MenuCommand {
         matches!(
             self,
             MenuCommand::StartSelected
+                | MenuCommand::StartQuickBattle
                 | MenuCommand::StartCampaignMission
                 | MenuCommand::StartEditorBattle
                 | MenuCommand::WatchReplay
@@ -531,6 +540,8 @@ pub fn build_main_menu(
     let menu = MainMenu {
         campaigns: library.0.clone(),
         campaign_difficulty: settings.campaign_difficulty,
+        quick_faction: FactionChoice::Fixed(Faction::Coalition),
+        quick_difficulty: Difficulty::Normal,
         screen: Screen::Hub,
         needs_new_screen: true,
         entries: all_levels(),
@@ -1289,7 +1300,10 @@ fn rebuild_level_list(commands: &mut Commands, list: Entity, fonts: &UiFonts, me
                     list.spawn(fonts.text(tr("Every battle is recorded here."), 15.0, TEXT_DIM));
                 }
             }
-            MenuSection::Random | MenuSection::Editor | MenuSection::Network => {}
+            MenuSection::Quick
+            | MenuSection::Random
+            | MenuSection::Editor
+            | MenuSection::Network => {}
         });
 }
 
@@ -1391,6 +1405,7 @@ impl MainMenu {
             Selection::Editor => MenuSection::Editor,
             Selection::Network => MenuSection::Network,
             Selection::Replay(_) => MenuSection::Replays,
+            Selection::Quick => MenuSection::Quick,
             Selection::Random => MenuSection::Random,
             Selection::Nothing(section) => section,
         }
@@ -1407,6 +1422,7 @@ impl MainMenu {
         let first = match section {
             MenuSection::Campaign => Some(self.campaign_page(0)),
             MenuSection::Custom => first_level(true),
+            MenuSection::Quick => Some(Selection::Quick),
             MenuSection::Random => Some(Selection::Random),
             MenuSection::Editor => Some(Selection::Editor),
             MenuSection::Network => Some(Selection::Network),
@@ -1450,6 +1466,7 @@ impl MainMenu {
         let section = match name {
             "campaign" => MenuSection::Campaign,
             "custom" => MenuSection::Custom,
+            "quick" => MenuSection::Quick,
             "random" => MenuSection::Random,
             "editor" => MenuSection::Editor,
             "network" => MenuSection::Network,
@@ -1476,7 +1493,10 @@ impl MainMenu {
             }
             Selection::Random => Some(self.random_level()),
             Selection::Editor => Some(self.options.to_level()),
-            Selection::Network | Selection::Replay(_) | Selection::Nothing(_) => None,
+            Selection::Network
+            | Selection::Replay(_)
+            | Selection::Quick
+            | Selection::Nothing(_) => None,
         }
     }
 
@@ -1631,6 +1651,101 @@ fn alliance_name(alliance: Alliance) -> &'static str {
         Alliance::FreeForAll => tr("Free-for-all"),
         Alliance::TwoAgainstTwo => tr("Two against two"),
     }
+}
+
+/// One click to a battle: a side and a difficulty, everything else rolled anew each time.
+fn spawn_quick_battle(panel: &mut ChildSpawnerCommands, fonts: &UiFonts, menu: &MainMenu) {
+    panel.spawn(fonts.heading(tr("Quick battle"), 30.0, ACCENT));
+    panel.spawn(fonts.text(
+        tr("Pick a side and a difficulty. One opponent on a standard map; the land, season, weather and corners are rolled every time."),
+        16.0,
+        TEXT_DIM,
+    ));
+    let factions = [
+        (
+            FactionChoice::Fixed(Faction::Coalition),
+            tr(Faction::Coalition.title()),
+        ),
+        (
+            FactionChoice::Fixed(Faction::Syndicate),
+            tr(Faction::Syndicate.title()),
+        ),
+        (FactionChoice::Random, tr("RANDOM")),
+    ];
+    spawn_choice_row(
+        panel,
+        fonts,
+        tr("Your side"),
+        factions.into_iter().map(|(choice, label)| {
+            (
+                label.to_string(),
+                MenuCommand::QuickFaction(choice),
+                choice == menu.quick_faction,
+            )
+        }),
+    );
+    spawn_choice_row(
+        panel,
+        fonts,
+        tr("Difficulty"),
+        Difficulty::ALL.into_iter().map(|difficulty| {
+            (
+                tr_owned(&format!("{difficulty:?}")),
+                MenuCommand::QuickDifficulty(difficulty),
+                difficulty == menu.quick_difficulty,
+            )
+        }),
+    );
+    panel.spawn(Node {
+        height: Val::Px(12.0),
+        ..default()
+    });
+    spawn_command_button(
+        panel,
+        fonts,
+        tr("START QUICK BATTLE"),
+        MenuCommand::StartQuickBattle,
+    );
+}
+
+/// A labelled row of buttons of which one is chosen, outlined in the accent colour.
+fn spawn_choice_row(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    label: &str,
+    choices: impl Iterator<Item = (String, MenuCommand, bool)>,
+) {
+    panel.spawn(fonts.heading(label, 17.0, TEXT_MAIN));
+    panel
+        .spawn(Node {
+            column_gap: Val::Px(8.0),
+            margin: UiRect::bottom(Val::Px(6.0)),
+            ..default()
+        })
+        .with_children(|row| {
+            for (text, command, chosen) in choices {
+                row.spawn((
+                    command,
+                    Hovered::default(),
+                    Node {
+                        min_width: Val::Px(120.0),
+                        min_height: Val::Px(40.0),
+                        justify_content: JustifyContent::Center,
+                        ..button_node(Val::Auto)
+                    },
+                    BackgroundColor(BUTTON_IDLE),
+                    BorderColor::all(if chosen { ACCENT } else { FRAME }),
+                ))
+                .with_children(|button| {
+                    button.spawn(fonts.heading(
+                        text,
+                        17.0,
+                        if chosen { ACCENT } else { TEXT_MAIN },
+                    ));
+                })
+                .observe(run_command);
+            }
+        });
 }
 
 fn spawn_random_battle_details(
@@ -1847,6 +1962,7 @@ fn rebuild_details(
                 spawn_network_details(panel, fonts, join_address, lobby, &menu.options)
             }
             Selection::Random => spawn_random_battle_details(panel, fonts, menu, preview),
+            Selection::Quick => spawn_quick_battle(panel, fonts, menu),
             Selection::Nothing(section) => {
                 panel.spawn(fonts.heading(section.label(), 30.0, ACCENT));
                 let hint = match section {
@@ -2044,6 +2160,23 @@ fn run_command(
                     menu.entries[index].level.clone(),
                 );
             }
+        }
+        MenuCommand::QuickFaction(faction) => {
+            menu.quick_faction = faction;
+            menu.needs_rebuild = true;
+        }
+        MenuCommand::QuickDifficulty(difficulty) => {
+            menu.quick_difficulty = difficulty;
+            menu.needs_rebuild = true;
+        }
+        MenuCommand::StartQuickBattle => {
+            let options = RandomBattleOptions {
+                faction: menu.quick_faction,
+                difficulty: DifficultyChoice::Fixed(menu.quick_difficulty),
+                ..default()
+            };
+            let level = random_battle::generate(&options, rand::rng().random());
+            start_level(&mut commands, &mut next_state, level);
         }
         MenuCommand::StartEditorBattle => {
             start_level(&mut commands, &mut next_state, menu.level_on_page())
