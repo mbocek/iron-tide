@@ -145,11 +145,14 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     albedo *= mix(1.0, 0.55, wetness);
     roughness = mix(roughness, 0.25, wetness);
 
-    // Rain soaks low and flat ground first, so puddles show before the slopes darken.
-    let pooling = value_noise(world_xz * 0.45) * 0.5 + smoothstep(0.85, 1.0, pbr_input.world_normal.y) * 0.5;
-    let soaked = terrain.wet_ground * smoothstep(0.15, 0.6, pooling + terrain.wet_ground * 0.4);
-    albedo *= mix(1.0, 0.62, soaked);
-    roughness = mix(roughness, 0.22, soaked);
+    // Rain soaks low and flat ground first, so puddles show before the slopes darken. The branch skips the
+    // noise on dry ground, which is most of the time and covers the whole screen.
+    if terrain.wet_ground > 0.0 {
+        let pooling = value_noise(world_xz * 0.45) * 0.5 + smoothstep(0.85, 1.0, pbr_input.world_normal.y) * 0.5;
+        let soaked = terrain.wet_ground * smoothstep(0.15, 0.6, pooling + terrain.wet_ground * 0.4);
+        albedo *= mix(1.0, 0.62, soaked);
+        roughness = mix(roughness, 0.22, soaked);
+    }
 
     let shoreline = 1.0 - smoothstep(0.0, FOAM_BAND, abs(in.world_position.y - (terrain.water_level + 0.03)));
     let foam_ripple = value_noise(world_xz * 2.3 + vec2<f32>(globals.time * 0.6, globals.time * 0.35));
