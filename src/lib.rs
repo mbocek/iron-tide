@@ -68,6 +68,7 @@ pub mod season;
 pub mod servicing;
 pub mod settings;
 pub mod sim_math;
+pub mod sorties;
 pub mod sound;
 pub mod spawn;
 pub mod structure_tools;
@@ -250,6 +251,7 @@ impl Plugin for SimulationPlugin {
                         combat::acquire_targets,
                         combat::chase_targets,
                         unit_orders::carry_out_orders,
+                        sorties::fly_home_to_rearm,
                         movement::follow_paths,
                         movement::separate_units,
                         movement::settle_on_terrain,

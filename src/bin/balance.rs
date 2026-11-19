@@ -15,7 +15,7 @@ use iron_tide::levels::{BaseSite, Difficulty, LevelDefinition};
 use iron_tide::map::GameMap;
 use iron_tide::outcome::GameOutcome;
 
-const COMBAT_UNITS: [UnitKind; 14] = [
+const COMBAT_UNITS: [UnitKind; 15] = [
     UnitKind::Rifleman,
     UnitKind::Rocketeer,
     UnitKind::Grenadier,
@@ -27,6 +27,7 @@ const COMBAT_UNITS: [UnitKind; 14] = [
     UnitKind::Bulwark,
     UnitKind::Artillery,
     UnitKind::Gunship,
+    UnitKind::Bomber,
     UnitKind::FlakTrack,
     UnitKind::FlameTrooper,
     UnitKind::MissileTruck,

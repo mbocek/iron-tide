@@ -141,3 +141,33 @@ fn riflemen_shoot_raider_bikes_off_the_road() {
         "the bikes beat the riflemen"
     );
 }
+
+#[test]
+fn a_bomber_strikes_once_then_lands_on_its_helipad_to_rearm() {
+    use iron_tide::catalog::BuildingKind;
+    use iron_tide::player_commands::PlayerCommand;
+    let mut battle = Battle::sandbox();
+    let pad_origin = IVec2::new(12, 50);
+    battle.construct(BuildingKind::Helipad, Team::Player, pad_origin);
+    let pad_cell = pad_origin + IVec2::ONE;
+    let bomber = battle.spawn_unit(UnitKind::Bomber, Team::Player, pad_cell);
+    let pad = battle.position(bomber);
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Crimson, pad_cell + IVec2::new(14, -6));
+    let full = health(&mut battle, tank);
+    let units = vec![battle.sim_id(bomber)];
+    let target = battle.sim_id(tank);
+    battle.issue(Team::Player, PlayerCommand::Attack { units, target });
+
+    battle.run_until(30.0, |battle| health(battle, tank) < full);
+    assert!(health(&mut battle, tank) < full, "the bombs never fell");
+    battle.run_for(25.0);
+    let back = battle.position(bomber);
+    assert!(
+        back.xz().distance(pad.xz()) < 3.0,
+        "the bomber did not return to its pad: {back}"
+    );
+    assert!(
+        back.y < pad.y + 1.0,
+        "the bomber hangs over the pad instead of landing: {back}"
+    );
+}

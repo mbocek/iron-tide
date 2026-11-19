@@ -18,16 +18,18 @@ pub enum Noise {
     TrackedEngines,
     WheeledEngines,
     Rotors,
+    JetEngines,
     Footsteps,
     Harvesting,
     Construction,
 }
 
 impl Noise {
-    const ALL: [Noise; 6] = [
+    const ALL: [Noise; 7] = [
         Noise::TrackedEngines,
         Noise::WheeledEngines,
         Noise::Rotors,
+        Noise::JetEngines,
         Noise::Footsteps,
         Noise::Harvesting,
         Noise::Construction,
@@ -38,6 +40,7 @@ impl Noise {
             Noise::TrackedEngines => "loop_tracked_engines",
             Noise::WheeledEngines => "loop_wheeled_engines",
             Noise::Rotors => "loop_rotors",
+            Noise::JetEngines => "loop_jet_engines",
             Noise::Footsteps => "loop_footsteps",
             Noise::Harvesting => "loop_harvesting",
             Noise::Construction => "loop_construction",
@@ -50,6 +53,7 @@ impl Noise {
             Noise::TrackedEngines => 0.4,
             Noise::WheeledEngines => 0.25,
             Noise::Rotors => 0.3,
+            Noise::JetEngines => 0.3,
             Noise::Footsteps => 0.4,
             Noise::Harvesting => 0.2,
             Noise::Construction => 0.45,
@@ -59,7 +63,7 @@ impl Noise {
     /// How many screen widths beyond the edge of the view it is still heard.
     fn carry(self) -> f32 {
         match self {
-            Noise::Rotors => 0.5,
+            Noise::Rotors | Noise::JetEngines => 0.5,
             Noise::TrackedEngines => 0.3,
             _ => 0.15,
         }
@@ -72,6 +76,7 @@ pub fn noise_of_unit(kind: UnitKind, moving: bool, harvesting: bool) -> Option<(
     match kind {
         _ if harvesting => Some((Noise::Harvesting, 1.0)),
         UnitKind::Gunship => Some((Noise::Rotors, if moving { 1.0 } else { HOVERING_ROTORS })),
+        UnitKind::Bomber => Some((Noise::JetEngines, if moving { 1.0 } else { IDLING_ENGINE })),
         UnitKind::Scout | UnitKind::MissileTruck => engine(Noise::WheeledEngines),
         _ if UnitKind::INFANTRY.contains(&kind) => moving.then_some((Noise::Footsteps, 1.0)),
         _ => engine(Noise::TrackedEngines),

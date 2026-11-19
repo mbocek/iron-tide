@@ -17,31 +17,32 @@ make balance MATCHES=40   # tighter numbers
 Results after tuning (40 matches per pairing; the simulation is deterministic, so each pair of matches is played
 on its own map variant, once from each corner):
 
-| Duel ($3000 a side) | Rifleman | Rocketeer | Grenadier | Sniper | Scout Buggy | Raider Bike | Battle Tank | Stealth Tank | Bulwark | Howitzer | Gunship | Flak Track | Flame Trooper | Missile Truck |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Rifleman** | 0 | +83 | −85 | +42 | −79 | +76 | −50 | +63 | −16 | −91 | +80 | −16 | −10 | −90 |
-| **Rocketeer** | −83 | 0 | −88 | −99 | −12 | +85 | +68 | +75 | +59 | −79 | +92 | +60 | −78 | −47 |
-| **Grenadier** | +85 | +88 | −9 | −100 | −57 | +74 | −66 | −32 | −66 | −81 | −100 | −59 | +90 | −80 |
-| **Sniper** | −42 | +99 | +100 | 0 | −98 | −95 | −97 | −96 | −97 | −98 | −100 | −96 | +23 | −97 |
-| **Scout Buggy** | +79 | +12 | +57 | +98 | 0 | −10 | −49 | +32 | −58 | +26 | +83 | +80 | +89 | +32 |
-| **Raider Bike** | −76 | −85 | −74 | +95 | +10 | 0 | −45 | +50 | −28 | +33 | +42 | +82 | −61 | +42 |
-| **Battle Tank** | +50 | −68 | +66 | +97 | +49 | +45 | 0 | +64 | −12 | +62 | −100 | +87 | +79 | +68 |
-| **Stealth Tank** | −63 | −75 | +32 | +96 | −32 | −50 | −64 | 0 | −67 | +48 | 0 | +75 | +21 | +41 |
-| **Bulwark** | +16 | −59 | +66 | +97 | +57 | +28 | +12 | +67 | 0 | +70 | −100 | +86 | +81 | +70 |
-| **Howitzer** | +91 | +79 | +81 | +98 | −26 | −33 | −62 | −48 | −70 | 0 | −100 | +11 | +88 | +14 |
-| **Gunship** | −80 | −92 | +100 | +100 | −83 | −42 | +100 | 0 | +100 | +100 | 0 | −89 | +100 | +100 |
-| **Flak Track** | +16 | −60 | +59 | +96 | −80 | −82 | −87 | −75 | −86 | −11 | +89 | 0 | +80 | −45 |
-| **Flame Trooper** | +10 | +78 | −90 | −23 | −90 | +61 | −79 | −21 | −81 | −88 | −100 | −80 | 0 | −93 |
-| **Missile Truck** | +90 | +47 | +80 | +97 | −32 | −42 | −68 | −41 | −70 | −14 | −100 | +45 | +93 | 0 |
+| Duel ($3000 a side) | Rifleman | Rocketeer | Grenadier | Sniper | Scout Buggy | Raider Bike | Battle Tank | Stealth Tank | Bulwark | Howitzer | Gunship | Bomber | Flak Track | Flame Trooper | Missile Truck |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Rifleman** | 0 | +83 | −85 | +42 | −79 | +76 | −50 | +63 | −16 | −91 | +80 | +48 | −16 | −10 | −90 |
+| **Rocketeer** | −83 | 0 | −88 | −99 | −12 | +85 | +68 | +75 | +59 | −79 | +92 | +50 | +60 | −78 | −47 |
+| **Grenadier** | +85 | +88 | −9 | −100 | −57 | +74 | −66 | −32 | −66 | −81 | −100 | −100 | −59 | +90 | −80 |
+| **Sniper** | −42 | +99 | +100 | 0 | −98 | −95 | −97 | −96 | −97 | −98 | −100 | −100 | −96 | +23 | −97 |
+| **Scout Buggy** | +79 | +12 | +57 | +98 | 0 | −10 | −49 | +32 | −58 | +26 | +83 | +16 | +80 | +89 | +32 |
+| **Raider Bike** | −76 | −85 | −74 | +95 | +10 | 0 | −45 | +50 | −28 | +33 | +42 | −84 | +82 | −61 | +42 |
+| **Battle Tank** | +50 | −68 | +66 | +97 | +49 | +45 | 0 | +64 | −12 | +62 | −100 | −100 | +87 | +79 | +68 |
+| **Stealth Tank** | −63 | −75 | +32 | +96 | −32 | −50 | −64 | 0 | −67 | +48 | 0 | 0 | +75 | +21 | +41 |
+| **Bulwark** | +16 | −59 | +66 | +97 | +57 | +28 | +12 | +67 | 0 | +70 | −100 | −100 | +86 | +81 | +70 |
+| **Howitzer** | +91 | +79 | +81 | +98 | −26 | −33 | −62 | −48 | −70 | 0 | −100 | −100 | +11 | +88 | +14 |
+| **Gunship** | −80 | −92 | +100 | +100 | −83 | −42 | +100 | 0 | +100 | +100 | 0 | +100 | −89 | +100 | +100 |
+| **Bomber** | −48 | −50 | +100 | +100 | −16 | +84 | +100 | 0 | +100 | +100 | −100 | 0 | −50 | +100 | +100 |
+| **Flak Track** | +16 | −60 | +59 | +96 | −80 | −82 | −87 | −75 | −86 | −11 | +89 | +50 | 0 | +80 | −45 |
+| **Flame Trooper** | +10 | +78 | −90 | −23 | −90 | +61 | −79 | −21 | −81 | −88 | −100 | −100 | −80 | 0 | −93 |
+| **Missile Truck** | +90 | +47 | +80 | +97 | −32 | −42 | −68 | −41 | −70 | −14 | −100 | −100 | +45 | +93 | 0 |
 
 | Challenger | vs | fog | wins : losses (unfinished) | median length | SW : NE site wins |
 | --- | --- | --- | --- | --- | --- |
 | Normal | Normal | on | 17 : 22 (1) | 7.7 min | 22 : 17 |
-| Hard | Normal | on | 31 : 5 (4) | 7.8 min | 18 : 18 |
-| Normal | Hard | on | 3 : 31 (6) | 7.5 min | 17 : 17 |
+| Hard | Normal | on | 31 : 5 (4) | 7.9 min | 18 : 18 |
+| Normal | Hard | on | 2 : 32 (6) | 7.5 min | 18 : 16 |
 | Easy | Normal | on | 2 : 37 (1) | 8.3 min | 22 : 17 |
-| Brutal | Hard | on | 35 : 4 (1) | 9.1 min | 22 : 17 |
-| Normal | Normal | off | 14 : 25 (1) | 4.8 min | 27 : 12 |
+| Brutal | Hard | on | 36 : 3 (1) | 9.1 min | 23 : 16 |
+| Normal | Normal | off | 13 : 25 (2) | 4.8 min | 26 : 12 |
 
 The challenger plays the Coalition and the defender the Syndicate. The defender wins the Normal mirror more
 often, but it does the same with both sides on one faction or with the factions swapped, so that is the

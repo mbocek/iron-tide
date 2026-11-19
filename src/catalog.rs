@@ -208,6 +208,7 @@ pub enum UnitKind {
     RepairTruck,
     StealthTank,
     RaiderBike,
+    Bomber,
 }
 
 pub struct UnitSpec {
@@ -245,7 +246,7 @@ impl UnitKind {
         UnitKind::Medic,
         UnitKind::Engineer,
     ];
-    pub const VEHICLES: [UnitKind; 11] = [
+    pub const VEHICLES: [UnitKind; 12] = [
         UnitKind::Scout,
         UnitKind::RaiderBike,
         UnitKind::Tank,
@@ -255,10 +256,11 @@ impl UnitKind {
         UnitKind::MissileTruck,
         UnitKind::FlakTrack,
         UnitKind::Gunship,
+        UnitKind::Bomber,
         UnitKind::RepairTruck,
         UnitKind::Harvester,
     ];
-    pub const ALL: [UnitKind; 18] = [
+    pub const ALL: [UnitKind; 19] = [
         UnitKind::Rifleman,
         UnitKind::Rocketeer,
         UnitKind::Medic,
@@ -277,6 +279,7 @@ impl UnitKind {
         UnitKind::RepairTruck,
         UnitKind::StealthTank,
         UnitKind::RaiderBike,
+        UnitKind::Bomber,
     ];
 
     pub fn flies(self) -> bool {
@@ -303,7 +306,13 @@ impl UnitKind {
             UnitKind::RepairTruck => &REPAIR_TRUCK,
             UnitKind::StealthTank => &STEALTH_TANK,
             UnitKind::RaiderBike => &RAIDER_BIKE,
+            UnitKind::Bomber => &BOMBER,
         }
+    }
+
+    /// Aircraft that strike once and fly back to a Helipad to rearm before the next run.
+    pub fn rearms_at_pad(self) -> bool {
+        self == UnitKind::Bomber
     }
 
     /// Units that blend into the ground after keeping still for a while.
@@ -466,6 +475,21 @@ const BIKE_ROCKETS: WeaponSpec = WeaponSpec {
     versus_vehicle: 1.0,
     versus_structure: 0.4,
     versus_aircraft: 0.3,
+    report: Sound::MissileLaunch,
+};
+
+/// One heavy stick of bombs per sortie; the long reload is the flight home and rearming.
+const BOMB_LOAD: WeaponSpec = WeaponSpec {
+    range: 3.0,
+    damage: 240.0,
+    reload_secs: 18.0,
+    projectile_speed: 16.0,
+    splash_radius: 3.2,
+    style: ProjectileStyle::Shell,
+    versus_infantry: 0.8,
+    versus_vehicle: 1.0,
+    versus_structure: 1.4,
+    versus_aircraft: 0.0,
     report: Sound::MissileLaunch,
 };
 
@@ -902,6 +926,26 @@ const GRENADIER: UnitSpec = UnitSpec {
     faction: None,
     heal_per_sec: 0.0,
     sight: 12.0,
+};
+
+const BOMBER: UnitSpec = UnitSpec {
+    name: "Bomber",
+    role: "Flies one bombing run against ground targets, then returns to its Helipad to rearm. Flak shoots it down.",
+    model_id: "bomber",
+    cost: 1500,
+    build_secs: 20.0,
+    max_health: 280.0,
+    speed: 9.0,
+    turn_rate: 2.5,
+    radius: 1.6,
+    armor: ArmorClass::Aircraft,
+    weapon: Some(BOMB_LOAD),
+    has_turret: false,
+    producer: BuildingKind::Helipad,
+    requires: Some(BuildingKind::TechCenter),
+    faction: Some(Faction::Coalition),
+    heal_per_sec: 0.0,
+    sight: 18.0,
 };
 
 const RAIDER_BIKE: UnitSpec = UnitSpec {

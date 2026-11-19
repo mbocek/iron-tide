@@ -143,6 +143,20 @@ def rotors():
     return seamless(*stereo(mono, rng), seconds)
 
 
+def jet_engines():
+    """Twin jet engines overhead: a broad roar with a turbine whine, both drifting as the bomber banks."""
+    rng = random.Random(7350)
+    seconds = 3.0
+    length = rendered_length(seconds)
+    roar = biquad(biquad(pink_noise(length, rng), "lowpass", 1800.0), "highpass", 90.0)
+    roar = multiplied(roar, wobble(rng, length, 0.8, 0.25))
+    hiss = scaled(biquad(white_noise(length, rng), "bandpass", 3500.0, 0.8), 0.25)
+    whine = multiplied(summed(scaled(sine(1650.0, length), 0.03), scaled(sine(2480.0, length), 0.015)),
+                       wobble(rng, length, 0.5, 0.3))
+    mono = summed(roar, hiss, whine)
+    return seamless(*stereo(mono, rng, hiss), seconds)
+
+
 def footstep(rng):
     """A boot landing on dirt and gravel: a dull thud and a few grains crunching."""
     length = samples(0.09)
@@ -240,6 +254,7 @@ BATTLE_NOISE = {
     "sfx/loop_tracked_engines": tracked_engines,
     "sfx/loop_wheeled_engines": wheeled_engines,
     "sfx/loop_rotors": rotors,
+    "sfx/loop_jet_engines": jet_engines,
     "sfx/loop_footsteps": footsteps,
     "sfx/loop_harvesting": harvesting,
     "sfx/loop_construction": construction,

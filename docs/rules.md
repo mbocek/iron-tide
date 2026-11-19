@@ -31,7 +31,7 @@
   Helipad; Barracks → Gun Turret, Flak Cannon, Rocket Bunker, Wall. The Bulwark, the Missile Truck, the Howitzer
   and the Gunship also need a Tech Center.
 - **Factions:** the Coalition and the Syndicate share most of the arsenal, but each has its own: only the
-  Coalition trains Snipers and builds Bulwarks and Repair Trucks; only the Syndicate trains Flame Troopers (short-range flamers that
+  Coalition trains Snipers and builds Bulwarks, Repair Trucks and Bombers; only the Syndicate trains Flame Troopers (short-range flamers that
   burn infantry and buildings), builds Missile Trucks (wheeled rocket artillery, 18 m range), Stealth Tanks (hide like a sniper when they keep
   still and ambush armour with missiles; needs a Tech Center), Raider Bikes (fast, cheap rocket bikes that hunt
   harvesters and artillery) and Rocket Bunkers
@@ -57,7 +57,9 @@
   Bay) does the same in the field: it drives to damaged friendly vehicles within 12 m and repairs 12 health per
   second, for free.
 - **Aircraft:** the Gunship (Helipad, $1100) takes off from the pad and flies straight to where it is sent, over
-  water, walls and units, and tears through armour with its rocket pods. An aircraft hovering over its own
+  water, walls and units, and tears through armour with its rocket pods. The Coalition's Bomber (Helipad and Tech
+  Center, $1500) flies one bombing run, a single heavy stick of bombs with a wide blast, then flies back to the
+  nearest own Helipad and takes no new target until it has rearmed (18 s); idle on its pad it lands. An aircraft hovering over its own
   Helipad (within 3 m of the pad's centre, not moving) regains 4 % of its health per second for free. Tank cannons and howitzers cannot shoot upwards at all;
   riflemen and turrets hit it weakly, scout buggies better and rocketeers well. The dedicated counters are
   the Flak Track ($700, War Factory) and the Flak Cannon ($700 structure, after the Barracks), whose bursting

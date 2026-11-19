@@ -41,6 +41,7 @@ TEAM_MODELS = {
     "repair_truck": (units.build_repair_truck, UNIT_TRIANGLE_BUDGET),
     "stealth_tank": (units.build_stealth_tank, UNIT_TRIANGLE_BUDGET),
     "raider_bike": (units.build_raider_bike, UNIT_TRIANGLE_BUDGET),
+    "bomber": (units.build_bomber, UNIT_TRIANGLE_BUDGET),
     "command_center": (buildings.build_command_center, BUILDING_TRIANGLE_BUDGET),
     "power_plant": (buildings.build_power_plant, BUILDING_TRIANGLE_BUDGET),
     "refinery": (buildings.build_refinery, BUILDING_TRIANGLE_BUDGET),

@@ -1106,3 +1106,49 @@ def _add_bike_rider():
         cylinder_between("Uniform", (0.0, side * 0.17, 1.42), (0.42, side * 0.3, 1.02), 0.05, 6, name="RiderArm")
         cylinder_between("Uniform", (-0.22, side * 0.15, 0.98), (0.08, side * 0.2, 0.7), 0.065, 6, name="RiderThigh")
         cylinder_between("Uniform", (0.08, side * 0.2, 0.7), (-0.05, side * 0.2, 0.4), 0.055, 6, name="RiderShin")
+
+
+def build_bomber():
+    """A twin-engined Coalition strike bomber facing +X, with landing gear so it can sit on the pad between
+    sorties. The game flies it to its target and back; nothing on it is animated."""
+    fuselage = [(-2.6, 0.55), (1.8, 0.55), (2.6, 0.85), (2.35, 1.2), (1.4, 1.35), (-2.2, 1.3), (-2.8, 1.05)]
+    prism("Armor", fuselage, 0.8, bevel=0.04, name="Fuselage")
+    box(GLASS, (0.7, 0.62, 0.22), (1.9, 0.0, 1.28), (0, math.radians(-12), 0), bevel=0.06, name="Canopy")
+    box("ArmorDark", (1.6, 0.5, 0.12), (-0.3, 0.0, 0.5), bevel=0.02, name="BombBayDoors")
+    for side in (-1, 1):
+        wing = [(0.0, 0.0), (0.9, 0.0), (0.2, side * 3.2), (-0.45, side * 3.2)]
+        part("Armor", lambda bm, w=wing: _flat_plate(bm, w, 0.95, 0.08), name="Wing")
+        box("TeamColor", (0.5, 0.6, 0.012), (-0.05, side * 2.5, 1.0), (0, 0, side * math.radians(-12)), bevel=0.0,
+            name="WingTeamPanel")
+        nacelle = Vector((0.5, side * 1.4, 0.82))
+        cylinder_between("ArmorDark", nacelle - Vector((0.9, 0, 0)), nacelle + Vector((0.5, 0, 0)), 0.2, 12,
+                         name="EngineNacelle")
+        cylinder("Gunmetal", 0.15, 0.06, nacelle + Vector((0.52, 0, 0)), FACING_FRONT, segments=12, name="Intake")
+        cylinder("WarningLight", 0.12, 0.04, nacelle - Vector((0.92, 0, 0)), FACING_FRONT, segments=12,
+                 name="Exhaust")
+        cylinder_between("Gunmetal", (0.3, side * 1.4, 0.62), (0.3, side * 1.4, 0.2), 0.04, 6, name="MainGearLeg")
+        make_wheel(Vector((0.3, side * 1.4, 0.16)), 0.16, 0.12, side=side)
+        box("Armor", (0.45, 1.2, 0.05), (-2.4, side * 0.65, 1.2), (0, 0, side * math.radians(-15)), bevel=0.01,
+            name="Tailplane")
+    fin = [(-2.75, 1.25), (-2.0, 1.25), (-2.45, 2.15), (-2.85, 2.15)]
+    prism("Armor", fin, 0.08, bevel=0.01, name="TailFin")
+    box("TeamColor", (0.5, 0.09, 0.3), (-2.45, 0.0, 1.85), bevel=0.0, name="FinTeamPanel")
+    cylinder_between("Gunmetal", (2.1, 0.0, 0.62), (2.1, 0.0, 0.2), 0.035, 6, name="NoseGearLeg")
+    make_wheel(Vector((2.1, 0.0, 0.14)), 0.13, 0.1, side=1)
+    for x in (-0.7, -0.2, 0.3):
+        cylinder_between("ArmorDark", (x - 0.2, 0.0, 0.38), (x + 0.2, 0.0, 0.38), 0.1, 8, name="Bomb")
+    add_beacon((0.6, 0.0, 1.35), radius=0.04, lens="WarningLight")
+
+
+def _flat_plate(bm, outline_xy, z, thickness):
+    """A thin plate with the given outline, for wings and tailplanes."""
+    bottom = [bm.verts.new((x, y, z - thickness / 2)) for x, y in outline_xy]
+    top = [bm.verts.new((x, y, z + thickness / 2)) for x, y in outline_xy]
+    if outline_xy[2][1] < 0:
+        bottom, top = list(reversed(bottom)), list(reversed(top))
+    bm.faces.new(list(reversed(bottom)))
+    bm.faces.new(top)
+    count = len(top)
+    for k in range(count):
+        j = (k + 1) % count
+        bm.faces.new((bottom[k], bottom[j], top[j], top[k]))

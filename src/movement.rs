@@ -6,6 +6,7 @@ use crate::determinism::SimId;
 use crate::levels::ActiveLevel;
 use crate::map::{CELL_SIZE, GameMap, cell_center, in_far_half, world_to_cell};
 use crate::sim_math;
+use crate::sorties::Sortie;
 
 const WAYPOINT_REACHED_DISTANCE: f32 = 0.2;
 /// Two vehicles heading for the same waypoint from opposite sides push each other off it for ever,
@@ -14,6 +15,8 @@ const WAYPOINT_CROWDED_REACH: f32 = CELL_SIZE * 0.5;
 const WAYPOINT_STALL_SECS: f32 = 1.5;
 const MEANINGFUL_PROGRESS: f32 = 0.05;
 pub const FLIGHT_ALTITUDE: f32 = 6.0;
+/// A parked aircraft stands on a Helipad's raised pad, not on the ground beneath it.
+const PARKED_ON_THE_PAD: f32 = 0.35;
 const FLIGHT_NOSE_DOWN: f32 = 0.12;
 /// Vehicles drive forward only once roughly facing their next waypoint, so they turn on the spot like tracked vehicles.
 const DRIVE_ALIGNMENT_TOLERANCE: f32 = 0.7;
@@ -88,13 +91,24 @@ fn stalled_beside(approach: &mut WaypointApproach, waypoint: Vec3, distance: f32
 /// tilt to that plane and sit on the highest supports so crests and banks cannot poke through the hull.
 pub fn settle_on_terrain(
     level: Res<ActiveLevel>,
-    mut units: Query<(&Mobile, &mut Transform, &Armor, &BodyRadius)>,
+    mut units: Query<(
+        &Mobile,
+        &mut Transform,
+        &Armor,
+        &BodyRadius,
+        Option<&Sortie>,
+    )>,
 ) {
     let landscape = level.0.landscape;
-    for (mobile, mut transform, armor, radius) in &mut units {
+    for (mobile, mut transform, armor, radius, sortie) in &mut units {
         let heading = Quat::from_rotation_y(mobile.facing);
         let position = transform.translation;
         let center_height = landscape.height(position.x, position.z);
+        if mobile.flying && sortie.is_some_and(|sortie| sortie.parked) {
+            transform.translation.y = center_height.max(0.0) + PARKED_ON_THE_PAD;
+            transform.rotation = heading;
+            continue;
+        }
         if mobile.flying {
             let nose_down = if mobile.is_moving() {
                 FLIGHT_NOSE_DOWN

@@ -11,6 +11,7 @@ use crate::map::{
     CELL_SIZE, GameMap, footprint_center, in_far_half, opposite_cell, opposite_origin,
 };
 use crate::medical::Healer;
+use crate::sorties::Sortie;
 use crate::wall_joints::WallSegment;
 
 const TURRET_TURN_RATE: f32 = 3.5;
@@ -59,6 +60,9 @@ pub fn spawn_unit(
             patients: spec.armor,
             treating: false,
         });
+    }
+    if kind.rearms_at_pad() {
+        unit.insert(Sortie::default());
     }
     if kind.hides_when_still() {
         unit.insert(Camouflage::default());
