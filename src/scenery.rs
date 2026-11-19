@@ -465,11 +465,6 @@ fn spawn_scenery(
     if is_trampleable(model_id) {
         scenery.insert(Trampleable::default());
     }
-    if sway_amplitude(model_id).is_some() {
-        // The wind moved to the GPU; these two draws stay so every map keeps its trees and rocks where they were.
-        let _sway_phase: f32 = rng.random_range(0.0..TAU);
-        let _sway_speed: f32 = rng.random_range(1.2..2.0);
-    }
     scenery.id()
 }
 

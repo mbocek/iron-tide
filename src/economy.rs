@@ -244,8 +244,10 @@ fn resize_crystal_visual(
     visuals: &mut Query<(&CrystalVisual, &mut Transform), (Without<Harvester>, Without<Building>)>,
     cell: IVec2,
 ) {
-    if let Some((_, mut transform)) = visuals.iter_mut().find(|(visual, _)| visual.cell == cell) {
-        transform.scale = Vec3::splat(crystal_scale(map.crystal_at(cell)));
+    if let Some((visual, mut transform)) =
+        visuals.iter_mut().find(|(visual, _)| visual.cell == cell)
+    {
+        transform.scale = Vec3::splat(visual.size * crystal_scale(map.crystal_at(cell)));
     }
 }
 

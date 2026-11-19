@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 use pathfinding::prelude::astar;
@@ -156,6 +157,8 @@ pub struct GameMap {
 #[derive(Component)]
 pub struct CrystalVisual {
     pub cell: IVec2,
+    /// This crystal's own size against others holding as much, so a field is not a row of equals.
+    pub size: f32,
 }
 
 impl GameMap {
@@ -418,9 +421,10 @@ pub fn near_base(cell: IVec2) -> bool {
 }
 
 pub fn near_crystal_field(cell: IVec2) -> bool {
-    crystal_fields()
-        .iter()
-        .any(|field| (cell - field.center).as_vec2().length() < field.radius + 2.0)
+    crystal_fields().iter().any(|field| {
+        let outer_edge = field.radius * OUTLINE_MAX_REACH + STRAY_REACH;
+        (cell - field.center).as_vec2().length() < outer_edge + 1.0
+    })
 }
 
 pub fn generate_map(mut commands: Commands, models: Res<ModelLibrary>, level: Res<ActiveLevel>) {
@@ -516,22 +520,61 @@ pub fn spawn_terrain_visuals(
     ));
 }
 
+/// A field's edge: a blob rather than a disc, with a few crystals scattered past it.
+struct FieldOutline {
+    /// (amplitude, phase) of the bulges going round the field twice and three times.
+    lobes: [(f32, f32); 2],
+}
+
+/// The largest reach of an outline, as a share of the field's radius.
+const OUTLINE_MAX_REACH: f32 = 1.0 + 0.3 + 0.15;
+/// How far past the edge stray crystals lie, in cells, and how often a cell there has one.
+const STRAY_REACH: f32 = 1.6;
+const STRAY_CHANCE: f64 = 0.18;
+const STRAY_RICHNESS: f32 = 0.3;
+const EDGE_JITTER: f32 = 0.6;
+
+impl FieldOutline {
+    fn random(rng: &mut StdRng) -> Self {
+        Self {
+            lobes: [
+                (rng.random_range(0.12..0.3), rng.random_range(0.0..TAU)),
+                (rng.random_range(0.05..0.15), rng.random_range(0.0..TAU)),
+            ],
+        }
+    }
+
+    fn reach(&self, angle: f32) -> f32 {
+        let [(twice, twice_phase), (thrice, thrice_phase)] = self.lobes;
+        1.0 + twice * (2.0 * angle + twice_phase).sin()
+            + thrice * (3.0 * angle + thrice_phase).sin()
+    }
+}
+
 fn seed_crystal_fields(commands: &mut Commands, map: &mut GameMap, rng: &mut StdRng) {
     for field in crystal_fields().iter().step_by(2) {
-        let reach = field.radius.ceil() as i32;
+        let outline = FieldOutline::random(rng);
+        let reach = (field.radius * OUTLINE_MAX_REACH + STRAY_REACH).ceil() as i32;
         for cell in cells_by_distance(field.center, reach) {
-            let distance = (cell - field.center).as_vec2().length();
-            let jitter = rng.random_range(-0.6..0.6);
+            let offset = (cell - field.center).as_vec2();
+            let distance = offset.length();
+            let edge = field.radius * outline.reach(offset.y.atan2(offset.x));
+            let inside = distance + rng.random_range(-EDGE_JITTER..EDGE_JITTER) <= edge;
+            let stray = !inside && distance <= edge + STRAY_REACH && rng.random_bool(STRAY_CHANCE);
             let Some(i) = GameMap::index(cell) else {
                 continue;
             };
-            if distance + jitter > field.radius || map.terrain_blocked[i] {
+            if !(inside || stray) || map.terrain_blocked[i] {
                 continue;
             }
             let Some(mirror) = GameMap::index(opposite_cell(cell)) else {
                 continue;
             };
-            let richness = 1.0 - 0.5 * (distance / field.radius);
+            let richness = if inside {
+                1.0 - 0.5 * (distance / edge).min(1.0)
+            } else {
+                STRAY_RICHNESS
+            };
             let amount = (CRYSTAL_PER_CELL as f32 * richness) as u32;
             for (index, at) in [(i, cell), (mirror, opposite_cell(cell))] {
                 map.crystal[index] = amount;
@@ -541,6 +584,10 @@ fn seed_crystal_fields(commands: &mut Commands, map: &mut GameMap, rng: &mut Std
     }
 }
 
+/// How far a crystal may sit from its cell's centre, in metres, and how far it may lean.
+const CRYSTAL_SPREAD: f32 = 0.45;
+const CRYSTAL_LEAN: f32 = 0.14;
+
 pub fn spawn_crystal_visual(
     commands: &mut Commands,
     rng: &mut impl RngExt,
@@ -548,14 +595,21 @@ pub fn spawn_crystal_visual(
     amount: u32,
 ) {
     let model = CRYSTAL_MODELS[rng.random_range(0..CRYSTAL_MODELS.len())];
+    let spread = Vec3::new(
+        rng.random_range(-CRYSTAL_SPREAD..CRYSTAL_SPREAD),
+        0.0,
+        rng.random_range(-CRYSTAL_SPREAD..CRYSTAL_SPREAD),
+    );
+    let lean = Quat::from_rotation_x(rng.random_range(-CRYSTAL_LEAN..CRYSTAL_LEAN))
+        * Quat::from_rotation_z(rng.random_range(-CRYSTAL_LEAN..CRYSTAL_LEAN));
+    let heading = Quat::from_rotation_y(rng.random_range(0.0..TAU));
+    let size = rng.random_range(0.8..1.2);
     commands.spawn((
-        CrystalVisual { cell },
+        CrystalVisual { cell, size },
         CrystalModel(model),
-        Transform::from_translation(cell_center(cell))
-            .with_rotation(Quat::from_rotation_y(
-                rng.random_range(0.0..std::f32::consts::TAU),
-            ))
-            .with_scale(Vec3::splat(crystal_scale(amount))),
+        Transform::from_translation(approximate_ground(cell_center(cell) + spread))
+            .with_rotation(lean * heading)
+            .with_scale(Vec3::splat(size * crystal_scale(amount))),
         Visibility::default(),
     ));
 }
