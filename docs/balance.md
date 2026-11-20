@@ -78,3 +78,7 @@ pairing, Normal against Normal), so both sides of the result count:
 - **Stealth Tanks kept in ambush.** Two Stealth Tanks lying still on the approach to the base changed nothing
   (22 against 23 wins for the side that builds them) and their damage per credit fell from 0.77 to 0.49, as they
   rarely met anyone.
+- **Waves timed by the rain.** Setting off with three quarters of a wave while it rains, and holding a full wave
+  for rain due within 45 s, changed no result (17:23 either way). After the first wave the computer sends each
+  new unit to the front as it is built, so in rain it has 0-2 units waiting at home, and the first wave leaves
+  before the first rain (4.5 minutes at the earliest on the test maps).
