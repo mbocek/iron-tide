@@ -145,3 +145,26 @@ fn a_group_move_keeps_to_the_pace_of_its_slowest_unit() {
         "a scout sent alone keeps its own speed, moved {on_its_own} m"
     );
 }
+
+#[test]
+fn an_attack_move_group_keeps_its_pace_until_it_meets_the_enemy() {
+    const SECS: f32 = 4.0;
+    let tank_speed = UnitKind::Tank.spec().speed;
+    let mut battle = Battle::sandbox();
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Player, FIELD);
+    let scout = battle.spawn_unit(UnitKind::Scout, Team::Player, FIELD + IVec2::new(0, 2));
+    let start = battle.position(scout);
+    let order = group_order(
+        &mut battle,
+        &[tank, scout],
+        FIELD + IVec2::new(20, 0),
+        GroundOrder::AttackMove,
+    );
+    battle.issue(Team::Player, order);
+    battle.run_for(SECS);
+    let travelled = battle.position(scout).distance(start);
+    assert!(
+        travelled <= tank_speed * SECS + 0.5,
+        "the scout left the tank behind on an attack-move: {travelled} m"
+    );
+}

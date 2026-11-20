@@ -5,7 +5,7 @@
 | LMB / drag | select unit / box-select units (Shift adds); the box counts the units inside, selected units get white corner marks; a selected defensive structure outlines its weapon range on the ground |
 | RMB on ground | move (formation): the group keeps to its slowest unit so it arrives together, ground units and aircraft each at their own pace |
 | RMB on enemy | attack |
-| Ctrl + RMB | attack-move: fight anything met on the way, then carry on |
+| Ctrl + RMB | attack-move: fight anything met on the way, then carry on; the group keeps its slowest unit's pace until it meets the enemy |
 | Alt + RMB | patrol between the current position and the target |
 | Shift + RMB | queue the order behind the current ones (route shown for selected units) |
 | RMB with a barracks or factory selected | set its rally point |

@@ -308,6 +308,7 @@ pub fn chase_targets(
         attack.repath_timer -= time.delta_secs();
         if attack.repath_timer <= 0.0 {
             attack.repath_timer = CHASE_REPATH_SECS;
+            mobile.pace = None;
             order_move(
                 &mut mobile,
                 &map,

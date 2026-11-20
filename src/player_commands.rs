@@ -439,8 +439,8 @@ impl Battlefield<'_, '_> {
                     .is_ok_and(|(building, ..)| building.kind == BuildingKind::Refinery)
             });
         let paces = match order {
-            GroundOrder::Move => self.group_paces(team, ids),
-            GroundOrder::AttackMove | GroundOrder::Patrol => GroupPaces::default(),
+            GroundOrder::Move | GroundOrder::AttackMove => self.group_paces(team, ids),
+            GroundOrder::Patrol => GroupPaces::default(),
         };
         let map = &*self.map;
         let mut formation =
