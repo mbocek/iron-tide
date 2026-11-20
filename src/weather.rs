@@ -2,10 +2,10 @@ use bevy::prelude::*;
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 
+use crate::i18n::tr;
 use crate::levels::{ActiveLevel, LevelDefinition, Weather};
 use crate::match_flow::MatchClock;
 use crate::notifications::Notifications;
-use crate::i18n::tr;
 use crate::season::Season;
 use crate::terrain_material::{TerrainMaterial, TerrainMaterialHandle};
 
@@ -135,7 +135,11 @@ impl WeatherForecast {
     }
 }
 
-pub fn begin_weather(mut commands: Commands, level: Res<ActiveLevel>, clock: Option<Res<MatchClock>>) {
+pub fn begin_weather(
+    mut commands: Commands,
+    level: Res<ActiveLevel>,
+    clock: Option<Res<MatchClock>>,
+) {
     let secs = clock.map_or(0.0, |clock| clock.elapsed_secs);
     let (cloud_cover, rainfall) = WeatherForecast::for_level(&level.0).sky_at(secs);
     commands.insert_resource(WeatherCycle {

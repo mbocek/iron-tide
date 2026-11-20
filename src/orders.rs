@@ -37,6 +37,8 @@ pub struct OrderMarker {
     pub position: Vec3,
     pub remaining_secs: f32,
     pub kind: MarkerKind,
+    /// Counts every acknowledged order, so the units' voices can tell a new order from the marker fading.
+    pub orders_acknowledged: u32,
 }
 
 /// What the last right click ordered, which decides the marker's colour.
@@ -397,6 +399,7 @@ pub fn issue_orders(
             position,
             remaining_secs: ORDER_MARKER_SECS,
             kind,
+            orders_acknowledged: marker.orders_acknowledged.wrapping_add(1),
         };
     };
 

@@ -201,6 +201,9 @@ fn rain_shortens_how_far_units_see() {
         battle.world().resource::<FogOfWar>().is_visible(spot)
     };
     assert!(sees_at(Weather::Clear, 0.85));
-    assert!(!sees_at(Weather::Rain, 0.85), "rain should cut sight by a quarter");
+    assert!(
+        !sees_at(Weather::Rain, 0.85),
+        "rain should cut sight by a quarter"
+    );
     assert!(sees_at(Weather::Rain, 0.6));
 }

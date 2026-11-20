@@ -82,6 +82,7 @@ pub mod terrain_material;
 pub mod tutorial;
 pub mod ui;
 pub mod unit_orders;
+pub mod unit_voices;
 pub mod updates;
 pub mod veterancy;
 pub mod wall_joints;
@@ -337,6 +338,7 @@ impl Plugin for GamePlugin {
                     sound::apply_master_volume,
                     battle_noise::mix_battle_noise,
                     announcer::announce,
+                    unit_voices::answer_the_player,
                 )
                     .after(FramePhase::Presentation),
             )
@@ -519,6 +521,7 @@ impl Plugin for GamePlugin {
                     sound::place_ears,
                     battle_noise::start_battle_noise,
                     announcer::load_recordings,
+                    unit_voices::load_unit_voices,
                 )
                     .chain()
                     .in_set(StartupPhase::Assets),

@@ -60,7 +60,7 @@ impl Report {
     }
 }
 
-fn language_folder(language: Language) -> &'static str {
+pub fn language_folder(language: Language) -> &'static str {
     match language {
         Language::English => "en",
         Language::Slovak => "sk",
@@ -68,7 +68,7 @@ fn language_folder(language: Language) -> &'static str {
     }
 }
 
-const LANGUAGES: [Language; 3] = [Language::English, Language::Slovak, Language::Czech];
+pub const LANGUAGES: [Language; 3] = [Language::English, Language::Slovak, Language::Czech];
 /// The operator speaks just after the chime, not over it.
 const AFTER_CHIME_SECS: f32 = 0.35;
 const VOICE_VOLUME: f32 = 0.9;

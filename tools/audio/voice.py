@@ -44,12 +44,12 @@ def espeak():
     return shutil.which("espeak-ng")
 
 
-def spoken(language, text):
+def spoken(language, text, pitch=PITCH, rate=SPEAKING_RATE_WPM, variant=""):
     """espeak-ng's dry mono recording, resampled to the game's rate."""
     with tempfile.TemporaryDirectory(prefix="iron_tide_voice_") as scratch:
         path = Path(scratch) / "speech.wav"
-        subprocess.run([espeak(), "-v", LANGUAGES[language], "-s", SPEAKING_RATE_WPM, "-p", PITCH,
-                        "-w", str(path), text], check=True)
+        voice = LANGUAGES[language] + variant
+        subprocess.run([espeak(), "-v", voice, "-s", rate, "-p", pitch, "-w", str(path), text], check=True)
         with wave.open(str(path)) as recording:
             rate = recording.getframerate()
             frames = recording.readframes(recording.getnframes())
@@ -100,8 +100,66 @@ def announcement(phrase, language):
     return render
 
 
+# Each kind of unit answers in its own voice: (espeak pitch, words per minute, espeak variant).
+UNIT_SPEAKERS = {
+    "infantry": ("50", "165", "+m3"),
+    "vehicle": ("28", "150", "+m1"),
+    "aircraft": ("62", "175", "+m5"),
+}
+
+# Two lines per reply so a busy player does not hear the same words every click; must match src/unit_voices.rs.
+UNIT_REPLIES = {
+    ("infantry", "select"): {
+        "en": ("Ready.", "Standing by."), "sk": ("Pripravený.", "Čakám na rozkazy."),
+        "cs": ("Připraven.", "Čekám na rozkazy."),
+    },
+    ("infantry", "move"): {
+        "en": ("Moving out.", "On my way."), "sk": ("Vyrážame.", "Už idem."), "cs": ("Vyrážíme.", "Už jdu."),
+    },
+    ("infantry", "attack"): {
+        "en": ("Engaging!", "Open fire!"), "sk": ("Útočíme!", "Paľba!"), "cs": ("Útočíme!", "Palte!"),
+    },
+    ("vehicle", "select"): {
+        "en": ("Armour ready.", "Crew standing by."), "sk": ("Obrnenec pripravený.", "Posádka čaká."),
+        "cs": ("Obrněnec připraven.", "Posádka čeká."),
+    },
+    ("vehicle", "move"): {
+        "en": ("Rolling out.", "Moving."), "sk": ("Vyrážame.", "Presúvame sa."), "cs": ("Vyrážíme.", "Přesouváme se."),
+    },
+    ("vehicle", "attack"): {
+        "en": ("Target acquired.", "Firing!"), "sk": ("Cieľ zameraný.", "Páľ!"), "cs": ("Cíl zaměřen.", "Pal!"),
+    },
+    ("aircraft", "select"): {
+        "en": ("Airborne.", "Pilot here."), "sk": ("Vo vzduchu.", "Pilot počúva."), "cs": ("Ve vzduchu.", "Pilot poslouchá."),
+    },
+    ("aircraft", "move"): {
+        "en": ("Heading out.", "On course."), "sk": ("Letím.", "Mám kurz."), "cs": ("Letím.", "Mám kurz."),
+    },
+    ("aircraft", "attack"): {
+        "en": ("Attack run!", "Going in!"), "sk": ("Útočný nálet!", "Idem na to!"), "cs": ("Útočný nálet!", "Jdu na to!"),
+    },
+}
+
+
+def unit_reply(speaker, reply, language, variant):
+    def render():
+        rng = random.Random(f"{speaker}/{reply}/{language}/{variant}")
+        pitch, rate, espeak_variant = UNIT_SPEAKERS[speaker]
+        text = UNIT_REPLIES[(speaker, reply)][language][variant]
+        return radio(spoken(language, text, pitch, rate, espeak_variant), rng)
+    return render
+
+
 VOICES = {
-    f"voice/{language}/{phrase}": announcement(phrase, language)
-    for phrase in PHRASES
-    for language in LANGUAGES
+    **{
+        f"voice/{language}/{phrase}": announcement(phrase, language)
+        for phrase in PHRASES
+        for language in LANGUAGES
+    },
+    **{
+        f"voice/{language}/reply_{speaker}_{reply}_{variant + 1}": unit_reply(speaker, reply, language, variant)
+        for (speaker, reply) in UNIT_REPLIES
+        for language in LANGUAGES
+        for variant in range(2)
+    },
 } if espeak() else {}
