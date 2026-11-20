@@ -54,6 +54,8 @@ pub struct Mobile {
     pub ordered_move: bool,
     /// Aircraft fly straight to where they are sent, over water, walls and other units.
     pub flying: bool,
+    /// The speed a group move holds every member to, so the group arrives together; `None` travels at its own.
+    pub pace: Option<f32>,
     pub approach: WaypointApproach,
 }
 
@@ -74,6 +76,7 @@ impl Mobile {
             path: VecDeque::new(),
             ordered_move: false,
             flying: false,
+            pace: None,
             approach: WaypointApproach::default(),
         }
     }
@@ -93,6 +96,15 @@ impl Mobile {
     pub fn stop(&mut self) {
         self.path.clear();
         self.ordered_move = false;
+        self.pace = None;
+    }
+
+    /// A group's pace holds only on the ordered move itself, never while chasing or fleeing.
+    pub fn travel_speed(&self) -> f32 {
+        match self.pace {
+            Some(pace) if self.ordered_move => pace.min(self.speed),
+            _ => self.speed,
+        }
     }
 }
 

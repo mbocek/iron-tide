@@ -71,7 +71,7 @@ pub fn follow_paths(
         let misalignment = shortest_angle(mobile.facing, desired_yaw).abs();
         let lifting_off = sortie.is_some_and(Sortie::climbing);
         if misalignment < DRIVE_ALIGNMENT_TOLERANCE && !lifting_off {
-            let step = (mobile.speed * dt).min(distance);
+            let step = (mobile.travel_speed() * dt).min(distance);
             transform.translation += to_waypoint / distance * step;
         }
     }

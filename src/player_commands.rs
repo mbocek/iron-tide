@@ -192,6 +192,43 @@ pub fn count_ticks(mut tick: ResMut<SimulationTick>) {
     tick.0 += 1;
 }
 
+#[derive(Clone, Copy)]
+struct DomainPace {
+    members: u32,
+    slowest: f32,
+}
+
+impl Default for DomainPace {
+    fn default() -> Self {
+        Self {
+            members: 0,
+            slowest: f32::INFINITY,
+        }
+    }
+}
+
+impl DomainPace {
+    fn pace(self) -> Option<f32> {
+        (self.members > 1).then_some(self.slowest)
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct GroupPaces {
+    ground: DomainPace,
+    aircraft: DomainPace,
+}
+
+impl GroupPaces {
+    fn for_member(self, flying: bool) -> Option<f32> {
+        if flying {
+            self.aircraft.pace()
+        } else {
+            self.ground.pace()
+        }
+    }
+}
+
 type CommandedUnit<'a> = (
     &'a SimId,
     &'a Unit,
@@ -401,6 +438,10 @@ impl Battlefield<'_, '_> {
                     .get(entity)
                     .is_ok_and(|(building, ..)| building.kind == BuildingKind::Refinery)
             });
+        let paces = match order {
+            GroundOrder::Move => self.group_paces(team, ids),
+            GroundOrder::AttackMove | GroundOrder::Patrol => GroupPaces::default(),
+        };
         let map = &*self.map;
         let mut formation =
             cells_by_distance(goal, FORMATION_REACH_CELLS).filter(|&cell| map.is_passable(cell));
@@ -446,10 +487,29 @@ impl Battlefield<'_, '_> {
             }
             orders.replace_with(next);
             mobile.stop();
+            mobile.pace = paces.for_member(mobile.flying);
             if let Some(mut attack) = attack {
                 attack.clear();
             }
         }
+    }
+
+    /// The slowest speed among the ground units and among the aircraft of a group move; a lone unit keeps its own.
+    fn group_paces(&self, team: Team, ids: &[SimId]) -> GroupPaces {
+        let mut paces = GroupPaces::default();
+        for entity in self.own_units(team, ids) {
+            let Ok((.., Some(mobile), _, None, _)) = self.units.get(entity) else {
+                continue;
+            };
+            let domain = if mobile.flying {
+                &mut paces.aircraft
+            } else {
+                &mut paces.ground
+            };
+            domain.members += 1;
+            domain.slowest = domain.slowest.min(mobile.speed);
+        }
+        paces
     }
 
     fn enqueue(&mut self, team: Team, item: BuildItem, copies: u32) {

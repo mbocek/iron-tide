@@ -41,7 +41,10 @@ pub fn carry_out_orders(
             Some(order)
         };
         orders.current = next_order;
-        let Some(order) = next_order else { continue };
+        let Some(order) = next_order else {
+            mobile.pace = None;
+            continue;
+        };
         if arrived(position, order.destination()) {
             continue;
         }

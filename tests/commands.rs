@@ -94,3 +94,54 @@ fn the_same_commands_on_the_same_ticks_replay_the_same_battle() {
     assert_eq!(first, play(true));
     assert_ne!(first, play(false), "the orders changed nothing");
 }
+
+fn group_order(
+    battle: &mut Battle,
+    units: &[Entity],
+    goal: IVec2,
+    order: GroundOrder,
+) -> PlayerCommand {
+    PlayerCommand::Ground {
+        units: units.iter().map(|&unit| battle.sim_id(unit)).collect(),
+        goal,
+        order,
+        queued: false,
+        refinery: None,
+    }
+}
+
+#[test]
+fn a_group_move_keeps_to_the_pace_of_its_slowest_unit() {
+    const SECS: f32 = 4.0;
+    let tank_speed = UnitKind::Tank.spec().speed;
+    let scout_speed = UnitKind::Scout.spec().speed;
+    assert!(scout_speed > tank_speed * 1.5);
+    let mut battle = Battle::sandbox();
+    let tank = battle.spawn_unit(UnitKind::Tank, Team::Player, FIELD);
+    let scout = battle.spawn_unit(UnitKind::Scout, Team::Player, FIELD + IVec2::new(0, 2));
+    let goal = FIELD + IVec2::new(20, 0);
+    let start = battle.position(scout);
+    let order = group_order(&mut battle, &[tank, scout], goal, GroundOrder::Move);
+    battle.issue(Team::Player, order);
+    battle.run_for(SECS);
+    let in_the_group = battle.position(scout).distance(start);
+    assert!(
+        in_the_group <= tank_speed * SECS + 0.5,
+        "the scout ran ahead of the tank's pace: {in_the_group} m in {SECS} s"
+    );
+
+    let start = battle.position(scout);
+    let alone = group_order(
+        &mut battle,
+        &[scout],
+        goal + IVec2::new(0, 12),
+        GroundOrder::Move,
+    );
+    battle.issue(Team::Player, alone);
+    battle.run_for(SECS);
+    let on_its_own = battle.position(scout).distance(start);
+    assert!(
+        on_its_own > tank_speed * SECS * 1.2,
+        "a scout sent alone keeps its own speed, moved {on_its_own} m"
+    );
+}
