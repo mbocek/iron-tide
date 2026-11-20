@@ -9,7 +9,7 @@ use crate::catalog::{Alliance, Team};
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::levels::{ActiveLevel, LevelDefinition, SkirmishOptions};
 use crate::match_flow::GameState;
-use crate::network::{JoinTarget, Link, LobbyNews, MOST_SPECTATORS, NetSession, Offer};
+use crate::network::{Dialling, JoinTarget, Link, LobbyNews, MOST_SPECTATORS, NetSession, Offer};
 use crate::player_commands::LocalTeam;
 
 pub const DEFAULT_PORT: u16 = 47_300;
@@ -469,7 +469,13 @@ impl NetLobby {
                         url,
                         opening,
                     },
-                    Some(Ok(stream)) => match Link::guest_side_to(stream, url.clone()) {
+                    Some(Ok(stream)) => match Link::guest_side_to(
+                        stream,
+                        Dialling {
+                            url: url.clone(),
+                            trusted: None,
+                        },
+                    ) {
                         Ok(link) => match opening {
                             Some((level, players)) => {
                                 link.open_room(&level, players);

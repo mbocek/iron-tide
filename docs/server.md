@@ -6,7 +6,8 @@ from the game on a local network works as before.
 
 ## Playing through it
 
-1. Run `iron-tide-server --port 47300` somewhere every player can reach.
+1. Run `iron-tide-server --port 47300` somewhere every player can reach, plain or behind a proxy that adds TLS
+   (see below); players then use `ws://server:47300/room/NAME` or `wss://domain/room/NAME`.
 2. One player types `ws://server:47300/room/NAME` in the network page's address field, sets the battle in the
    battle editor's settings (number of players included) and clicks *Open this room on the server*. They play
    the host's side.
@@ -42,10 +43,6 @@ apart, a late spectator and a returning player catching up, an address without a
 
 ## Still to do
 
-- **Secure connections.** For `wss://` the game needs TLS on the client side: tungstenite's
-  `rustls-tls-webpki-roots` feature (pulls in rustls and a crypto backend, to check against the Windows and
-  macOS cross builds in CI) and dialling through it in `Link`. Until then the server runs plain `ws://`; a proxy
-  that ends TLS is ready for when the game can use it.
 - **Checksums.** Each machine compares the checksums it receives with its own; the server sees all of them and
   could decide alone.
 - **Limits.** Rooms per server, idle rooms, and a smaller binary: the server links the whole game library
@@ -74,8 +71,14 @@ play.example.org {
 }
 ```
 
-Caddy passes WebSocket upgrades through by default; once the game speaks TLS, players join
-`wss://play.example.org/room/K7Q2`.
+Caddy passes WebSocket upgrades through by default, so players join `wss://play.example.org/room/K7Q2`.
+
+The game speaks TLS itself (rustls with the ring backend, already built for the update check) and trusts the
+public web's certificate authorities (`webpki-roots`), so an ordinary certificate on the proxy is enough.
+A `wss://` address without a port means 443. A TLS link is read and written by one thread with a 5 ms read
+timeout, as TLS keeps one state for both directions, so a message may wait up to 5 ms; plain links read and
+write on separate threads with no wait. `tests/tls.rs` talks to a local `wss` server with a test certificate
+(`tests/fixtures/tls`, a CA whose key was thrown away) and checks that an untrusted certificate is refused.
 
 ## Decided so far
 

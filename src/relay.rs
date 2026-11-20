@@ -143,6 +143,10 @@ impl Relay {
     /// A spectator may go; a player's dropped connection holds the battle for a while on a hub that can
     /// take them back, and breaks it anywhere else.
     fn lose_link(&mut self, index: usize) {
+        // A dropped connection is reported both by a failed send and by its reading thread.
+        if self.closed.contains(&index) {
+            return;
+        }
         if self.watchers.contains(&index) {
             self.closed.insert(index);
             return;

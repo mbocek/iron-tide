@@ -22,7 +22,9 @@ pathfinding = "4.16"
 rand = "0.10.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tungstenite = { version = "0.30", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+webpki-roots = "1"
 ureq = "3"
 
 [profile.dev]
@@ -30,3 +32,6 @@ opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[dev-dependencies]
+rustls-pki-types = { version = "1", features = ["std"] }

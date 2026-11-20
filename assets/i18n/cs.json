@@ -584,7 +584,6 @@
   "The battle is under way; you can watch it after catching up. Ready?": "Bitva už běží; můžeš ji sledovat, až ji doženeš. Připraven?",
   "Your battle is under way; take back {} after catching up?": "Tvoje bitva běží; převezmeš {}, až ji doženeš?",
   "{} lost the connection; waiting for them to rejoin... {} s": "{} ztratil spojení; čeká se na jeho návrat... {} s",
-  "Secure connections (wss://) are not supported yet": "Zabezpečená spojení (wss://) zatím nejsou podporována",
   "Type the address of the host": "Napiš adresu hostitele",
   "OPEN THIS ROOM ON THE SERVER": "OTEVŘÍT TUTO MÍSTNOST NA SERVERU",
   "On a dedicated server, type ws://server/room/NAME above: the first to open the room picks the battle from the battle editor's settings, and everyone else joins the same address.": "Na samostatném serveru napiš nahoře ws://server/room/NÁZEV: kdo místnost otevře první, vybere bitvu podle nastavení editoru bitvy, a ostatní se připojí na stejnou adresu.",

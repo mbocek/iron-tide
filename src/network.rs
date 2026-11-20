@@ -1,13 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::{TcpListener, TcpStream};
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use tungstenite::protocol::{Role, WebSocketConfig};
-use tungstenite::{Message as WsMessage, WebSocket};
+use tungstenite::stream::MaybeTlsStream;
+use tungstenite::{Connector, Message as WsMessage, WebSocket};
 
 use crate::ai::AiCommanders;
 use crate::catalog::Team;
@@ -140,19 +142,53 @@ pub enum Side {
     Guest,
 }
 
-/// Where outgoing messages go: queued until the handshake on the link's thread has finished.
-#[derive(Default)]
-struct Outbox {
-    socket: Option<WebSocket<TcpStream>>,
-    waiting: Vec<Vec<u8>>,
-    failed: bool,
+/// Where a guest connects: the address to dial and the WebSocket URL to ask for there.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct JoinTarget {
+    pub address: String,
+    pub url: String,
 }
 
-/// One WebSocket connection to another machine, so a dedicated server on the internet can later take the
-/// host's place. Each message is one binary frame of JSON; the handshake and all reading happen on the
-/// link's own thread.
+/// A server behind a TLS proxy listens where web browsers expect it.
+const SECURE_PORT: u16 = 443;
+
+impl JoinTarget {
+    /// Accepts `host`, `host:port`, `ws://host[:port]/path` or `wss://host[:port]/path`; a path names a room
+    /// on a dedicated server, and a host in the game ignores it.
+    pub fn parse(text: &str, default_port: u16) -> Result<JoinTarget, String> {
+        let text = text.trim();
+        let (scheme, rest, port) = match text.strip_prefix("wss://") {
+            Some(rest) => ("wss", rest, SECURE_PORT),
+            None => (
+                "ws",
+                text.strip_prefix("ws://").unwrap_or(text),
+                default_port,
+            ),
+        };
+        let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+        if host.is_empty() {
+            return Err(tr("Type the address of the host").to_string());
+        }
+        let address = if host.contains(':') {
+            host.to_string()
+        } else {
+            format!("{host}:{port}")
+        };
+        let url = format!("{scheme}://{address}/{path}");
+        Ok(JoinTarget { address, url })
+    }
+}
+
+type Socket = WebSocket<MaybeTlsStream<TcpStream>>;
+
+/// One WebSocket connection to another machine, plain or over TLS. Each message is one binary frame of JSON,
+/// queued by `send` for the connection's own threads.
 pub struct Link {
-    outbox: Arc<Mutex<Outbox>>,
+    outbox: Sender<Vec<u8>>,
+    /// The connection's thread has ended: the handshake failed or the connection went.
+    failed: Arc<AtomicBool>,
+    /// The handshake is done; from then on dropping the link sends what is queued before closing.
+    serving: Arc<AtomicBool>,
     /// On the answering side, the path the other end asked for, once its handshake has arrived.
     requested_path: Arc<Mutex<Option<String>>>,
     /// The underlying socket, to close it outright when the link is dropped.
@@ -162,40 +198,38 @@ pub struct Link {
     early: Vec<Arrival>,
 }
 
+/// How a guest's link opens: the URL to ask for, and for `wss://` the certificates to trust; `None` trusts
+/// the public web's.
+pub struct Dialling {
+    pub url: String,
+    pub trusted: Option<Arc<rustls::RootCertStore>>,
+}
+
+/// How often a TLS connection's thread stops waiting for messages to send queued ones.
+const SOCKET_POLL: Duration = Duration::from_millis(5);
+
 fn socket_config() -> WebSocketConfig {
     WebSocketConfig::default()
         .max_message_size(Some(LARGEST_MESSAGE_BYTES))
         .max_frame_size(Some(LARGEST_MESSAGE_BYTES))
 }
 
-/// Where a guest connects: the address to dial and the WebSocket URL to ask for there.
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct JoinTarget {
-    pub address: String,
-    pub url: String,
+/// The certificates of the public web, which a dedicated server behind an ordinary TLS proxy presents.
+fn public_roots() -> Arc<rustls::RootCertStore> {
+    Arc::new(rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    })
 }
 
-impl JoinTarget {
-    /// Accepts `host`, `host:port` or `ws://host[:port]/path`; a path will name a room on a dedicated server,
-    /// and a host in the game ignores it.
-    pub fn parse(text: &str, default_port: u16) -> Result<JoinTarget, String> {
-        let text = text.trim();
-        if text.starts_with("wss://") {
-            return Err(tr("Secure connections (wss://) are not supported yet").to_string());
-        }
-        let rest = text.strip_prefix("ws://").unwrap_or(text);
-        let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
-        if host.is_empty() {
-            return Err(tr("Type the address of the host").to_string());
-        }
-        let address = if host.contains(':') {
-            host.to_string()
-        } else {
-            format!("{host}:{default_port}")
-        };
-        let url = format!("ws://{address}/{path}");
-        Ok(JoinTarget { address, url })
-    }
+fn tls_connector(trusted: Arc<rustls::RootCertStore>) -> Option<Connector> {
+    let config = rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .ok()?
+    .with_root_certificates(trusted)
+    .with_no_client_auth();
+    Some(Connector::Rustls(Arc::new(config)))
 }
 
 // tungstenite's handshake callback must return its own `ErrorResponse`, however large clippy finds it.
@@ -203,9 +237,9 @@ impl JoinTarget {
 fn handshake(
     stream: TcpStream,
     side: Side,
-    url: Option<String>,
+    dialling: Option<Dialling>,
     requested_path: &Mutex<Option<String>>,
-) -> Option<WebSocket<TcpStream>> {
+) -> Option<Socket> {
     match side {
         Side::Host => {
             let remember_path =
@@ -216,93 +250,176 @@ fn handshake(
                     }
                     Ok(response)
                 };
-            tungstenite::accept_hdr_with_config(stream, remember_path, Some(socket_config())).ok()
+            tungstenite::accept_hdr_with_config(
+                MaybeTlsStream::Plain(stream),
+                remember_path,
+                Some(socket_config()),
+            )
+            .ok()
         }
         Side::Guest => {
-            let url = match url {
-                Some(url) => url,
-                None => format!("ws://{}/", stream.peer_addr().ok()?),
+            let Dialling { url, trusted } = match dialling {
+                Some(dialling) => dialling,
+                None => Dialling {
+                    url: format!("ws://{}/", stream.peer_addr().ok()?),
+                    trusted: None,
+                },
             };
-            tungstenite::client::client_with_config(url, stream, Some(socket_config()))
+            let connector = if url.starts_with("wss://") {
+                tls_connector(trusted.unwrap_or_else(public_roots))?
+            } else {
+                Connector::Plain
+            };
+            tungstenite::client_tls_with_config(url, stream, Some(socket_config()), Some(connector))
                 .ok()
                 .map(|(socket, _)| socket)
         }
     }
 }
 
-fn read_arrival(socket: &mut WebSocket<TcpStream>) -> Option<Arrival> {
+fn is_waiting(error: &tungstenite::Error) -> bool {
+    matches!(error, tungstenite::Error::Io(io)
+        if matches!(io.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut))
+}
+
+fn read_arrival(socket: &mut Socket) -> Option<Arrival> {
     match socket.read() {
         Ok(WsMessage::Binary(bytes)) => {
             Some(serde_json::from_slice(&bytes).map_or(Arrival::ConnectionLost, Arrival::Message))
         }
-        Ok(WsMessage::Close(_)) | Err(_) => Some(Arrival::ConnectionLost),
+        Ok(WsMessage::Close(_)) => Some(Arrival::ConnectionLost),
         Ok(_) => None,
+        Err(error) if is_waiting(&error) => None,
+        Err(_) => Some(Arrival::ConnectionLost),
+    }
+}
+
+/// A plain connection is read on this thread and written on another, each through its own handle, so a
+/// queued message leaves at once. Writing from a second handle is safe because the reading one only writes
+/// when it answers a ping or a close, and these peers send neither while the battle runs.
+fn serve_split(
+    mut socket: Socket,
+    writer: TcpStream,
+    side: Side,
+    outbox: Receiver<Vec<u8>>,
+    inbox: &Sender<Arrival>,
+) {
+    let role = match side {
+        Side::Host => Role::Server,
+        Side::Guest => Role::Client,
+    };
+    let mut writer =
+        WebSocket::from_raw_socket(MaybeTlsStream::Plain(writer), role, Some(socket_config()));
+    std::thread::spawn(move || {
+        for bytes in outbox {
+            if writer.send(WsMessage::Binary(bytes.into())).is_err() {
+                return;
+            }
+        }
+        if let MaybeTlsStream::Plain(stream) = writer.get_mut() {
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+        }
+    });
+    loop {
+        let Some(arrival) = read_arrival(&mut socket) else {
+            continue;
+        };
+        let lost = matches!(arrival, Arrival::ConnectionLost);
+        if inbox.send(arrival).is_err() || lost {
+            return;
+        }
+    }
+}
+
+/// A TLS connection keeps its state in one place, so one thread owns it: it reads with a short timeout and
+/// sends what was queued in between, at the cost of up to `SOCKET_POLL` before a message leaves.
+fn serve_polling(mut socket: Socket, outbox: &Receiver<Vec<u8>>, inbox: &Sender<Arrival>) {
+    loop {
+        loop {
+            match outbox.try_recv() {
+                Ok(bytes) => {
+                    if socket.send(WsMessage::Binary(bytes.into())).is_err() {
+                        return;
+                    }
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    let _ = socket.close(None);
+                    let _ = socket.flush();
+                    return;
+                }
+            }
+        }
+        let arrival = match socket.read() {
+            Ok(WsMessage::Binary(bytes)) => {
+                serde_json::from_slice(&bytes).map_or(Arrival::ConnectionLost, Arrival::Message)
+            }
+            Ok(WsMessage::Close(_)) => return,
+            Ok(_) => continue,
+            Err(error) if is_waiting(&error) => continue,
+            Err(_) => return,
+        };
+        let lost = matches!(arrival, Arrival::ConnectionLost);
+        if inbox.send(arrival).is_err() || lost {
+            return;
+        }
     }
 }
 
 impl Link {
     pub fn host_side(stream: TcpStream) -> std::io::Result<Self> {
-        Self::open(stream, Side::Host)
+        Self::open_with(stream, Side::Host, None)
     }
 
     pub fn guest_side(stream: TcpStream) -> std::io::Result<Self> {
-        Self::open(stream, Side::Guest)
+        Self::open_with(stream, Side::Guest, None)
     }
 
-    /// A guest's link that asks the other end for `url`, which may name a room.
-    pub fn guest_side_to(stream: TcpStream, url: String) -> std::io::Result<Self> {
-        Self::open_with(stream, Side::Guest, Some(url))
+    /// A guest's link that asks the other end for `dialling.url`, which may name a room and may be `wss://`.
+    pub fn guest_side_to(stream: TcpStream, dialling: Dialling) -> std::io::Result<Self> {
+        Self::open_with(stream, Side::Guest, Some(dialling))
     }
 
     pub fn open(stream: TcpStream, side: Side) -> std::io::Result<Self> {
         Self::open_with(stream, side, None)
     }
 
-    fn open_with(stream: TcpStream, side: Side, url: Option<String>) -> std::io::Result<Self> {
+    fn open_with(
+        stream: TcpStream,
+        side: Side,
+        dialling: Option<Dialling>,
+    ) -> std::io::Result<Self> {
         stream.set_nodelay(true)?;
         let raw = stream.try_clone()?;
-        let for_writing = stream.try_clone()?;
-        let outbox = Arc::new(Mutex::new(Outbox::default()));
+        let second_handle = stream.try_clone()?;
+        let failed = Arc::new(AtomicBool::new(false));
+        let serving = Arc::new(AtomicBool::new(false));
         let requested_path = Arc::new(Mutex::new(None));
-        let (sender, receiver) = channel();
-        let shared_outbox = Arc::clone(&outbox);
-        let shared_path = Arc::clone(&requested_path);
+        let (outbox, queued) = channel::<Vec<u8>>();
+        let (arrived, inbox) = channel();
+        let thread_failed = Arc::clone(&failed);
+        let thread_serving = Arc::clone(&serving);
+        let thread_path = Arc::clone(&requested_path);
         std::thread::spawn(move || {
-            let Some(mut reader) = handshake(stream, side, url, &shared_path) else {
-                if let Ok(mut outbox) = shared_outbox.lock() {
-                    outbox.failed = true;
-                }
-                let _ = sender.send(Arrival::ConnectionLost);
-                return;
-            };
-            let role = match side {
-                Side::Host => Role::Server,
-                Side::Guest => Role::Client,
-            };
-            // Writing from a second handle is safe because the reading one only writes when it answers a
-            // ping or a close, and these peers send neither while the battle runs.
-            let mut writer = WebSocket::from_raw_socket(for_writing, role, Some(socket_config()));
-            if let Ok(mut outbox) = shared_outbox.lock() {
-                for bytes in std::mem::take(&mut outbox.waiting) {
-                    outbox.failed |= writer.send(WsMessage::Binary(bytes.into())).is_err();
-                }
-                outbox.socket = Some(writer);
-            }
-            loop {
-                let Some(arrival) = read_arrival(&mut reader) else {
-                    continue;
-                };
-                let lost = matches!(arrival, Arrival::ConnectionLost);
-                if sender.send(arrival).is_err() || lost {
-                    return;
+            if let Some(socket) = handshake(stream, side, dialling, &thread_path) {
+                thread_serving.store(true, Ordering::Relaxed);
+                let encrypted = matches!(socket.get_ref(), MaybeTlsStream::Rustls(_));
+                if !encrypted {
+                    serve_split(socket, second_handle, side, queued, &arrived);
+                } else if second_handle.set_read_timeout(Some(SOCKET_POLL)).is_ok() {
+                    serve_polling(socket, &queued, &arrived);
                 }
             }
+            thread_failed.store(true, Ordering::Relaxed);
+            let _ = arrived.send(Arrival::ConnectionLost);
         });
         Ok(Self {
             outbox,
+            failed,
+            serving,
             requested_path,
             raw,
-            inbox: Mutex::new(receiver),
+            inbox: Mutex::new(inbox),
             early: Vec::new(),
         })
     }
@@ -317,31 +434,15 @@ impl Link {
 
     /// Whether the connection failed before or after its handshake.
     pub fn has_failed(&self) -> bool {
-        self.outbox.lock().map_or(true, |outbox| outbox.failed)
+        self.failed.load(Ordering::Relaxed)
     }
 
-    /// Returns whether the message left or waits for the handshake; a failure means the connection is gone.
+    /// Queues the message for the connection's thread; false once the connection has gone.
     pub fn send(&self, message: &Message) -> bool {
         let Ok(bytes) = serde_json::to_vec(message) else {
             return true;
         };
-        let Ok(mut outbox) = self.outbox.lock() else {
-            return false;
-        };
-        if outbox.failed {
-            return false;
-        }
-        match outbox.socket.as_mut() {
-            Some(socket) => {
-                let sent = socket.send(WsMessage::Binary(bytes.into())).is_ok();
-                outbox.failed = !sent;
-                sent
-            }
-            None => {
-                outbox.waiting.push(bytes);
-                true
-            }
-        }
+        !self.has_failed() && self.outbox.send(bytes).is_ok()
     }
 
     pub fn drain(&mut self) -> Vec<Arrival> {
@@ -473,11 +574,13 @@ impl Link {
     }
 }
 
-/// The reading thread holds its own handle on the connection, so leaving must close it outright for the
-/// other machine to notice.
+/// Once connected, dropping the link lets its threads send what is still queued and then close the
+/// connection, so a last message such as a refusal arrives; a link still in its handshake closes at once.
 impl Drop for Link {
     fn drop(&mut self) {
-        let _ = self.raw.shutdown(std::net::Shutdown::Both);
+        if !self.serving.load(Ordering::Relaxed) {
+            let _ = self.raw.shutdown(std::net::Shutdown::Both);
+        }
     }
 }
 
@@ -930,7 +1033,9 @@ mod tests {
         let room = JoinTarget::parse("ws://play.example.org/room/K7Q2", 47300).unwrap();
         assert_eq!(room.address, "play.example.org:47300");
         assert_eq!(room.url, "ws://play.example.org:47300/room/K7Q2");
-        assert!(JoinTarget::parse("wss://play.example.org/room/K7Q2", 47300).is_err());
+        let secure = JoinTarget::parse("wss://play.example.org/room/K7Q2", 47300).unwrap();
+        assert_eq!(secure.address, "play.example.org:443");
+        assert_eq!(secure.url, "wss://play.example.org:443/room/K7Q2");
         assert!(JoinTarget::parse("ws://", 47300).is_err());
     }
 }
