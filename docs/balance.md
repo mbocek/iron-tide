@@ -82,3 +82,7 @@ pairing, Normal against Normal), so both sides of the result count:
   for rain due within 45 s, changed no result (17:23 either way). After the first wave the computer sends each
   new unit to the front as it is built, so in rain it has 0-2 units waiting at home, and the first wave leaves
   before the first rain (4.5 minutes at the earliest on the test maps).
+- **Gathering the army.** Once the enemy army has not been seen for 90 s the computer sends whatever waits at
+  home, so most launches are trickles (839 against 649 full waves over a tournament, 515 of them a single unit).
+  Waiting for half a wave (14:25 and 18:22 against about 17:23 unchanged) or for a full one (15:25, 18:22) made
+  no difference, so trickling is not what decides these matches, and it is no foothold for the ideas above.
