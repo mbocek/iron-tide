@@ -18,6 +18,7 @@ use crate::notifications::Notifications;
 use crate::player_commands::{
     CommandQueue, LocalTeam, PlayerCommand, ScheduledCommand, SimulationTick,
 };
+use crate::relay::Relay;
 
 /// Commands wait this many ticks (200 ms) before they run, so they reach every other machine in time.
 pub const NETWORK_COMMAND_DELAY_TICKS: u64 = 4;
@@ -29,15 +30,13 @@ pub const MOST_SPECTATORS: usize = 4;
 /// A spectator further behind than this (two seconds) runs the battle fast until it has caught up.
 const CATCH_UP_FROM_TICKS: u64 = 40;
 const CATCH_UP_SPEED: f32 = 40.0;
-/// How long the host holds a battle for a player whose connection dropped before giving up on them.
-const REJOIN_WINDOW: Duration = Duration::from_secs(180);
 const PING_INTERVAL: Duration = Duration::from_secs(1);
 const PINGS_REMEMBERED: u64 = 10;
 const ROUND_TRIP_SMOOTHING: f32 = 0.3;
 const LONGEST_CHAT_LINE: usize = 120;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-enum Message {
+pub enum Message {
     /// What one team's player ordered for one tick, possibly nothing.
     Turn {
         team: Team,
@@ -106,7 +105,7 @@ pub enum LobbyNews {
     Left,
 }
 
-enum Arrival {
+pub enum Arrival {
     Message(Message),
     ConnectionLost,
 }
@@ -144,18 +143,47 @@ fn socket_config() -> WebSocketConfig {
         .max_frame_size(Some(LARGEST_MESSAGE_BYTES))
 }
 
-fn handshake(stream: TcpStream, side: Side) -> Option<WebSocket<TcpStream>> {
+/// Where a guest connects: the address to dial and the WebSocket URL to ask for there.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct JoinTarget {
+    pub address: String,
+    pub url: String,
+}
+
+impl JoinTarget {
+    /// Accepts `host`, `host:port` or `ws://host[:port]/path`; a path will name a room on a dedicated server,
+    /// and a host in the game ignores it.
+    pub fn parse(text: &str, default_port: u16) -> Result<JoinTarget, String> {
+        let text = text.trim();
+        if text.starts_with("wss://") {
+            return Err(tr("Secure connections (wss://) are not supported yet").to_string());
+        }
+        let rest = text.strip_prefix("ws://").unwrap_or(text);
+        let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+        if host.is_empty() {
+            return Err(tr("Type the address of the host").to_string());
+        }
+        let address = if host.contains(':') {
+            host.to_string()
+        } else {
+            format!("{host}:{default_port}")
+        };
+        let url = format!("ws://{address}/{path}");
+        Ok(JoinTarget { address, url })
+    }
+}
+
+fn handshake(stream: TcpStream, side: Side, url: Option<String>) -> Option<WebSocket<TcpStream>> {
     match side {
         Side::Host => tungstenite::accept_with_config(stream, Some(socket_config())).ok(),
         Side::Guest => {
-            let address = stream.peer_addr().ok()?;
-            tungstenite::client::client_with_config(
-                format!("ws://{address}/"),
-                stream,
-                Some(socket_config()),
-            )
-            .ok()
-            .map(|(socket, _)| socket)
+            let url = match url {
+                Some(url) => url,
+                None => format!("ws://{}/", stream.peer_addr().ok()?),
+            };
+            tungstenite::client::client_with_config(url, stream, Some(socket_config()))
+                .ok()
+                .map(|(socket, _)| socket)
         }
     }
 }
@@ -179,7 +207,16 @@ impl Link {
         Self::open(stream, Side::Guest)
     }
 
+    /// A guest's link that asks the other end for `url`, which may name a room.
+    pub fn guest_side_to(stream: TcpStream, url: String) -> std::io::Result<Self> {
+        Self::open_with(stream, Side::Guest, Some(url))
+    }
+
     pub fn open(stream: TcpStream, side: Side) -> std::io::Result<Self> {
+        Self::open_with(stream, side, None)
+    }
+
+    fn open_with(stream: TcpStream, side: Side, url: Option<String>) -> std::io::Result<Self> {
         stream.set_nodelay(true)?;
         let raw = stream.try_clone()?;
         let for_writing = stream.try_clone()?;
@@ -187,7 +224,7 @@ impl Link {
         let (sender, receiver) = channel();
         let shared_outbox = Arc::clone(&outbox);
         std::thread::spawn(move || {
-            let Some(mut reader) = handshake(stream, side) else {
+            let Some(mut reader) = handshake(stream, side, url) else {
                 if let Ok(mut outbox) = shared_outbox.lock() {
                     outbox.failed = true;
                 }
@@ -226,7 +263,7 @@ impl Link {
     }
 
     /// Returns whether the message left or waits for the handshake; a failure means the connection is gone.
-    fn send(&self, message: &Message) -> bool {
+    pub fn send(&self, message: &Message) -> bool {
         let Ok(bytes) = serde_json::to_vec(message) else {
             return true;
         };
@@ -249,7 +286,7 @@ impl Link {
         }
     }
 
-    fn drain(&mut self) -> Vec<Arrival> {
+    pub fn drain(&mut self) -> Vec<Arrival> {
         let mut arrivals = std::mem::take(&mut self.early);
         if let Ok(inbox) = self.inbox.lock() {
             arrivals.extend(inbox.try_iter());
@@ -269,7 +306,12 @@ impl Link {
     }
 
     /// Offers a battle under way: to watch, or to take back the seat of a player who lost the connection.
-    fn offer_under_way(&self, level: &LevelDefinition, your_team: Option<Team>, players: &[Team]) {
+    pub fn offer_under_way(
+        &self,
+        level: &LevelDefinition,
+        your_team: Option<Team>,
+        players: &[Team],
+    ) {
         self.send(&Message::Offer {
             version: env!("CARGO_PKG_VERSION").to_string(),
             level: Box::new(level.clone()),
@@ -361,17 +403,14 @@ pub enum SessionState {
 }
 
 /// A battle with players on other machines: every machine runs the whole simulation and they exchange only
-/// commands. A guest has one link, to the host; the host has one per guest and passes messages between them.
+/// commands. A guest has one link, to the hub; the hub (the host) has one per guest and passes messages
+/// between them, see `Relay`.
 #[derive(Resource)]
 pub struct NetSession {
-    links: Vec<Link>,
-    relays: bool,
+    relay: Relay,
     remote_teams: Vec<Team>,
     /// This machine only watches: it sends no orders and no fingerprints.
     spectating: bool,
-    /// Links to spectators; losing one does not stop the battle.
-    watcher_links: BTreeSet<usize>,
-    closed_links: BTreeSet<usize>,
     remote_turns: BTreeSet<(u64, usize)>,
     local_checksums: BTreeMap<u64, u64>,
     remote_checksums: BTreeMap<(u64, usize), u64>,
@@ -382,62 +421,18 @@ pub struct NetSession {
     next_ping: u64,
     last_ping_sent: Option<Instant>,
     round_trip: Option<Duration>,
-    /// On the host: where late spectators knock, and what they need to catch up.
-    door: Option<OpenDoor>,
-    /// On the host, which link carries which other player's orders.
-    link_teams: BTreeMap<usize, Team>,
-    /// On the host, players whose connection dropped, by team index, and since when the battle waits for them.
-    away: BTreeMap<usize, (Team, Instant)>,
-    /// On a machine that joined late, the latest tick of each team's orders the host already had; a returning
+    /// On a machine that joined late, the latest tick of each team's orders the hub already had; a returning
     /// player must not send those turns again.
     turns_known_through: BTreeMap<usize, u64>,
-}
-
-/// The host keeps accepting spectators during the battle and remembers every order to bring them up to date.
-struct OpenDoor {
-    listener: TcpListener,
-    level: LevelDefinition,
-    players: Vec<Team>,
-    /// Late spectators considering the offer, not yet watching.
-    newcomers: Vec<(Link, Option<Team>)>,
-    history: TurnHistory,
-}
-
-#[derive(Default)]
-struct TurnHistory {
-    /// Keyed by team index; the latest tick of each team's turns.
-    through: BTreeMap<usize, (Team, u64)>,
-    turns: Vec<(Team, u64, Vec<PlayerCommand>)>,
-}
-
-impl TurnHistory {
-    /// Each team's turns reach the host in tick order, so the latest one closes every gap before it.
-    fn record(&mut self, team: Team, tick: u64, commands: &[PlayerCommand]) {
-        let latest = self.through.entry(team.index()).or_insert((team, tick));
-        latest.1 = latest.1.max(tick);
-        if !commands.is_empty() {
-            self.turns.push((team, tick, commands.to_vec()));
-        }
-    }
-
-    fn catch_up(&self) -> Message {
-        Message::CatchUp {
-            through: self.through.values().copied().collect(),
-            turns: self.turns.clone(),
-        }
-    }
 }
 
 impl NetSession {
     /// `relays` is true for the host, which passes each guest's messages on to the other guests.
     pub fn new(links: Vec<Link>, remote_teams: Vec<Team>, relays: bool) -> Self {
         Self {
-            links,
-            relays,
+            relay: Relay::new(links, relays),
             remote_teams,
             spectating: false,
-            watcher_links: BTreeSet::new(),
-            closed_links: BTreeSet::new(),
             remote_turns: BTreeSet::new(),
             local_checksums: BTreeMap::new(),
             remote_checksums: BTreeMap::new(),
@@ -448,40 +443,21 @@ impl NetSession {
             next_ping: 0,
             last_ping_sent: None,
             round_trip: None,
-            door: None,
-            link_teams: BTreeMap::new(),
-            away: BTreeMap::new(),
             turns_known_through: BTreeMap::new(),
         }
     }
 
-    /// Keeps `listener` open during the battle so spectators can still join, offered `level`.
+    /// Keeps `listener` open during the battle so guests can still join, offered `level`.
     pub fn with_open_door(mut self, listener: TcpListener, level: LevelDefinition) -> Self {
         let players = std::iter::once(Team::Player)
             .chain(self.remote_teams.iter().copied())
             .collect();
-        let player_links =
-            (0..self.links.len()).filter(|index| !self.watcher_links.contains(index));
-        self.link_teams = player_links
-            .zip(self.remote_teams.iter().copied())
-            .collect();
-        self.door = Some(OpenDoor {
-            listener,
-            level,
-            players,
-            newcomers: Vec::new(),
-            history: TurnHistory::default(),
-        });
+        self.relay
+            .open_door(listener, level, players, &self.remote_teams);
         self
     }
 
-    fn remember_turn(&mut self, team: Team, tick: u64, commands: &[PlayerCommand]) {
-        if let Some(door) = &mut self.door {
-            door.history.record(team, tick, commands);
-        }
-    }
-
-    /// The last tick for which every other player's orders are known; a spectator far behind it catches up.
+    /// The last tick for which every other player's orders are known; a machine far behind it catches up.
     pub fn known_through(&self) -> Option<u64> {
         self.remote_teams
             .iter()
@@ -496,69 +472,20 @@ impl NetSession {
             .flatten()
     }
 
-    /// Lets late guests in: a player whose connection dropped gets their seat back, anyone else may watch.
-    /// Once they accept they get every order so far.
     fn admit_late_guests(&mut self) {
-        if self
-            .away
-            .values()
-            .any(|(_, since)| since.elapsed() > REJOIN_WINDOW)
-        {
-            self.state = SessionState::Disconnected;
-        }
-        let watching =
-            self.watcher_links.len() - self.closed_links.intersection(&self.watcher_links).count();
-        let Some(door) = &mut self.door else { return };
-        let free_seat = self.away.values().map(|&(team, _)| team).find(|&team| {
-            door.newcomers
-                .iter()
-                .all(|(_, offered)| *offered != Some(team))
-        });
-        let spectator_room = watching + door.newcomers.len() < MOST_SPECTATORS;
-        if (free_seat.is_some() || spectator_room)
-            && let Ok((stream, _)) = door.listener.accept()
-            && stream.set_nonblocking(false).is_ok()
-            && let Ok(link) = Link::host_side(stream)
-        {
-            link.offer_under_way(&door.level, free_seat, &door.players);
-            door.newcomers.push((link, free_seat));
-        }
-        let mut admitted = Vec::new();
-        let mut index = 0;
-        while index < door.newcomers.len() {
-            let news = door.newcomers[index].0.lobby_news();
-            if news.contains(&LobbyNews::Left) {
-                door.newcomers.remove(index);
-            } else if news.contains(&LobbyNews::GuestReady) {
-                let (link, seat) = door.newcomers.remove(index);
-                link.send(&door.history.catch_up());
-                link.go();
-                admitted.push((link, seat));
-            } else {
-                index += 1;
-            }
-        }
-        for (link, seat) in admitted {
-            let index = self.links.len();
-            match seat {
-                Some(team) => {
-                    self.link_teams.insert(index, team);
-                    self.away.remove(&team.index());
-                }
-                None => {
-                    self.watcher_links.insert(index);
-                }
-            }
-            self.links.push(link);
-        }
+        self.relay.admit_late_guests();
+        self.notice_lost_players();
     }
 
     /// On the host: a player who lost the connection and how long the battle has waited for them.
     pub fn waiting_for_rejoin(&self) -> Option<(Team, Duration)> {
-        self.away
-            .values()
-            .map(|&(team, since)| (team, since.elapsed()))
-            .max_by_key(|&(_, waited)| waited)
+        self.relay.waiting_for_rejoin()
+    }
+
+    fn notice_lost_players(&mut self) {
+        if self.relay.is_broken() && self.state == SessionState::InStep {
+            self.state = SessionState::Disconnected;
+        }
     }
 
     /// A battle against one other machine over `stream`.
@@ -584,32 +511,12 @@ impl NetSession {
 
     /// Marks the links at `indices` as spectators' on the host.
     pub fn with_watchers(mut self, indices: impl IntoIterator<Item = usize>) -> Self {
-        self.watcher_links.extend(indices);
+        self.relay.mark_watchers(indices);
         self
     }
 
     pub fn is_spectating(&self) -> bool {
         self.spectating
-    }
-
-    /// A spectator may go; a player's dropped connection holds the battle for a while on a host that can
-    /// take them back, and ends it anywhere else.
-    fn lose_link(&mut self, index: usize) {
-        if self.watcher_links.contains(&index) {
-            self.closed_links.insert(index);
-            return;
-        }
-        match self
-            .link_teams
-            .remove(&index)
-            .filter(|_| self.door.is_some())
-        {
-            Some(team) => {
-                self.closed_links.insert(index);
-                self.away.insert(team.index(), (team, Instant::now()));
-            }
-            None => self.state = SessionState::Disconnected,
-        }
     }
 
     pub fn remote_teams(&self) -> &[Team] {
@@ -677,21 +584,8 @@ impl NetSession {
     }
 
     fn broadcast(&mut self, message: &Message) {
-        self.send_except(message, None);
-    }
-
-    fn send_except(&mut self, message: &Message, skipped: Option<usize>) {
-        let lost: Vec<usize> = self
-            .links
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| Some(*index) != skipped && !self.closed_links.contains(index))
-            .filter(|(_, link)| !link.send(message))
-            .map(|(index, _)| index)
-            .collect();
-        for index in lost {
-            self.lose_link(index);
-        }
+        self.relay.send_all(message);
+        self.notice_lost_players();
     }
 
     /// Once both fingerprints of a tick are known they are compared; the remote one is then forgotten.
@@ -708,31 +602,31 @@ impl NetSession {
         }
     }
 
-    /// Reads every link; the host passes what a guest says about the battle on to the other guests.
+    /// Takes in what the other machines sent about the battle.
     fn receive(&mut self, queue: &mut CommandQueue) {
-        for index in 0..self.links.len() {
-            for arrival in self.links[index].drain() {
-                let message = match arrival {
-                    Arrival::Message(message) => message,
-                    Arrival::ConnectionLost => {
-                        self.lose_link(index);
-                        continue;
+        for message in self.relay.receive() {
+            match message {
+                Message::Turn {
+                    team,
+                    tick,
+                    commands,
+                } => {
+                    for command in commands {
+                        queue.schedule(ScheduledCommand {
+                            tick,
+                            team,
+                            command,
+                        });
                     }
-                };
-                let shared = matches!(
-                    message,
-                    Message::Turn { .. } | Message::Checksum { .. } | Message::Chat { .. }
-                );
-                if self.relays && shared {
-                    self.send_except(&message, Some(index));
+                    self.remote_turns.insert((tick, team.index()));
                 }
-                match message {
-                    Message::Turn {
-                        team,
-                        tick,
-                        commands,
-                    } => {
-                        self.remember_turn(team, tick, &commands);
+                Message::CatchUp { through, turns } => {
+                    for (team, last) in through {
+                        self.remote_turns
+                            .extend((0..=last).map(|tick| (tick, team.index())));
+                        self.turns_known_through.insert(team.index(), last);
+                    }
+                    for (team, tick, commands) in turns {
                         for command in commands {
                             queue.schedule(ScheduledCommand {
                                 tick,
@@ -740,40 +634,21 @@ impl NetSession {
                                 command,
                             });
                         }
-                        self.remote_turns.insert((tick, team.index()));
                     }
-                    Message::CatchUp { through, turns } => {
-                        for (team, last) in through {
-                            self.remote_turns
-                                .extend((0..=last).map(|tick| (tick, team.index())));
-                            self.turns_known_through.insert(team.index(), last);
-                        }
-                        for (team, tick, commands) in turns {
-                            for command in commands {
-                                queue.schedule(ScheduledCommand {
-                                    tick,
-                                    team,
-                                    command,
-                                });
-                            }
-                        }
-                    }
-                    Message::Checksum { team, tick, sum } => {
-                        self.remote_checksums.insert((tick, team.index()), sum);
-                        self.compare_checksums(tick, team.index());
-                    }
-                    Message::Chat { team, text } => {
-                        self.incoming_chat
-                            .extend(chat_line(&text).map(|text| (team, text)));
-                    }
-                    Message::Ping { nonce } => {
-                        self.links[index].send(&Message::Pong { nonce });
-                    }
-                    Message::Pong { nonce } => self.answered(nonce),
-                    Message::Offer { .. } | Message::Ready | Message::Go => {}
                 }
+                Message::Checksum { team, tick, sum } => {
+                    self.remote_checksums.insert((tick, team.index()), sum);
+                    self.compare_checksums(tick, team.index());
+                }
+                Message::Chat { team, text } => {
+                    self.incoming_chat
+                        .extend(chat_line(&text).map(|text| (team, text)));
+                }
+                Message::Pong { nonce } => self.answered(nonce),
+                Message::Ping { .. } | Message::Offer { .. } | Message::Ready | Message::Go => {}
             }
         }
+        self.notice_lost_players();
     }
 }
 
@@ -832,7 +707,7 @@ pub fn send_turn(
         return;
     }
     let commands = queue.scheduled_for(turn, local.0);
-    session.remember_turn(local.0, turn, &commands);
+    session.relay.record_turn(local.0, turn, &commands);
     let message = Message::Turn {
         team: local.0,
         tick: turn,
@@ -934,4 +809,23 @@ pub fn retire_commanders_of_players(
     commanders.0.retain(|commander| {
         commander.team != local.0 && !session.remote_teams.contains(&commander.team)
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_join_address_may_be_a_host_a_port_or_a_websocket_url_with_a_room() {
+        let plain = JoinTarget::parse("192.168.1.5", 47300).unwrap();
+        assert_eq!(plain.address, "192.168.1.5:47300");
+        assert_eq!(plain.url, "ws://192.168.1.5:47300/");
+        let with_port = JoinTarget::parse(" example.org:9000 ", 47300).unwrap();
+        assert_eq!(with_port.url, "ws://example.org:9000/");
+        let room = JoinTarget::parse("ws://play.example.org/room/K7Q2", 47300).unwrap();
+        assert_eq!(room.address, "play.example.org:47300");
+        assert_eq!(room.url, "ws://play.example.org:47300/room/K7Q2");
+        assert!(JoinTarget::parse("wss://play.example.org/room/K7Q2", 47300).is_err());
+        assert!(JoinTarget::parse("ws://", 47300).is_err());
+    }
 }

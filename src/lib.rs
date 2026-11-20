@@ -65,6 +65,7 @@ pub mod player_commands;
 pub mod production;
 pub mod queue_bar;
 pub mod random_battle;
+pub mod relay;
 pub mod replay;
 pub mod research;
 pub mod savegame;

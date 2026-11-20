@@ -32,7 +32,8 @@
 | `lobby` | hosting and joining a network battle from the main menu |
 | `local_view` | the battle as this machine's player sees it, for drawing, sound and the interface |
 | `network_hud` | the ping and the banner shown while waiting for the other player |
-| `network` | the lockstep session with a player on another machine: turns, checksums, disconnection |
+| `network` | the lockstep session with a player on another machine: turns, checksums, disconnection; WebSocket links and the message protocol |
+| `relay` | the hub of a network battle: passing messages on, the order history, late guests and rejoining players ([server.md](server.md)) |
 | `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |
 | `sim_math` | the portable trigonometry the simulation uses so every processor computes the same battle |
 | `determinism` | the seeded simulation randomness, simulation ids, single-threaded schedules and the state checksum |
