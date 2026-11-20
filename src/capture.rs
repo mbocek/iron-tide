@@ -85,6 +85,7 @@ impl Plugin for CapturePlugin {
             .and_then(|value| value.parse().ok())
             .unwrap_or(DEFAULT_CAPTURE_DELAY_SECS);
         let slot_from = |var: &str| std::env::var(var).ok().and_then(|value| value.parse().ok());
+        crate::capture_pointer::add_pointer_script(app, &path);
         app.insert_resource(PendingCapture {
             path,
             save_slot: slot_from(CAPTURE_SAVE_SLOT_VAR),
@@ -137,7 +138,7 @@ impl Plugin for CapturePlugin {
 /// Screenshots of the window surface come out black on Bevy 0.20 here, so the capture renders
 /// through a copy of the game camera into an offscreen image instead, interface included.
 #[derive(Resource)]
-struct CaptureTarget(Handle<Image>);
+pub struct CaptureTarget(pub Handle<Image>);
 
 #[derive(Component)]
 struct CaptureCamera;

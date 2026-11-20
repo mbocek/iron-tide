@@ -12,6 +12,7 @@ pub mod battlefield;
 pub mod camera;
 pub mod campaigns;
 pub mod capture;
+pub mod capture_pointer;
 pub mod catalog;
 pub mod combat;
 pub mod components;
@@ -306,6 +307,7 @@ impl Plugin for GamePlugin {
                     .in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
             )
             .init_resource::<camera::Cursor>()
+            .init_resource::<camera::ScriptedPointer>()
             .init_resource::<orders::DragSelection>()
             .init_resource::<orders::OrderMarker>()
             .init_resource::<campaigns::CampaignLibrary>()

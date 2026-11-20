@@ -15,6 +15,20 @@ make capture CAPTURE=shot.png CAPTURE_AFTER=30 CAPTURE_FOCUS=52,10
 make help             # every target
 ```
 
+Capture runs (`IRON_TIDE_CAPTURE=shot.png`, options in `src/capture.rs`) can also play a mouse script through
+the real input path, interface picking included, without moving the desktop cursor. It is how menu clicks, box
+selection, minimap orders, wall dragging and clicking aircraft in the air are checked without a person at the
+mouse:
+
+```sh
+IRON_TIDE_CAPTURE=run.png IRON_TIDE_CAPTURE_MISSION=7 IRON_TIDE_CAPTURE_AFTER_SECS=10 \
+IRON_TIDE_CAPTURE_POINTER="3 move 1355 760; 3.2 press left; 3.3 release left; 4 move 560 650; 4.3 press left; 5 move 960 700; 6 shot; 6.5 release left; 8 shot" \
+  ./target/release/iron-tide
+```
+
+Each step is seconds since start, then `move x y` (pixels of the 1600 x 900 capture), `press` / `release`
+`left` or `right`, or `shot`, which saves `run-1.png`, `run-2.png` and so on.
+
 ## Packages and releases
 
 ```sh

@@ -47,6 +47,10 @@ pub struct RtsCamera {
     yaw: f32,
 }
 
+/// Where a capture run's mouse script points, in place of the real cursor; `None` outside such runs.
+#[derive(Resource, Default)]
+pub struct ScriptedPointer(pub Option<Vec2>);
+
 #[derive(Resource, Default)]
 pub struct Cursor {
     pub screen: Option<Vec2>,
@@ -278,6 +282,7 @@ pub fn control_camera(
 
 pub fn track_cursor(
     level: Res<ActiveLevel>,
+    scripted: Res<ScriptedPointer>,
     hover_map: Res<HoverMap>,
     interface_nodes: Query<(), With<Node>>,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -287,7 +292,7 @@ pub fn track_cursor(
     let (Ok(window), Ok((camera, camera_transform))) = (windows.single(), cameras.single()) else {
         return;
     };
-    cursor.screen = window.cursor_position();
+    cursor.screen = scripted.0.or_else(|| window.cursor_position());
     let over_sidebar = cursor
         .screen
         .is_some_and(|screen| screen.x > window.width() - SIDEBAR_WIDTH);
