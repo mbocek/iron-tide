@@ -585,5 +585,13 @@
   "Your battle is under way; take back {} after catching up?": "Tvoje bitva běží; převezmeš {}, až ji doženeš?",
   "{} lost the connection; waiting for them to rejoin... {} s": "{} ztratil spojení; čeká se na jeho návrat... {} s",
   "Secure connections (wss://) are not supported yet": "Zabezpečená spojení (wss://) zatím nejsou podporována",
-  "Type the address of the host": "Napiš adresu hostitele"
+  "Type the address of the host": "Napiš adresu hostitele",
+  "OPEN THIS ROOM ON THE SERVER": "OTEVŘÍT TUTO MÍSTNOST NA SERVERU",
+  "On a dedicated server, type ws://server/room/NAME above: the first to open the room picks the battle from the battle editor's settings, and everyone else joins the same address.": "Na samostatném serveru napiš nahoře ws://server/room/NÁZEV: kdo místnost otevře první, vybere bitvu podle nastavení editoru bitvy, a ostatní se připojí na stejnou adresu.",
+  "Room open on the server: players {} of {}, {} ready. Others join at {}": "Místnost na serveru je otevřená: hráčů {} z {}, připravených {}. Ostatní se připojí na {}",
+  "The server closed the connection": "Server ukončil spojení",
+  "Join a room: ws://server/room/NAME": "Připoj se do místnosti: ws://server/room/NÁZEV",
+  "The battle in this room has no room for you": "V bitvě této místnosti už není místo",
+  "This room is full": "Tato místnost je plná",
+  "A room with this name is already open; join it or pick another name": "Místnost s tímto názvem je už otevřená; připoj se do ní nebo zvol jiný název"
 }

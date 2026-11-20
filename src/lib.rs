@@ -71,6 +71,7 @@ pub mod research;
 pub mod savegame;
 pub mod scenery;
 pub mod season;
+pub mod server;
 pub mod servicing;
 pub mod settings;
 pub mod sim_math;

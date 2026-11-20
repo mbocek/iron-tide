@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::net::TcpListener;
 use std::time::{Duration, Instant};
 
 use crate::catalog::Team;
@@ -32,7 +31,6 @@ pub struct Relay {
 
 /// The hub keeps accepting guests during the battle and remembers every order to bring them up to date.
 struct OpenDoor {
-    listener: TcpListener,
     level: LevelDefinition,
     players: Vec<Team>,
     /// Late guests considering the offer, with the seat they were offered; none to watch.
@@ -83,19 +81,12 @@ impl Relay {
         self.watchers.extend(indices);
     }
 
-    /// Keeps `listener` open during the battle. `remote_teams` are played over the links that do not lead
-    /// to spectators, in order; `players` is every team people play, offered to late guests with `level`.
-    pub fn open_door(
-        &mut self,
-        listener: TcpListener,
-        level: LevelDefinition,
-        players: Vec<Team>,
-        remote_teams: &[Team],
-    ) {
+    /// Takes guests during the battle (see `welcome`). `remote_teams` are played over the links that do not
+    /// lead to spectators, in order; `players` is every team people play, offered to late guests with `level`.
+    pub fn open_door(&mut self, level: LevelDefinition, players: Vec<Team>, remote_teams: &[Team]) {
         let player_links = (0..self.links.len()).filter(|index| !self.watchers.contains(index));
         self.link_teams = player_links.zip(remote_teams.iter().copied()).collect();
         self.door = Some(OpenDoor {
-            listener,
             level,
             players,
             newcomers: Vec::new(),
@@ -110,6 +101,11 @@ impl Relay {
                 .away
                 .values()
                 .any(|(_, since)| since.elapsed() > REJOIN_WINDOW)
+    }
+
+    /// Whether everyone has gone.
+    pub fn is_deserted(&self) -> bool {
+        self.closed.len() == self.links.len()
     }
 
     /// A player who lost the connection and how long the battle has waited for them.
@@ -202,9 +198,9 @@ impl Relay {
         for_this_machine
     }
 
-    /// Lets late guests in: a player whose connection dropped gets their seat back, anyone else may watch.
-    /// Once they accept they get every order so far.
-    pub fn admit_late_guests(&mut self) {
+    /// A guest who connected during the battle: a player whose connection dropped is offered their seat
+    /// back, anyone else to watch while there is room; without room the link is dropped.
+    pub fn welcome(&mut self, link: Link) {
         let watching = self.watchers.len() - self.closed.intersection(&self.watchers).count();
         let Some(door) = &mut self.door else { return };
         let free_seat = self.away.values().map(|&(team, _)| team).find(|&team| {
@@ -213,14 +209,23 @@ impl Relay {
                 .all(|(_, offered)| *offered != Some(team))
         });
         let spectator_room = watching + door.newcomers.len() < MOST_SPECTATORS;
-        if (free_seat.is_some() || spectator_room)
-            && let Ok((stream, _)) = door.listener.accept()
-            && stream.set_nonblocking(false).is_ok()
-            && let Ok(link) = Link::host_side(stream)
-        {
+        if free_seat.is_some() || spectator_room {
             link.offer_under_way(&door.level, free_seat, &door.players);
             door.newcomers.push((link, free_seat));
         }
+    }
+
+    /// Whether a guest arriving now would be let in.
+    pub fn has_room(&self) -> bool {
+        let watching = self.watchers.len() - self.closed.intersection(&self.watchers).count();
+        self.door.as_ref().is_some_and(|door| {
+            !self.away.is_empty() || watching + door.newcomers.len() < MOST_SPECTATORS
+        })
+    }
+
+    /// Once a late guest accepts, they get every order so far and join the battle.
+    pub fn admit_late_guests(&mut self) {
+        let Some(door) = &mut self.door else { return };
         let mut admitted = Vec::new();
         let mut index = 0;
         while index < door.newcomers.len() {

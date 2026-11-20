@@ -6,7 +6,7 @@ use std::time::Duration;
 use bevy::prelude::*;
 
 use crate::catalog::{Alliance, Team};
-use crate::i18n::{tr, tr_fmt};
+use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::levels::{ActiveLevel, LevelDefinition, SkirmishOptions};
 use crate::match_flow::GameState;
 use crate::network::{JoinTarget, Link, LobbyNews, MOST_SPECTATORS, NetSession, Offer};
@@ -45,6 +45,17 @@ enum LobbyPhase {
         dialling: Mutex<Receiver<std::io::Result<TcpStream>>>,
         /// The WebSocket URL to ask for once connected.
         url: String,
+        /// The battle and number of players for a room this player opens on a dedicated server.
+        opening: Option<(Box<LevelDefinition>, usize)>,
+    },
+    /// This player opened a room on a dedicated server and waits until every seat is taken and ready.
+    OwningRoom {
+        link: Link,
+        url: String,
+        level: Box<LevelDefinition>,
+        players: Vec<Team>,
+        seated: usize,
+        ready: usize,
     },
     WaitingForOffer(Link),
     /// The guest decides whether to play the offered battle.
@@ -130,6 +141,12 @@ impl NetLobby {
     pub fn can_start(&self) -> bool {
         match &self.phase {
             LobbyPhase::Hosting { players, seats, .. } => everyone_ready(players, seats),
+            LobbyPhase::OwningRoom {
+                players,
+                seated,
+                ready,
+                ..
+            } => seated + 1 == players.len() && ready == seated,
             _ => false,
         }
     }
@@ -137,6 +154,12 @@ impl NetLobby {
     /// The host starts the countdown once everyone is ready.
     pub fn start_battle(&mut self) {
         let ready = self.can_start();
+        if let LobbyPhase::OwningRoom { link, .. } = &self.phase {
+            if ready {
+                link.start_room();
+            }
+            return;
+        }
         if let LobbyPhase::Hosting {
             start_requested, ..
         } = &mut self.phase
@@ -147,6 +170,17 @@ impl NetLobby {
 
     /// Connects in the background so the menu keeps responding; see `JoinTarget` for what `address` may be.
     pub fn join(&mut self, address: &str) {
+        self.connect(address, None);
+    }
+
+    /// Opens a room for `players` people in all on a dedicated server at `address` (`ws://host/room/NAME`),
+    /// with this player's battle.
+    pub fn open_room(&mut self, address: &str, level: LevelDefinition, players: usize) {
+        let players = players.clamp(2, MOST_PLAYERS);
+        self.connect(address, Some((Box::new(level), players)));
+    }
+
+    fn connect(&mut self, address: &str, opening: Option<(Box<LevelDefinition>, usize)>) {
         let target = match JoinTarget::parse(address, DEFAULT_PORT) {
             Ok(target) => target,
             Err(reason) => return self.fail(reason),
@@ -171,6 +205,7 @@ impl NetLobby {
         self.enter(LobbyPhase::Connecting {
             dialling: Mutex::new(receiver),
             url,
+            opening,
         });
     }
 
@@ -226,6 +261,7 @@ impl NetLobby {
     pub fn has_partner(&self) -> bool {
         match &self.phase {
             LobbyPhase::Hosting { seats, .. } => !seats.is_empty(),
+            LobbyPhase::OwningRoom { seated, .. } => *seated > 0,
             LobbyPhase::WaitingForOffer(_)
             | LobbyPhase::Considering { .. }
             | LobbyPhase::Accepted { .. }
@@ -255,7 +291,8 @@ impl NetLobby {
             LobbyPhase::Hosting { seats, .. } => seats.iter().map(|seat| &seat.link).collect(),
             LobbyPhase::WaitingForOffer(link)
             | LobbyPhase::Considering { link, .. }
-            | LobbyPhase::Accepted { link, .. } => vec![link],
+            | LobbyPhase::Accepted { link, .. }
+            | LobbyPhase::OwningRoom { link, .. } => vec![link],
             LobbyPhase::Countdown { links, .. } => links.iter().collect(),
             _ => Vec::new(),
         };
@@ -285,7 +322,9 @@ impl NetLobby {
     /// The battle on offer, for every player to read before it starts.
     pub fn offered_level(&self) -> Option<&LevelDefinition> {
         match &self.phase {
-            LobbyPhase::Hosting { level, .. } | LobbyPhase::Countdown { level, .. } => Some(level),
+            LobbyPhase::Hosting { level, .. }
+            | LobbyPhase::Countdown { level, .. }
+            | LobbyPhase::OwningRoom { level, .. } => Some(level),
             LobbyPhase::Considering { offer, .. } | LobbyPhase::Accepted { offer, .. } => {
                 Some(&offer.level)
             }
@@ -317,6 +356,16 @@ impl NetLobby {
                 ))
             }
             LobbyPhase::Connecting { .. } => Some(tr("Connecting...").to_string()),
+            LobbyPhase::OwningRoom {
+                url,
+                players,
+                seated,
+                ready,
+                ..
+            } => Some(tr_fmt(
+                "Room open on the server: players {} of {}, {} ready. Others join at {}",
+                &[&(seated + 1), &players.len(), ready, url],
+            )),
             LobbyPhase::WaitingForOffer(_) => {
                 Some(tr("Connected, waiting for the host").to_string())
             }
@@ -405,19 +454,92 @@ impl NetLobby {
                 seats,
                 start_requested,
             } => self.host_step(listener, level, players, seats, start_requested, now),
-            LobbyPhase::Connecting { dialling, url } => {
+            LobbyPhase::Connecting {
+                dialling,
+                url,
+                opening,
+            } => {
                 let result = dialling
                     .lock()
                     .ok()
                     .and_then(|receiver| receiver.try_recv().ok());
                 match result {
-                    None => LobbyPhase::Connecting { dialling, url },
-                    Some(Ok(stream)) => match Link::guest_side_to(stream, url) {
-                        Ok(link) => self.changed_to(LobbyPhase::WaitingForOffer(link)),
+                    None => LobbyPhase::Connecting {
+                        dialling,
+                        url,
+                        opening,
+                    },
+                    Some(Ok(stream)) => match Link::guest_side_to(stream, url.clone()) {
+                        Ok(link) => match opening {
+                            Some((level, players)) => {
+                                link.open_room(&level, players);
+                                self.changed_to(LobbyPhase::OwningRoom {
+                                    link,
+                                    url,
+                                    level,
+                                    players: Team::ALL[..players].to_vec(),
+                                    seated: 0,
+                                    ready: 0,
+                                })
+                            }
+                            None => self.changed_to(LobbyPhase::WaitingForOffer(link)),
+                        },
                         Err(error) => self.failed(tr_fmt("Connection failed: {}", &[&error])),
                     },
                     Some(Err(error)) => self.failed(tr_fmt("Connection failed: {}", &[&error])),
                 }
+            }
+            LobbyPhase::OwningRoom {
+                mut link,
+                url,
+                level,
+                players,
+                mut seated,
+                mut ready,
+            } => {
+                let mut go = false;
+                for news in link.lobby_news() {
+                    match news {
+                        LobbyNews::RoomStatus {
+                            seated: now_seated,
+                            ready: now_ready,
+                        } => {
+                            (seated, ready) = (now_seated, now_ready);
+                            self.changed = true;
+                        }
+                        LobbyNews::Go => go = true,
+                        LobbyNews::Chat(team, text) => self.heard(team, text),
+                        LobbyNews::Refused(reason) => return self.failed(tr_owned(&reason)),
+                        LobbyNews::Left => {
+                            return self.failed(tr("The server closed the connection").to_string());
+                        }
+                        LobbyNews::Offered(_) | LobbyNews::GuestReady => {}
+                    }
+                }
+                if !go {
+                    return LobbyPhase::OwningRoom {
+                        link,
+                        url,
+                        level,
+                        players,
+                        seated,
+                        ready,
+                    };
+                }
+                let remote_teams = players
+                    .into_iter()
+                    .filter(|&team| team != Team::Player)
+                    .collect();
+                self.changed_to(LobbyPhase::Countdown {
+                    level,
+                    links: vec![link],
+                    local_team: Some(Team::Player),
+                    remote_teams,
+                    relays: false,
+                    watchers: Vec::new(),
+                    door: None,
+                    starts_at: now + COUNTDOWN_SECS,
+                })
             }
             LobbyPhase::WaitingForOffer(mut link) => {
                 for news in link.lobby_news() {
@@ -432,8 +554,9 @@ impl NetLobby {
                             ));
                         }
                         LobbyNews::Left => return self.host_gone(),
+                        LobbyNews::Refused(reason) => return self.failed(tr_owned(&reason)),
                         LobbyNews::Chat(team, text) => self.heard(team, text),
-                        LobbyNews::GuestReady | LobbyNews::Go => {}
+                        LobbyNews::GuestReady | LobbyNews::Go | LobbyNews::RoomStatus { .. } => {}
                     }
                 }
                 LobbyPhase::WaitingForOffer(link)
@@ -569,7 +692,10 @@ impl NetLobby {
                         self.heard(speaker, text);
                     }
                     LobbyNews::Left => left = true,
-                    LobbyNews::Offered(_) | LobbyNews::Go => {}
+                    LobbyNews::Offered(_)
+                    | LobbyNews::Go
+                    | LobbyNews::RoomStatus { .. }
+                    | LobbyNews::Refused(_) => {}
                 }
             }
             if left {

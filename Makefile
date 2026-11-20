@@ -12,7 +12,7 @@ MATCHES ?= 12
 PLATFORM ?= $(shell uname -s | tr A-Z a-z)-$(shell uname -m)
 
 .DEFAULT_GOAL := help
-.PHONY: help run run-release build release models models-fast previews capture check lint fmt fmt-check test test-unit test-playability balance package dmg clean clean-models
+.PHONY: help run run-release build release models models-fast previews capture server check lint fmt fmt-check test test-unit test-playability balance package dmg clean clean-models
 
 help: ## List the available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -34,6 +34,9 @@ models: ## Generate every model and preview in Blender (ONLY=tank,scout limits t
 
 models-fast: ## Export the models without rendering previews (works without a GPU)
 	$(BLENDER_RUN) --no-previews $(if $(ONLY),--only $(ONLY))
+
+server: ## Build and run the dedicated network battle server (PORT=47300)
+	cargo run --release --bin iron-tide-server -- --port $(or $(PORT),47300)
 
 capture: release ## Save one screenshot and quit (CAPTURE=, CAPTURE_AFTER=secs, CAPTURE_FOCUS=x,y)
 	BEVY_ASSET_ROOT=$(CURDIR) IRON_TIDE_CAPTURE=$(abspath $(CAPTURE)) IRON_TIDE_CAPTURE_AFTER_SECS=$(CAPTURE_AFTER) \

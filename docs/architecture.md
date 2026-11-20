@@ -34,6 +34,7 @@
 | `network_hud` | the ping and the banner shown while waiting for the other player |
 | `network` | the lockstep session with a player on another machine: turns, checksums, disconnection; WebSocket links and the message protocol |
 | `relay` | the hub of a network battle: passing messages on, the order history, late guests and rejoining players ([server.md](server.md)) |
+| `server` | the dedicated server's rooms: gathering players around an owner's battle, then one relay per room |
 | `player_commands` | player commands, their queue by tick, and carrying them out in the simulation |
 | `sim_math` | the portable trigonometry the simulation uses so every processor computes the same battle |
 | `determinism` | the seeded simulation randomness, simulation ids, single-threaded schedules and the state checksum |

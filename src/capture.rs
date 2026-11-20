@@ -50,6 +50,8 @@ const CAPTURE_HOST_VAR: &str = "IRON_TIDE_CAPTURE_HOST";
 /// (`campaign`, `random`, `custom`, `editor`, `network`, `replays`).
 const CAPTURE_MAIN_MENU_VAR: &str = "IRON_TIDE_CAPTURE_MAIN_MENU";
 const CAPTURE_JOIN_VAR: &str = "IRON_TIDE_CAPTURE_JOIN";
+/// `IRON_TIDE_CAPTURE_OPEN_ROOM=ws://host:port/room/NAME` opens a two-player room on a dedicated server.
+const CAPTURE_OPEN_ROOM_VAR: &str = "IRON_TIDE_CAPTURE_OPEN_ROOM";
 const LOAD_AFTER_SECS: f32 = 1.5;
 /// A hosting capture run starts the battle only after this, so spectators can join too.
 const HOST_WAITS_FOR_GUESTS_SECS: f32 = 10.0;
@@ -285,7 +287,9 @@ fn accept_network_offer(
     menu: Option<ResMut<MainMenu>>,
 ) {
     let joining = std::env::var_os(CAPTURE_JOIN_VAR).is_some();
-    if !joining && std::env::var_os(CAPTURE_HOST_VAR).is_none() {
+    let leading = std::env::var_os(CAPTURE_HOST_VAR).is_some()
+        || std::env::var_os(CAPTURE_OPEN_ROOM_VAR).is_some();
+    if !joining && !leading {
         return;
     }
     if let Some(mut menu) = menu {
@@ -405,6 +409,10 @@ fn start_requested_mission(
     }
     if let Ok(address) = std::env::var(CAPTURE_JOIN_VAR) {
         lobby.join(&address);
+        return;
+    }
+    if let Ok(address) = std::env::var(CAPTURE_OPEN_ROOM_VAR) {
+        lobby.open_room(&address, network_level(&SkirmishOptions::default(), 2), 2);
         return;
     }
     let newest_replay = std::env::var_os(CAPTURE_REPLAY_VAR)

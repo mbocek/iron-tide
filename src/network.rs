@@ -82,6 +82,23 @@ pub enum Message {
         team: Team,
         text: String,
     },
+    /// To a dedicated server: the first player in a room sets its battle for `players` people in all.
+    OpenRoom {
+        version: String,
+        level: Box<LevelDefinition>,
+        players: usize,
+    },
+    /// From a dedicated server to the player who opened the room: how many guests have a seat and are ready.
+    RoomStatus {
+        seated: usize,
+        ready: usize,
+    },
+    /// To a dedicated server: the player who opened the room starts the battle.
+    Start,
+    /// The other end will not have this connection, and why.
+    Refused {
+        reason: String,
+    },
 }
 
 /// The battle a guest was offered.
@@ -102,6 +119,12 @@ pub enum LobbyNews {
     GuestReady,
     Go,
     Chat(Team, String),
+    /// From a dedicated server, to the player who opened the room: guests seated and ready.
+    RoomStatus {
+        seated: usize,
+        ready: usize,
+    },
+    Refused(String),
     Left,
 }
 
@@ -130,6 +153,8 @@ struct Outbox {
 /// link's own thread.
 pub struct Link {
     outbox: Arc<Mutex<Outbox>>,
+    /// On the answering side, the path the other end asked for, once its handshake has arrived.
+    requested_path: Arc<Mutex<Option<String>>>,
     /// The underlying socket, to close it outright when the link is dropped.
     raw: TcpStream,
     inbox: Mutex<Receiver<Arrival>>,
@@ -173,9 +198,26 @@ impl JoinTarget {
     }
 }
 
-fn handshake(stream: TcpStream, side: Side, url: Option<String>) -> Option<WebSocket<TcpStream>> {
+// tungstenite's handshake callback must return its own `ErrorResponse`, however large clippy finds it.
+#[allow(clippy::result_large_err)]
+fn handshake(
+    stream: TcpStream,
+    side: Side,
+    url: Option<String>,
+    requested_path: &Mutex<Option<String>>,
+) -> Option<WebSocket<TcpStream>> {
     match side {
-        Side::Host => tungstenite::accept_with_config(stream, Some(socket_config())).ok(),
+        Side::Host => {
+            let remember_path =
+                |request: &tungstenite::handshake::server::Request,
+                 response: tungstenite::handshake::server::Response| {
+                    if let Ok(mut path) = requested_path.lock() {
+                        *path = Some(request.uri().path().to_string());
+                    }
+                    Ok(response)
+                };
+            tungstenite::accept_hdr_with_config(stream, remember_path, Some(socket_config())).ok()
+        }
         Side::Guest => {
             let url = match url {
                 Some(url) => url,
@@ -221,10 +263,12 @@ impl Link {
         let raw = stream.try_clone()?;
         let for_writing = stream.try_clone()?;
         let outbox = Arc::new(Mutex::new(Outbox::default()));
+        let requested_path = Arc::new(Mutex::new(None));
         let (sender, receiver) = channel();
         let shared_outbox = Arc::clone(&outbox);
+        let shared_path = Arc::clone(&requested_path);
         std::thread::spawn(move || {
-            let Some(mut reader) = handshake(stream, side, url) else {
+            let Some(mut reader) = handshake(stream, side, url, &shared_path) else {
                 if let Ok(mut outbox) = shared_outbox.lock() {
                     outbox.failed = true;
                 }
@@ -256,10 +300,24 @@ impl Link {
         });
         Ok(Self {
             outbox,
+            requested_path,
             raw,
             inbox: Mutex::new(receiver),
             early: Vec::new(),
         })
+    }
+
+    /// The path the other end asked for in its handshake, e.g. `/room/K7Q2`; `None` until it has arrived.
+    pub fn requested_path(&self) -> Option<String> {
+        self.requested_path
+            .lock()
+            .ok()
+            .and_then(|path| path.clone())
+    }
+
+    /// Whether the connection failed before or after its handshake.
+    pub fn has_failed(&self) -> bool {
+        self.outbox.lock().map_or(true, |outbox| outbox.failed)
     }
 
     /// Returns whether the message left or waits for the handshake; a failure means the connection is gone.
@@ -325,6 +383,29 @@ impl Link {
         self.send(&Message::Ready);
     }
 
+    /// Sets the battle of the room this link leads to on a dedicated server.
+    pub fn open_room(&self, level: &LevelDefinition, players: usize) {
+        self.send(&Message::OpenRoom {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            level: Box::new(level.clone()),
+            players,
+        });
+    }
+
+    pub fn start_room(&self) {
+        self.send(&Message::Start);
+    }
+
+    pub fn refuse(&self, reason: &str) {
+        self.send(&Message::Refused {
+            reason: reason.to_string(),
+        });
+    }
+
+    pub fn report_room(&self, seated: usize, ready: usize) {
+        self.send(&Message::RoomStatus { seated, ready });
+    }
+
     pub fn go(&self) {
         self.send(&Message::Go);
     }
@@ -372,6 +453,12 @@ impl Link {
                 )),
                 Arrival::Message(Message::Ready) => news.push(LobbyNews::GuestReady),
                 Arrival::Message(Message::Go) => news.push(LobbyNews::Go),
+                Arrival::Message(Message::RoomStatus { seated, ready }) => {
+                    news.push(LobbyNews::RoomStatus { seated, ready });
+                }
+                Arrival::Message(Message::Refused { reason }) => {
+                    news.push(LobbyNews::Refused(reason))
+                }
                 Arrival::Message(Message::Ping { nonce }) => {
                     self.send(&Message::Pong { nonce });
                 }
@@ -424,6 +511,8 @@ pub struct NetSession {
     /// On a machine that joined late, the latest tick of each team's orders the hub already had; a returning
     /// player must not send those turns again.
     turns_known_through: BTreeMap<usize, u64>,
+    /// On a host in the game, where guests knock during the battle.
+    door: Option<TcpListener>,
 }
 
 impl NetSession {
@@ -444,6 +533,7 @@ impl NetSession {
             last_ping_sent: None,
             round_trip: None,
             turns_known_through: BTreeMap::new(),
+            door: None,
         }
     }
 
@@ -452,8 +542,8 @@ impl NetSession {
         let players = std::iter::once(Team::Player)
             .chain(self.remote_teams.iter().copied())
             .collect();
-        self.relay
-            .open_door(listener, level, players, &self.remote_teams);
+        self.relay.open_door(level, players, &self.remote_teams);
+        self.door = Some(listener);
         self
     }
 
@@ -473,6 +563,14 @@ impl NetSession {
     }
 
     fn admit_late_guests(&mut self) {
+        if let Some(listener) = &self.door
+            && self.relay.has_room()
+            && let Ok((stream, _)) = listener.accept()
+            && stream.set_nonblocking(false).is_ok()
+            && let Ok(link) = Link::host_side(stream)
+        {
+            self.relay.welcome(link);
+        }
         self.relay.admit_late_guests();
         self.notice_lost_players();
     }
@@ -645,7 +743,14 @@ impl NetSession {
                         .extend(chat_line(&text).map(|text| (team, text)));
                 }
                 Message::Pong { nonce } => self.answered(nonce),
-                Message::Ping { .. } | Message::Offer { .. } | Message::Ready | Message::Go => {}
+                Message::Ping { .. }
+                | Message::Offer { .. }
+                | Message::Ready
+                | Message::Go
+                | Message::OpenRoom { .. }
+                | Message::RoomStatus { .. }
+                | Message::Start
+                | Message::Refused { .. } => {}
             }
         }
         self.notice_lost_players();

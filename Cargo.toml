@@ -11,6 +11,10 @@ repository = "https://github.com/mbocek/iron-tide"
 name = "iron-tide"
 path = "src/main.rs"
 
+[[bin]]
+name = "iron-tide-server"
+path = "src/bin/server.rs"
+
 [dependencies]
 bevy = { version = "0.20.1", features = ["jpeg"] }
 libm = "0.2"

@@ -12,6 +12,7 @@ make check            # cargo fmt --check + clippy -D warnings + tests
 make package          # release build bundled with its assets in dist/
 make dmg              # macOS: Iron Tide.app on a disk image in dist/
 make capture CAPTURE=shot.png CAPTURE_AFTER=30 CAPTURE_FOCUS=52,10
+make server           # the dedicated network battle server (PORT=47300), see docs/server.md
 make help             # every target
 ```
 

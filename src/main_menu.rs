@@ -348,6 +348,7 @@ pub enum MenuCommand {
     DownloadUpdate,
     HostNetworkBattle,
     JoinNetworkBattle,
+    OpenServerRoom,
     AcceptNetworkOffer,
     StartNetworkBattle,
     CancelNetworkBattle,
@@ -1874,6 +1875,17 @@ fn spawn_network_details(
         );
         spawn_address_row(panel, fonts, join_address);
         spawn_command_button(panel, fonts, tr("JOIN"), MenuCommand::JoinNetworkBattle);
+        spawn_command_button(
+            panel,
+            fonts,
+            tr("OPEN THIS ROOM ON THE SERVER"),
+            MenuCommand::OpenServerRoom,
+        );
+        panel.spawn(fonts.text(
+            tr("On a dedicated server, type ws://server/room/NAME above: the first to open the room picks the battle from the battle editor's settings, and everyone else joins the same address."),
+            14.0,
+            TEXT_DIM,
+        ));
     }
     panel.spawn((NetworkStatusText, fonts.text("", 16.0, GOOD)));
     if lobby.is_hosting() {
@@ -2363,6 +2375,14 @@ fn run_command(
             lobby.host(network_level(&menu.options, players), players);
         }
         MenuCommand::JoinNetworkBattle => lobby.join(&settings.join_address),
+        MenuCommand::OpenServerRoom => {
+            let players = menu.options.network_players;
+            lobby.open_room(
+                &settings.join_address,
+                network_level(&menu.options, players),
+                players,
+            );
+        }
         MenuCommand::AcceptNetworkOffer => lobby.accept_offer(),
         MenuCommand::StartNetworkBattle => lobby.start_battle(),
         MenuCommand::CancelNetworkBattle => lobby.cancel(),
