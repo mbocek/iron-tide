@@ -1,4 +1,5 @@
 use crate::abilities::{Mine, bury};
+use crate::level_events::EventsFired;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -94,6 +95,8 @@ pub struct SaveGame {
     /// What each opponent has explored, in `Team::OPPONENTS` order.
     #[serde(default)]
     explored_by_opponents: Vec<Vec<bool>>,
+    #[serde(default)]
+    events_fired: Vec<bool>,
 }
 
 /// A save waiting to be restored once the next match's map has been generated from its level.
@@ -191,6 +194,7 @@ pub fn write_requested_save(
     mut notifications: ResMut<Notifications>,
     level: Res<ActiveLevel>,
     clock: Res<MatchClock>,
+    events_fired: Res<EventsFired>,
     map: Res<GameMap>,
     economies: Res<Economies>,
     production: Res<Production>,
@@ -228,6 +232,7 @@ pub fn write_requested_save(
         saved_at_unix_secs: unix_now(),
         level: level.0.clone(),
         match_secs: clock.elapsed_secs,
+        events_fired: events_fired.0.clone(),
         credits: Team::ALL
             .iter()
             .map(|&team| economies.of(team).credits)
@@ -367,6 +372,7 @@ pub fn restore_pending_load(
     mut production: ResMut<Production>,
     mut commanders: ResMut<AiCommanders>,
     mut clock: ResMut<MatchClock>,
+    mut events_fired: ResMut<EventsFired>,
     mut notifications: ResMut<Notifications>,
     mut fog: ResMut<FogOfWar>,
     mut intel: ResMut<Intel>,
@@ -456,6 +462,7 @@ pub fn restore_pending_load(
     }
     *commanders = save.ai;
     clock.elapsed_secs = save.match_secs;
+    events_fired.0 = save.events_fired.clone();
     fog.restore_explored(&save.explored);
     for (index, opponent) in Team::OPPONENTS.into_iter().enumerate() {
         let explored = save

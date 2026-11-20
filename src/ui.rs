@@ -2,6 +2,7 @@ use crate::abilities::MINE_COST;
 use crate::campaigns::{CampaignLibrary, CampaignRun, find_campaign};
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::key_bindings::{Action, KeyBindings};
+use crate::level_events::MissionMessage;
 use crate::local_view::LocalView;
 use crate::match_stats::{MatchStats, TeamTally};
 use crate::player_commands::LocalTeam;
@@ -1776,6 +1777,15 @@ pub fn refresh_info_panel(
         f if f > 0.3 => WARNING,
         _ => DANGER,
     }));
+}
+
+pub fn announce_mission_messages(
+    mut messages: MessageReader<MissionMessage>,
+    mut notifications: ResMut<Notifications>,
+) {
+    for message in messages.read() {
+        notifications.push_mission_message(tr_owned(&message.0));
+    }
 }
 
 pub fn refresh_notifications(

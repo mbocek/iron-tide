@@ -8,6 +8,8 @@ use crate::player_commands::LocalTeam;
 use crate::sound::{Sound, SoundCue};
 
 const MESSAGE_LIFETIME_SECS: f32 = 4.0;
+/// A mission's own messages carry orders and warnings, so they stay long enough to be read in a fight.
+const MISSION_MESSAGE_LIFETIME_SECS: f32 = 12.0;
 const MAX_VISIBLE_MESSAGES: usize = 4;
 const ATTACK_WARNING_COOLDOWN_SECS: f32 = 12.0;
 
@@ -23,9 +25,16 @@ pub struct Notifications {
 
 impl Notifications {
     pub fn push(&mut self, message: impl Into<String>) {
-        let message = message.into();
+        self.push_for(message.into(), MESSAGE_LIFETIME_SECS);
+    }
+
+    pub fn push_mission_message(&mut self, message: impl Into<String>) {
+        self.push_for(message.into(), MISSION_MESSAGE_LIFETIME_SECS);
+    }
+
+    fn push_for(&mut self, message: String, lifetime_secs: f32) {
         self.messages.retain(|(existing, _)| *existing != message);
-        self.messages.push((message, MESSAGE_LIFETIME_SECS));
+        self.messages.push((message, lifetime_secs));
         if self.messages.len() > MAX_VISIBLE_MESSAGES {
             self.messages.remove(0);
         }

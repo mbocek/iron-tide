@@ -1,0 +1,123 @@
+{
+  "name": "S7. Hunting Season",
+  "briefing": "Syndicate campaign. The Coalition feeds its war on the crystal its harvesters haul home. Starve it: our Raider Bikes are fast enough to hit a harvester and be gone before the tanks arrive. Bleed their economy, then destroy every enemy Command Center. Our spotters expect the Coalition to answer with bombers.",
+  "map_seed": 19019,
+  "player_faction": "Syndicate",
+  "player": {
+    "site": "SouthWest",
+    "credits": 6000,
+    "buildings": [
+      "PowerPlant",
+      "PowerPlant",
+      "Refinery",
+      "Barracks",
+      "Factory",
+      "GunTurret",
+      "GunTurret"
+    ],
+    "units": [
+      "RaiderBike",
+      "RaiderBike",
+      "RaiderBike",
+      "RaiderBike",
+      "RaiderBike",
+      "RaiderBike",
+      "Rifleman",
+      "Rifleman",
+      "FlakTrack"
+    ]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 5000,
+      "difficulty": "Normal",
+      "buildings": [
+        "PowerPlant",
+        "PowerPlant",
+        "Refinery",
+        "Refinery",
+        "Barracks",
+        "Factory",
+        "TechCenter",
+        "Helipad",
+        "GunTurret"
+      ],
+      "units": [
+        "Tank",
+        "Tank",
+        "Rifleman",
+        "Rifleman",
+        "Rifleman"
+      ]
+    }
+  ],
+  "objective": "DestroyCommandCenters",
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "Plains",
+  "season": "Autumn",
+  "events": [
+    {
+      "when": {
+        "AfterMinutes": {
+          "minutes": 5.0
+        }
+      },
+      "then": [
+        {
+          "Message": {
+            "text": "Our spotters hear engines warming up at the Coalition airfield. Get flak up."
+          }
+        }
+      ]
+    },
+    {
+      "when": {
+        "AfterMinutes": {
+          "minutes": 6.0
+        }
+      },
+      "then": [
+        {
+          "Message": {
+            "text": "A Coalition Bomber is inbound from the north-east!"
+          }
+        },
+        {
+          "Reinforcements": {
+            "team": "Crimson",
+            "units": [
+              "Bomber"
+            ],
+            "from": "NorthEast"
+          }
+        }
+      ]
+    },
+    {
+      "when": {
+        "AfterMinutes": {
+          "minutes": 8.0
+        }
+      },
+      "then": [
+        {
+          "Message": {
+            "text": "Two Stealth Tanks have slipped through the lines to join you."
+          }
+        },
+        {
+          "Reinforcements": {
+            "team": "Player",
+            "units": [
+              "StealthTank",
+              "StealthTank"
+            ],
+            "from": "NorthWest"
+          }
+        }
+      ]
+    }
+  ]
+}

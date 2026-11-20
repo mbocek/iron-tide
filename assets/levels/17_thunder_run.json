@@ -1,0 +1,148 @@
+{
+  "name": "11. Thunder Run",
+  "briefing": "Crimson has walled itself in behind rocket bunkers that would shred any armoured column, and a second base guards the north-west. We go over the walls instead: a Bomber is ready on the pad and more are on their way. Keep Fighters up against their gunships, flatten the bunkers from the air and destroy every enemy Command Center. Expect Crimson to throw its reserve at us once the bombing starts.",
+  "map_seed": 17017,
+  "player": {
+    "site": "SouthWest",
+    "credits": 7000,
+    "buildings": [
+      "PowerPlant",
+      "PowerPlant",
+      "PowerPlant",
+      "Refinery",
+      "Barracks",
+      "Factory",
+      "TechCenter",
+      "Helipad"
+    ],
+    "units": [
+      "Bomber",
+      "Fighter",
+      "Tank",
+      "Tank",
+      "FlakTrack",
+      "Rocketeer",
+      "Rocketeer",
+      "Grenadier"
+    ]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 6000,
+      "difficulty": "Hard",
+      "buildings": [
+        "PowerPlant",
+        "PowerPlant",
+        "PowerPlant",
+        "Refinery",
+        "Barracks",
+        "Factory",
+        "TechCenter",
+        "Helipad",
+        "RocketBunker",
+        "RocketBunker",
+        "RocketBunker",
+        "FlakCannon"
+      ],
+      "units": [
+        "Gunship",
+        "Gunship",
+        "StealthTank",
+        "Tank",
+        "Rocketeer",
+        "Rocketeer"
+      ]
+    },
+    {
+      "site": "NorthWest",
+      "credits": 4000,
+      "difficulty": "Normal",
+      "buildings": [
+        "PowerPlant",
+        "Refinery",
+        "Barracks",
+        "RocketBunker",
+        "GunTurret"
+      ]
+    }
+  ],
+  "objective": "DestroyCommandCenters",
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "Lake",
+  "season": "Summer",
+  "events": [
+    {
+      "when": {
+        "AfterMinutes": {
+          "minutes": 4.0
+        }
+      },
+      "then": [
+        {
+          "Message": {
+            "text": "Two more Bombers have reached the front and are landing at our base."
+          }
+        },
+        {
+          "Reinforcements": {
+            "team": "Player",
+            "units": [
+              "Bomber",
+              "Bomber"
+            ],
+            "from": "SouthWest"
+          }
+        }
+      ]
+    },
+    {
+      "when": {
+        "AfterMinutes": {
+          "minutes": 8.0
+        }
+      },
+      "then": [
+        {
+          "Message": {
+            "text": "Crimson's reserve armour is rolling on our base from the south-east!"
+          }
+        },
+        {
+          "Reinforcements": {
+            "team": "Crimson",
+            "units": [
+              "StealthTank",
+              "StealthTank",
+              "Tank",
+              "Tank"
+            ],
+            "from": "SouthEast"
+          }
+        }
+      ]
+    },
+    {
+      "when": {
+        "StructuresLeft": {
+          "team": "Crimson",
+          "at_most": 8
+        }
+      },
+      "then": [
+        {
+          "Message": {
+            "text": "Their defences are cracking. Command sends $2000 to finish the job."
+          }
+        },
+        {
+          "Credits": {
+            "team": "Player",
+            "amount": 2000
+          }
+        }
+      ]
+    }
+  ]
+}

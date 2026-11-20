@@ -4,7 +4,7 @@ The game opens on a start screen of large tiles: *Campaigns*, *Skirmish* (random
 *Multiplayer*, *Editor* (battle editor and custom levels), *Replays* and *Settings* (graphics, sound, controls and
 gameplay, the same pages as in the pause menu), with *Continue* above them when there is a quick save. Each tile
 opens a screen with a *Back* button; Esc goes back too.
-- **Campaigns:** the Coalition campaign of ten missions and the Syndicate campaign of six (S1-S6)
+- **Campaigns:** the Coalition campaign of twelve missions and the Syndicate campaign of eight (S1-S8)
   (`assets/levels/*.json`), each mission with its own objective. A campaign is played in order: a mission unlocks
   once the one before it is won, and the start screen offers to *Continue campaign* with the next mission of the
   campaign played last. The campaign screen shows the route of missions (won, next and locked) beside the
@@ -22,6 +22,10 @@ opens a screen with a *Back* button; Esc goes back too.
   8. White Silence (destroy two Command Centers on a large winter plain in falling snow; snipers to scout)
   9. Marksmen (infantry only: snipers, medics and an engineer to capture the Crimson Command Center; autumn rain)
   10. The Iron Tide (two against two on a huge map: with Amber as an ally, destroy Crimson and Violet)
+  11. Thunder Run (bombers and fighters over walled rocket bunkers; two bases to destroy, bomber reinforcements
+      at 4 minutes and a Crimson counter-attack at 8; on the lake)
+  12. Iron Lifeline (survive 14 minutes with Bulwarks and Repair Trucks: a Raider Bike raid at 3 minutes, a
+      repair column at 6, stealth armour at 9; winter)
   - S1. Red Ledger (Syndicate: burn out a small Coalition post with Flame Troopers)
   - S2. Bunker Line (Syndicate: hold 12 minutes against Bulwarks and gunships behind Rocket Bunkers)
   - S3. Rocket Rain (Syndicate: shell the defences with Missile Trucks and destroy both Command Centers; large
@@ -30,6 +34,10 @@ opens a screen with a *Back* button; Esc goes back too.
   - S5. Ghosts in the Pines (Syndicate: flush out camouflaged Coalition snipers along the river; autumn)
   - S6. Laboratory War (Syndicate: research all three upgrades against Bulwarks, then destroy both Command
     Centers; large plain in the rain)
+  - S7. Hunting Season (Syndicate: Raider Bikes against the Coalition's harvesters; a bomber raid at 6 minutes,
+    Stealth Tank reinforcements at 8; autumn plains)
+  - S8. Ghost Armour (Syndicate: Stealth Tank ambushes and an engineer to capture the Coalition Command Center; a
+    Bulwark column at 7 minutes, reinforcements at 10)
 - **Choosing targets:** a unit firing on its own picks the enemy its weapon hurts most and that is closest to
   dying, preferring targets already in range and anything that shoots back over buildings, so a group
   concentrates its fire. Computer commanders send up to four soldiers idling at home to a harvester under fire.
@@ -129,6 +137,13 @@ soak the ground darker and glossier and dry off slowly afterwards. The forecast 
 every player of a network match sees the same sky; it does not affect play.
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
+`events` (`src/level_events.rs`) script a mission: each happens once, when its trigger is met, and runs in the
+simulation, so replays and network battles see it too and a save remembers which have happened.
+Triggers: `{ "AfterMinutes": { "minutes": N } }` and `{ "StructuresLeft": { "team": "Crimson", "at_most": N } }`
+(walls not counted). Actions: `{ "Message": { "text": "..." } }` (translated like a briefing),
+`{ "Reinforcements": { "team": "Player", "units": ["Bomber"], "from": "NorthWest" } }` (they drive in from that
+corner of the map; the player's head for its base, an opponent's attack-move on it) and
+`{ "Credits": { "team": "Player", "amount": N } }`. A level whose events name a side not in the battle is refused.
 Empty `available_*` lists allow everything. `"tutorial": true` shows the step-by-step tutorial panel
 (select, move, power plant, refinery, barracks, a rifleman, attack-move, destroy the enemy); each step
 completes as soon as the player does it, and the panel can be hidden. In every level a field tip explains

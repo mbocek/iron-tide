@@ -1,3 +1,4 @@
+use crate::level_events::LevelEvent;
 use std::path::{Path, PathBuf};
 
 use crate::map::set_map_size;
@@ -14,7 +15,7 @@ use crate::settings::game_data_directory;
 use crate::terrain::Landscape;
 
 const CUSTOM_LEVELS_DIRECTORY: &str = "levels";
-const CAMPAIGN_SOURCES: [&str; 16] = [
+const CAMPAIGN_SOURCES: [&str; 20] = [
     include_str!("../assets/levels/01_bridgehead.json"),
     include_str!("../assets/levels/02_hold_the_ford.json"),
     include_str!("../assets/levels/03_iron_hammer.json"),
@@ -31,6 +32,10 @@ const CAMPAIGN_SOURCES: [&str; 16] = [
     include_str!("../assets/levels/14_salted_earth.json"),
     include_str!("../assets/levels/15_ghosts_in_the_pines.json"),
     include_str!("../assets/levels/16_laboratory_war.json"),
+    include_str!("../assets/levels/17_thunder_run.json"),
+    include_str!("../assets/levels/18_iron_lifeline.json"),
+    include_str!("../assets/levels/19_hunting_season.json"),
+    include_str!("../assets/levels/20_ghost_armour.json"),
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -246,6 +251,7 @@ pub struct LevelDefinition {
     pub player_faction: Faction,
     /// Varies the river's course, the fords, the lake and the hills; none keeps the classic landscape.
     pub terrain_seed: Option<u64>,
+    pub events: Vec<LevelEvent>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -277,6 +283,7 @@ impl Default for LevelDefinition {
             map_edits: Vec::new(),
             player_faction: Faction::Coalition,
             terrain_seed: None,
+            events: Vec::new(),
         }
     }
 }
@@ -339,6 +346,13 @@ impl LevelDefinition {
         }
         if self.player.credits < 0 || self.enemies.iter().any(|enemy| enemy.force.credits < 0) {
             problems.push("credits cannot be negative".into());
+        }
+        for team in self.events.iter().flat_map(LevelEvent::teams) {
+            if self.force_of(team).is_none() {
+                problems.push(format!(
+                    "an event involves {team:?}, who is not in this battle"
+                ));
+            }
         }
         problems
     }
@@ -564,6 +578,7 @@ impl SkirmishOptions {
             map_edits: Vec::new(),
             player_faction: self.player_faction,
             terrain_seed: None,
+            events: Vec::new(),
         }
     }
 }

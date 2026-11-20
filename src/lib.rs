@@ -36,6 +36,7 @@ pub mod intel;
 pub mod interpolation;
 pub mod key_bindings;
 pub mod level_editing;
+pub mod level_events;
 pub mod levels;
 pub mod lobby;
 pub mod local_view;
@@ -198,6 +199,8 @@ impl Plugin for SimulationPlugin {
             .add_message::<combat::Impact>()
             .add_message::<sound::SoundCue>()
             .add_message::<structures::StructureOrder>()
+            .add_message::<level_events::MissionMessage>()
+            .init_resource::<level_events::EventsFired>()
             .add_systems(
                 OnEnter(match_flow::GameState::Playing),
                 (
@@ -230,7 +233,11 @@ impl Plugin for SimulationPlugin {
                     (
                         network::send_turn,
                         player_commands::carry_out_player_commands,
-                        match_flow::advance_match_clock,
+                        (
+                            match_flow::advance_match_clock,
+                            level_events::run_level_events,
+                        )
+                            .chain(),
                         economy::tally_power,
                         production::advance_production,
                         ai::command_enemies,
@@ -686,7 +693,7 @@ impl Plugin for GamePlugin {
                         control_groups::refresh_group_bar,
                         perf_overlay::refresh_performance_overlay,
                         queue_bar::animate_queue_progress,
-                        ui::refresh_notifications,
+                        (ui::announce_mission_messages, ui::refresh_notifications).chain(),
                         (ui::refresh_objective, ui::refresh_match_time),
                         terrain_material::dress_terrain_surfaces,
                         fog_view::paint_fog_texture,

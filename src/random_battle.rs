@@ -134,6 +134,7 @@ pub fn generate(options: &RandomBattleOptions, seed: u64) -> LevelDefinition {
         map_edits,
         player_faction,
         terrain_seed: Some(seed),
+        events: Vec::new(),
         ..default()
     }
 }

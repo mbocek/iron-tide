@@ -215,8 +215,8 @@ mod tests {
     fn the_built_in_missions_split_into_a_coalition_and_a_syndicate_campaign() {
         let campaigns = built_in_campaigns();
         assert_eq!(campaigns.len(), 2);
-        assert_eq!(campaigns[0].missions.len(), 10);
-        assert_eq!(campaigns[1].missions.len(), 6);
+        assert_eq!(campaigns[0].missions.len(), 12);
+        assert_eq!(campaigns[1].missions.len(), 8);
         assert!(
             campaigns[1]
                 .missions

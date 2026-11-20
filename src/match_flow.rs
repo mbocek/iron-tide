@@ -76,6 +76,10 @@ pub fn reset_match_state(mut commands: Commands, level: Res<ActiveLevel>) {
     commands.insert_resource(LastAlert::default());
     commands.insert_resource(ControlGroups::default());
     commands.insert_resource(MatchClock::default());
+    commands.insert_resource(crate::level_events::EventsFired(vec![
+        false;
+        level.0.events.len()
+    ]));
 }
 
 pub fn unpause(mut time: ResMut<Time<Virtual>>) {

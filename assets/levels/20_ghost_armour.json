@@ -1,0 +1,118 @@
+{
+  "name": "S8. Ghost Armour",
+  "briefing": "Syndicate campaign. The Coalition's forward headquarters holds the codes to its whole southern front, so we want it standing. A Stealth Tank that keeps still vanishes from enemy sight: set ambushes, pick off their armour and walk an engineer into their Command Center. A Bulwark column is expected to come looking for us.",
+  "map_seed": 20020,
+  "player_faction": "Syndicate",
+  "player": {
+    "site": "SouthWest",
+    "credits": 6000,
+    "buildings": [
+      "PowerPlant",
+      "PowerPlant",
+      "PowerPlant",
+      "Refinery",
+      "Barracks",
+      "Factory",
+      "TechCenter",
+      "GunTurret",
+      "GunTurret"
+    ],
+    "units": [
+      "StealthTank",
+      "StealthTank",
+      "StealthTank",
+      "StealthTank",
+      "Engineer",
+      "Engineer",
+      "Rifleman",
+      "Rifleman",
+      "Rifleman",
+      "Rocketeer",
+      "Rocketeer"
+    ]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 6000,
+      "difficulty": "Normal",
+      "buildings": [
+        "PowerPlant",
+        "PowerPlant",
+        "Refinery",
+        "Barracks",
+        "Factory",
+        "RepairBay",
+        "GunTurret",
+        "GunTurret"
+      ],
+      "units": [
+        "Bulwark",
+        "Tank",
+        "Tank",
+        "RepairTruck",
+        "Rifleman",
+        "Rifleman",
+        "Sniper"
+      ]
+    }
+  ],
+  "objective": "CaptureCommandCenter",
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "River",
+  "season": "Summer",
+  "events": [
+    {
+      "when": {
+        "AfterMinutes": {
+          "minutes": 7.0
+        }
+      },
+      "then": [
+        {
+          "Message": {
+            "text": "A Bulwark column with a Repair Truck is coming for our base from the south-east."
+          }
+        },
+        {
+          "Reinforcements": {
+            "team": "Crimson",
+            "units": [
+              "Bulwark",
+              "Bulwark",
+              "RepairTruck"
+            ],
+            "from": "SouthEast"
+          }
+        }
+      ]
+    },
+    {
+      "when": {
+        "AfterMinutes": {
+          "minutes": 10.0
+        }
+      },
+      "then": [
+        {
+          "Message": {
+            "text": "More engineers and two Stealth Tanks have arrived from the north-west."
+          }
+        },
+        {
+          "Reinforcements": {
+            "team": "Player",
+            "units": [
+              "Engineer",
+              "Engineer",
+              "StealthTank",
+              "StealthTank"
+            ],
+            "from": "NorthWest"
+          }
+        }
+      ]
+    }
+  ]
+}

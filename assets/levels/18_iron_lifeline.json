@@ -1,0 +1,56 @@
+{
+  "name": "12. Iron Lifeline",
+  "briefing": "Our armour holds the last crossing, but it is far from any factory and Crimson knows it. Keep the Repair Trucks behind the Bulwarks, mend what can be mended and hold out for fourteen minutes. Raiders will go for the harvesters; stealth armour will come for the rest. A repair column is trying to break through to you.",
+  "map_seed": 18018,
+  "player": {
+    "site": "SouthWest",
+    "credits": 4000,
+    "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory", "RepairBay", "GunTurret"],
+    "units": ["Bulwark", "Bulwark", "RepairTruck", "RepairTruck", "Tank", "Tank", "Rocketeer", "Rocketeer", "Rocketeer"]
+  },
+  "enemies": [
+    {
+      "site": "NorthEast",
+      "credits": 6000,
+      "difficulty": "Hard",
+      "buildings": ["PowerPlant", "PowerPlant", "Refinery", "Barracks", "Factory", "TechCenter"],
+      "units": ["Tank", "Tank", "MissileTruck", "Rifleman", "Rifleman"]
+    },
+    { "site": "SouthEast", "credits": 4000, "difficulty": "Normal" }
+  ],
+  "objective": { "Survive": { "minutes": 14.0 } },
+  "available_units": [],
+  "available_buildings": [],
+  "landscape": "River",
+  "season": "Winter",
+  "events": [
+    {
+      "when": { "AfterMinutes": { "minutes": 3.0 } },
+      "then": [
+        { "Message": { "text": "Raider Bikes are racing for our harvesters from the south-east!" } },
+        { "Reinforcements": { "team": "Amber", "units": ["RaiderBike", "RaiderBike", "RaiderBike", "RaiderBike"], "from": "SouthEast" } }
+      ]
+    },
+    {
+      "when": { "AfterMinutes": { "minutes": 6.0 } },
+      "then": [
+        { "Message": { "text": "The repair column has broken through from the north-west and is heading for the base." } },
+        { "Reinforcements": { "team": "Player", "units": ["RepairTruck", "Bulwark", "Bulwark"], "from": "NorthWest" } }
+      ]
+    },
+    {
+      "when": { "AfterMinutes": { "minutes": 9.0 } },
+      "then": [
+        { "Message": { "text": "Stealth armour on the move from the north-east. Watch for tanks that are not there." } },
+        { "Reinforcements": { "team": "Crimson", "units": ["StealthTank", "StealthTank", "StealthTank", "MissileTruck", "MissileTruck"], "from": "NorthEast" } }
+      ]
+    },
+    {
+      "when": { "AfterMinutes": { "minutes": 12.0 } },
+      "then": [
+        { "Message": { "text": "Two minutes left. Command has wired $2000 for the last stand." } },
+        { "Credits": { "team": "Player", "amount": 2000 } }
+      ]
+    }
+  ]
+}
