@@ -18,7 +18,7 @@ use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::{GameMap, cell_center};
 use crate::match_flow::GameState;
 use crate::movement::order_move;
-use crate::network::{NETWORK_COMMAND_DELAY_TICKS, NetSession, SessionState};
+use crate::network::{NETWORK_COMMAND_DELAY_TICKS, NetSession, SessionState, Side};
 use crate::outcome::GameOutcome;
 use crate::player_commands::{
     COMMAND_DELAY_TICKS, CommandQueue, LocalTeam, PlayerCommand, SimulationTick,
@@ -374,11 +374,12 @@ impl Battle {
     pub fn join_network(
         &mut self,
         stream: std::net::TcpStream,
+        side: Side,
         local_team: Team,
         remote_team: Team,
     ) {
         let session =
-            NetSession::with_one_player(stream, remote_team).expect("a working connection");
+            NetSession::with_one_player(stream, side, remote_team).expect("a working connection");
         let world = self.world();
         world.insert_resource(LocalTeam(local_team));
         world.insert_resource(session);

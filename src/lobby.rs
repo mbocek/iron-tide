@@ -405,7 +405,7 @@ impl NetLobby {
                     .and_then(|receiver| receiver.try_recv().ok());
                 match result {
                     None => LobbyPhase::Connecting(receiver),
-                    Some(Ok(stream)) => match Link::new(stream) {
+                    Some(Ok(stream)) => match Link::guest_side(stream) {
                         Ok(link) => self.changed_to(LobbyPhase::WaitingForOffer(link)),
                         Err(error) => self.failed(tr_fmt("Connection failed: {}", &[&error])),
                     },
@@ -643,7 +643,7 @@ fn everyone_ready(players: &[Team], seats: &[Seat]) -> bool {
 fn accept_guest(listener: &TcpListener) -> Option<Link> {
     let (stream, _) = listener.accept().ok()?;
     stream.set_nonblocking(false).ok()?;
-    Link::new(stream).ok()
+    Link::host_side(stream).ok()
 }
 
 /// The battle editor's settings for a network battle: every person gets a corner, the computer takes any

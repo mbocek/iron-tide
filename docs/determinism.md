@@ -28,9 +28,12 @@ exchange in a networked match.
 In a networked match (`network`) both machines run the whole battle. For every tick each sends a turn with
 its player's commands for the tick four ahead (200 ms, `NETWORK_COMMAND_DELAY_TICKS`), and the simulation
 takes a tick only once the other player's turn for it has arrived, so neither machine can run ahead. Messages
-travel over TCP as length-prefixed JSON. Every second each machine sends the checksum of its battle; differing
+travel over a WebSocket (`tungstenite`, plain `ws://` on the host's port): each message is one binary frame
+of JSON, so a dedicated server on the internet, behind a proxy that adds TLS, can later take the host's place
+without changing the messages. The host answers the handshake and a guest opens it, both on the link's own
+thread, and messages sent before it finishes wait for it. Every second each machine sends the checksum of its battle; differing
 checksums end the match as out of step, and a lost connection stops it. Tests join two battles in one process
-over a real local TCP connection: their orders reach each other, the battles stay identical, a deliberate
+over a real local WebSocket connection: their orders reach each other, the battles stay identical, a deliberate
 drift is noticed by both, and a dropped connection halts the other side.
 
 Each machine shows the battle from its own player's side (`LocalTeam`, read through `LocalView`): the fog

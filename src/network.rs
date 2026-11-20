@@ -1,12 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, channel};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use tungstenite::protocol::{Role, WebSocketConfig};
+use tungstenite::{Message as WsMessage, WebSocket};
 
 use crate::ai::AiCommanders;
 use crate::catalog::Team;
@@ -110,25 +111,105 @@ enum Arrival {
     ConnectionLost,
 }
 
-/// One connection to another machine, read on its own thread.
+/// Which end of the WebSocket handshake this machine plays: the host answers it, a guest opens it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Side {
+    Host,
+    Guest,
+}
+
+/// Where outgoing messages go: queued until the handshake on the link's thread has finished.
+#[derive(Default)]
+struct Outbox {
+    socket: Option<WebSocket<TcpStream>>,
+    waiting: Vec<Vec<u8>>,
+    failed: bool,
+}
+
+/// One WebSocket connection to another machine, so a dedicated server on the internet can later take the
+/// host's place. Each message is one binary frame of JSON; the handshake and all reading happen on the
+/// link's own thread.
 pub struct Link {
-    writer: Mutex<TcpStream>,
+    outbox: Arc<Mutex<Outbox>>,
+    /// The underlying socket, to close it outright when the link is dropped.
+    raw: TcpStream,
     inbox: Mutex<Receiver<Arrival>>,
     /// Battle messages that arrived while the lobby was still being set up.
     early: Vec<Arrival>,
 }
 
+fn socket_config() -> WebSocketConfig {
+    WebSocketConfig::default()
+        .max_message_size(Some(LARGEST_MESSAGE_BYTES))
+        .max_frame_size(Some(LARGEST_MESSAGE_BYTES))
+}
+
+fn handshake(stream: TcpStream, side: Side) -> Option<WebSocket<TcpStream>> {
+    match side {
+        Side::Host => tungstenite::accept_with_config(stream, Some(socket_config())).ok(),
+        Side::Guest => {
+            let address = stream.peer_addr().ok()?;
+            tungstenite::client::client_with_config(
+                format!("ws://{address}/"),
+                stream,
+                Some(socket_config()),
+            )
+            .ok()
+            .map(|(socket, _)| socket)
+        }
+    }
+}
+
+fn read_arrival(socket: &mut WebSocket<TcpStream>) -> Option<Arrival> {
+    match socket.read() {
+        Ok(WsMessage::Binary(bytes)) => {
+            Some(serde_json::from_slice(&bytes).map_or(Arrival::ConnectionLost, Arrival::Message))
+        }
+        Ok(WsMessage::Close(_)) | Err(_) => Some(Arrival::ConnectionLost),
+        Ok(_) => None,
+    }
+}
+
 impl Link {
-    pub fn new(stream: TcpStream) -> std::io::Result<Self> {
+    pub fn host_side(stream: TcpStream) -> std::io::Result<Self> {
+        Self::open(stream, Side::Host)
+    }
+
+    pub fn guest_side(stream: TcpStream) -> std::io::Result<Self> {
+        Self::open(stream, Side::Guest)
+    }
+
+    pub fn open(stream: TcpStream, side: Side) -> std::io::Result<Self> {
         stream.set_nodelay(true)?;
-        let reader = stream.try_clone()?;
+        let raw = stream.try_clone()?;
+        let for_writing = stream.try_clone()?;
+        let outbox = Arc::new(Mutex::new(Outbox::default()));
         let (sender, receiver) = channel();
+        let shared_outbox = Arc::clone(&outbox);
         std::thread::spawn(move || {
-            let mut reader = BufReader::new(reader);
+            let Some(mut reader) = handshake(stream, side) else {
+                if let Ok(mut outbox) = shared_outbox.lock() {
+                    outbox.failed = true;
+                }
+                let _ = sender.send(Arrival::ConnectionLost);
+                return;
+            };
+            let role = match side {
+                Side::Host => Role::Server,
+                Side::Guest => Role::Client,
+            };
+            // Writing from a second handle is safe because the reading one only writes when it answers a
+            // ping or a close, and these peers send neither while the battle runs.
+            let mut writer = WebSocket::from_raw_socket(for_writing, role, Some(socket_config()));
+            if let Ok(mut outbox) = shared_outbox.lock() {
+                for bytes in std::mem::take(&mut outbox.waiting) {
+                    outbox.failed |= writer.send(WsMessage::Binary(bytes.into())).is_err();
+                }
+                outbox.socket = Some(writer);
+            }
             loop {
-                let arrival = match read_message(&mut reader) {
-                    Some(message) => Arrival::Message(message),
-                    None => Arrival::ConnectionLost,
+                let Some(arrival) = read_arrival(&mut reader) else {
+                    continue;
                 };
                 let lost = matches!(arrival, Arrival::ConnectionLost);
                 if sender.send(arrival).is_err() || lost {
@@ -137,23 +218,35 @@ impl Link {
             }
         });
         Ok(Self {
-            writer: Mutex::new(stream),
+            outbox,
+            raw,
             inbox: Mutex::new(receiver),
             early: Vec::new(),
         })
     }
 
-    /// Returns whether the message left; a failure means the connection is gone.
+    /// Returns whether the message left or waits for the handshake; a failure means the connection is gone.
     fn send(&self, message: &Message) -> bool {
         let Ok(bytes) = serde_json::to_vec(message) else {
             return true;
         };
-        self.writer.lock().is_ok_and(|mut stream| {
-            stream
-                .write_all(&(bytes.len() as u32).to_be_bytes())
-                .and_then(|_| stream.write_all(&bytes))
-                .is_ok()
-        })
+        let Ok(mut outbox) = self.outbox.lock() else {
+            return false;
+        };
+        if outbox.failed {
+            return false;
+        }
+        match outbox.socket.as_mut() {
+            Some(socket) => {
+                let sent = socket.send(WsMessage::Binary(bytes.into())).is_ok();
+                outbox.failed = !sent;
+                sent
+            }
+            None => {
+                outbox.waiting.push(bytes);
+                true
+            }
+        }
     }
 
     fn drain(&mut self) -> Vec<Arrival> {
@@ -255,9 +348,7 @@ impl Link {
 /// other machine to notice.
 impl Drop for Link {
     fn drop(&mut self) {
-        if let Ok(stream) = self.writer.lock() {
-            let _ = stream.shutdown(std::net::Shutdown::Both);
-        }
+        let _ = self.raw.shutdown(std::net::Shutdown::Both);
     }
 }
 
@@ -427,7 +518,7 @@ impl NetSession {
         if (free_seat.is_some() || spectator_room)
             && let Ok((stream, _)) = door.listener.accept()
             && stream.set_nonblocking(false).is_ok()
-            && let Ok(link) = Link::new(stream)
+            && let Ok(link) = Link::host_side(stream)
         {
             link.offer_under_way(&door.level, free_seat, &door.players);
             door.newcomers.push((link, free_seat));
@@ -471,9 +562,13 @@ impl NetSession {
     }
 
     /// A battle against one other machine over `stream`.
-    pub fn with_one_player(stream: TcpStream, remote_team: Team) -> std::io::Result<Self> {
+    pub fn with_one_player(
+        stream: TcpStream,
+        side: Side,
+        remote_team: Team,
+    ) -> std::io::Result<Self> {
         Ok(Self::new(
-            vec![Link::new(stream)?],
+            vec![Link::open(stream, side)?],
             vec![remote_team],
             false,
         ))
@@ -691,18 +786,6 @@ fn chat_line(text: &str) -> Option<String> {
         .collect();
     let clean = clean.trim();
     (!clean.is_empty()).then(|| clean.to_string())
-}
-
-fn read_message(reader: &mut impl Read) -> Option<Message> {
-    let mut length = [0; 4];
-    reader.read_exact(&mut length).ok()?;
-    let length = u32::from_be_bytes(length) as usize;
-    if length > LARGEST_MESSAGE_BYTES {
-        return None;
-    }
-    let mut bytes = vec![0; length];
-    reader.read_exact(&mut bytes).ok()?;
-    serde_json::from_slice(&bytes).ok()
 }
 
 /// The simulation may take its next step only once every other player's commands for it are known.

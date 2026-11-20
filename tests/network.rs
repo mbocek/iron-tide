@@ -10,7 +10,7 @@ use iron_tide::determinism::simulation_checksum;
 use iron_tide::economy::Economies;
 use iron_tide::levels::{BaseSite, EnemySetup, ForceSetup, LevelDefinition};
 use iron_tide::lobby::NetLobby;
-use iron_tide::network::{Link, NetSession, SessionState};
+use iron_tide::network::{Link, NetSession, SessionState, Side};
 use iron_tide::player_commands::{GroundOrder, PlayerCommand};
 use iron_tide::production::BuildItem;
 use iron_tide::season::Season;
@@ -26,8 +26,8 @@ fn connected_pair() -> (Battle, Battle) {
     let (host_end, _) = listener.accept().unwrap();
     let mut host = Battle::standard();
     let mut guest = Battle::standard();
-    host.join_network(host_end, Team::Player, Team::Crimson);
-    guest.join_network(guest_end, Team::Crimson, Team::Player);
+    host.join_network(host_end, Side::Host, Team::Player, Team::Crimson);
+    guest.join_network(guest_end, Side::Guest, Team::Crimson, Team::Player);
     (host, guest)
 }
 
@@ -299,12 +299,12 @@ fn four_connected_battles() -> Vec<(Battle, Team)> {
     for &team in &guests {
         let guest_end = TcpStream::connect(address).unwrap();
         let (host_end, _) = listener.accept().unwrap();
-        host_links.push(Link::new(host_end).unwrap());
+        host_links.push(Link::host_side(host_end).unwrap());
         let others = Team::ALL
             .into_iter()
             .filter(|&other| other != team)
             .collect();
-        let session = NetSession::new(vec![Link::new(guest_end).unwrap()], others, false);
+        let session = NetSession::new(vec![Link::guest_side(guest_end).unwrap()], others, false);
         let mut battle = Battle::on_level(level.clone());
         battle.join_session(session, team);
         battles.push((battle, team));
@@ -441,8 +441,8 @@ fn duel_with_a_spectator() -> (Battle, Battle, Battle) {
     host.join_session(
         NetSession::new(
             vec![
-                Link::new(host_to_guest).unwrap(),
-                Link::new(host_to_watcher).unwrap(),
+                Link::host_side(host_to_guest).unwrap(),
+                Link::host_side(host_to_watcher).unwrap(),
             ],
             vec![Team::Crimson],
             true,
@@ -453,7 +453,7 @@ fn duel_with_a_spectator() -> (Battle, Battle, Battle) {
     let mut guest = Battle::standard();
     guest.join_session(
         NetSession::new(
-            vec![Link::new(guest_end).unwrap()],
+            vec![Link::guest_side(guest_end).unwrap()],
             vec![Team::Player],
             false,
         ),
@@ -462,7 +462,7 @@ fn duel_with_a_spectator() -> (Battle, Battle, Battle) {
     let mut watcher = Battle::standard();
     watcher.join_session(
         NetSession::watching(
-            vec![Link::new(watcher_end).unwrap()],
+            vec![Link::guest_side(watcher_end).unwrap()],
             vec![Team::Player, Team::Crimson],
         ),
         Team::Player,
@@ -579,7 +579,7 @@ fn a_spectator_who_joins_late_catches_up_and_follows_the_battle() {
         .clone();
     host.join_session(
         NetSession::new(
-            vec![Link::new(host_to_guest).unwrap()],
+            vec![Link::host_side(host_to_guest).unwrap()],
             vec![Team::Crimson],
             true,
         )
@@ -589,7 +589,7 @@ fn a_spectator_who_joins_late_catches_up_and_follows_the_battle() {
     let mut guest = Battle::standard();
     guest.join_session(
         NetSession::new(
-            vec![Link::new(guest_end).unwrap()],
+            vec![Link::guest_side(guest_end).unwrap()],
             vec![Team::Player],
             false,
         ),
@@ -653,7 +653,7 @@ fn a_player_whose_connection_drops_rejoins_and_the_battle_goes_on() {
         .clone();
     host.join_session(
         NetSession::new(
-            vec![Link::new(host_to_guest).unwrap()],
+            vec![Link::host_side(host_to_guest).unwrap()],
             vec![Team::Crimson],
             true,
         )
@@ -663,7 +663,7 @@ fn a_player_whose_connection_drops_rejoins_and_the_battle_goes_on() {
     let mut guest = Battle::standard();
     guest.join_session(
         NetSession::new(
-            vec![Link::new(guest_end).unwrap()],
+            vec![Link::guest_side(guest_end).unwrap()],
             vec![Team::Player],
             false,
         ),
