@@ -46,5 +46,5 @@ The menu has its own theme and matches alternate two battle themes. Each battle 
 the same length (pads, bass and arpeggio); it plays while nothing fights on screen, and the full mix with its
 drums and melody rises as the fighting in view grows and falls back slowly once it stops. The end of a match
 plays a victory or defeat sting. Repairs start with a ratchet, sales ring up
-coins, a captured structure sounds a radio fanfare and a promoted unit a short bugle call. Master, music and
-effects volume live in the menu's *Audio* tab.
+coins, a captured structure sounds a radio fanfare and a promoted unit a short bugle call. Master, music, effects
+and voice volume (the operator and the units' replies) live in the menu's *Audio* tab.

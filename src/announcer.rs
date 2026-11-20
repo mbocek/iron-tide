@@ -139,7 +139,7 @@ pub fn announce(
         OperatorVoice,
         AudioPlayer(recording),
         PlaybackSettings::DESPAWN
-            .with_volume(Volume::Linear(VOICE_VOLUME * settings.effects_volume)),
+            .with_volume(Volume::Linear(VOICE_VOLUME * settings.voice_volume)),
     ));
 }
 

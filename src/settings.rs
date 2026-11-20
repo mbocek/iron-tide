@@ -99,6 +99,8 @@ pub struct GameSettings {
     pub master_volume: f32,
     pub music_volume: f32,
     pub effects_volume: f32,
+    /// The radio operator and the units' replies.
+    pub voice_volume: f32,
     pub language: Language,
     pub keys: KeyBindings,
     /// Ask GitHub at start-up whether a newer version has been released.
@@ -137,6 +139,7 @@ impl Default for GameSettings {
             master_volume: 0.4,
             music_volume: 0.6,
             effects_volume: 0.8,
+            voice_volume: 0.8,
             language: Language::English,
             keys: KeyBindings::default(),
             check_for_updates: true,

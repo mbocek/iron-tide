@@ -97,6 +97,7 @@ enum Setting {
     MasterVolume,
     MusicVolume,
     EffectsVolume,
+    VoiceVolume,
     Language,
 }
 
@@ -113,10 +114,11 @@ const GRAPHICS_SETTINGS: [Setting; 10] = [
     Setting::Fullscreen,
 ];
 
-const AUDIO_SETTINGS: [Setting; 3] = [
+const AUDIO_SETTINGS: [Setting; 4] = [
     Setting::MasterVolume,
     Setting::MusicVolume,
     Setting::EffectsVolume,
+    Setting::VoiceVolume,
 ];
 const VOLUME_STEP: f32 = 0.1;
 
@@ -192,6 +194,7 @@ impl Setting {
             Setting::MasterVolume => tr("Master volume"),
             Setting::MusicVolume => tr("Music volume"),
             Setting::EffectsVolume => tr("Effects volume"),
+            Setting::VoiceVolume => tr("Voice volume"),
             Setting::Language => tr("Language"),
         }
     }
@@ -225,6 +228,7 @@ impl Setting {
             Setting::MasterVolume => percent(settings.master_volume),
             Setting::MusicVolume => percent(settings.music_volume),
             Setting::EffectsVolume => percent(settings.effects_volume),
+            Setting::VoiceVolume => percent(settings.voice_volume),
             Setting::Language => settings.language.native_name().into(),
         }
     }
@@ -319,6 +323,9 @@ impl Setting {
             }
             Setting::EffectsVolume => {
                 settings.effects_volume = step_volume(settings.effects_volume, forward)
+            }
+            Setting::VoiceVolume => {
+                settings.voice_volume = step_volume(settings.voice_volume, forward)
             }
             Setting::Language => {
                 settings.language = step(&Language::ALL, settings.language, forward);
