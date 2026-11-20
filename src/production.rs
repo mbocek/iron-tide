@@ -636,7 +636,11 @@ pub fn place_structure(
     buildings: Query<(&Building, &Team)>,
     units: Query<&Transform, With<Unit>>,
     mut ghosts: Query<
-        (&mut Transform, &mut MeshMaterial3d<StandardMaterial>),
+        (
+            &mut Transform,
+            &mut MeshMaterial3d<StandardMaterial>,
+            &mut Visibility,
+        ),
         (With<PlacementGhost>, Without<Unit>),
     >,
 ) {
@@ -671,7 +675,14 @@ pub fn place_structure(
     let known_ground = intel.vision(team, &player_fog);
     let valid =
         placement_context(&map, team, known_ground, &buildings, &units).can_place(kind, origin);
-    if let Ok((mut transform, mut material)) = ghosts.get_mut(ghost) {
+    if let Ok((mut transform, mut material, mut visibility)) = ghosts.get_mut(ghost) {
+        // Off the dragged line it reads as one more segment of the wall.
+        let dragging_wall = kind.is_wall() && placement.wall_anchor.is_some();
+        visibility.set_if_neq(if dragging_wall {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        });
         transform.translation = footprint_center(origin, footprint) + Vec3::Y * 0.2;
         material.0 = if valid {
             ghost_materials.valid.clone()
