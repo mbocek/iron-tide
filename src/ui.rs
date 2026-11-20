@@ -1,3 +1,5 @@
+use crate::season::Season;
+use crate::weather::{RAINING, WeatherCycle};
 use crate::abilities::MINE_COST;
 use crate::campaigns::{CampaignLibrary, CampaignRun, find_campaign};
 use crate::i18n::{tr, tr_fmt, tr_owned};
@@ -1897,9 +1899,17 @@ pub fn refresh_objective(
 
 pub fn refresh_match_time(
     clock: Res<MatchClock>,
+    level: Res<ActiveLevel>,
+    weather: Option<Res<WeatherCycle>>,
     mut lines: Query<&mut Text, (With<MatchTimeText>, Without<ObjectiveText>)>,
 ) {
-    let shown = match_time(clock.elapsed_secs);
+    let raining = weather.is_some_and(|weather| weather.now.rainfall > RAINING);
+    let time = match_time(clock.elapsed_secs);
+    let shown = match (raining, level.0.season == Season::Winter) {
+        (false, _) => time,
+        (true, false) => format!("{}  ·  {time}", tr("Rain")),
+        (true, true) => format!("{}  ·  {time}", tr("Snow")),
+    };
     for mut text in &mut lines {
         if text.0 != shown {
             text.0 = shown.clone();

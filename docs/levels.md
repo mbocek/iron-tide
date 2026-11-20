@@ -136,7 +136,8 @@ few minutes, clouds that dim the sun and smooth away the moving cloud shadows, a
 soak the ground darker and glossier and dry off slowly afterwards. The forecast comes from the map seed and runs
 on match time, so every player of a network match sees the same sky and a loaded save resumes it. Rain and snow
 cut how far every unit and structure sees by up to a quarter (fog of war and what the computer knows; weapons
-still fire as far as they reach), and the player is told when it starts and stops.
+still fire as far as they reach), the player is told when it starts and stops, and *Rain* or *Snow* shows beside
+the match time meanwhile.
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 `events` (`src/level_events.rs`) script a mission: each happens once, when its trigger is met, and runs in the

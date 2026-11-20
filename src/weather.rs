@@ -28,7 +28,7 @@ const TERRAIN_UPDATE_STEP: f32 = 0.01;
 /// Share of their sight that units lose in a downpour or a snowfall.
 const SIGHT_LOST_IN_RAIN: f32 = 0.25;
 /// Rainfall above this counts as raining for the player's notice.
-const RAINING: f32 = 0.5;
+pub const RAINING: f32 = 0.5;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Sky {
