@@ -1,4 +1,5 @@
 use crate::catalog::Team;
+use crate::event_editing::{LONGEST_MESSAGE, message_mut};
 use crate::levels::{BaseSite, Difficulty, EnemySetup, ForceSetup, LevelDefinition, Objective};
 
 const LONGEST_NAME: usize = 40;
@@ -99,19 +100,26 @@ pub fn cycle_objective(level: &mut LevelDefinition) {
 pub enum LevelText {
     Name,
     Briefing,
+    /// The message of the event at this index.
+    EventMessage(usize),
 }
 
 impl LevelText {
-    pub fn of(self, level: &mut LevelDefinition) -> (&mut String, usize) {
+    pub fn of(self, level: &mut LevelDefinition) -> Option<(&mut String, usize)> {
         match self {
-            LevelText::Name => (&mut level.name, LONGEST_NAME),
-            LevelText::Briefing => (&mut level.briefing, LONGEST_BRIEFING),
+            LevelText::Name => Some((&mut level.name, LONGEST_NAME)),
+            LevelText::Briefing => Some((&mut level.briefing, LONGEST_BRIEFING)),
+            LevelText::EventMessage(index) => {
+                message_mut(level, index).map(|text| (text, LONGEST_MESSAGE))
+            }
         }
     }
 }
 
 pub fn type_into(level: &mut LevelDefinition, target: LevelText, typed: &str) {
-    let (text, longest) = target.of(level);
+    let Some((text, longest)) = target.of(level) else {
+        return;
+    };
     for character in typed.chars().filter(|c| !c.is_control()) {
         if text.chars().count() < longest {
             text.push(character);
@@ -120,7 +128,9 @@ pub fn type_into(level: &mut LevelDefinition, target: LevelText, typed: &str) {
 }
 
 pub fn erase_from(level: &mut LevelDefinition, target: LevelText) {
-    target.of(level).0.pop();
+    if let Some((text, _)) = target.of(level) {
+        text.pop();
+    }
 }
 
 #[cfg(test)]

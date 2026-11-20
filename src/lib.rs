@@ -23,6 +23,7 @@ pub mod determinism;
 pub mod economy;
 pub mod effects;
 pub mod engineers;
+pub mod event_editing;
 pub mod field_tips;
 pub mod flat_scenery;
 pub mod fog;

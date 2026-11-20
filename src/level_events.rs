@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::assets::ModelLibrary;
 use crate::catalog::{BuildingKind, Team, UnitKind};
-use crate::components::{Building, Order, Orders};
+use crate::components::{Building, Order, Orders, Unit};
 use crate::economy::Economies;
 use crate::levels::{ActiveLevel, BaseSite};
 use crate::map::{GameMap, cell_center, map_cells};
@@ -32,6 +32,10 @@ pub enum Trigger {
         team: Team,
         at_most: u32,
     },
+    UnitsLeft {
+        team: Team,
+        at_most: u32,
+    },
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -57,7 +61,7 @@ impl LevelEvent {
     /// Every side the event names, so a level can be checked for sides it does not have.
     pub fn teams(&self) -> impl Iterator<Item = Team> + '_ {
         let trigger_team = match self.when {
-            Trigger::StructuresLeft { team, .. } => Some(team),
+            Trigger::StructuresLeft { team, .. } | Trigger::UnitsLeft { team, .. } => Some(team),
             Trigger::AfterMinutes { .. } => None,
         };
         let action_teams = self.then.iter().filter_map(|action| match action {
@@ -89,11 +93,12 @@ pub fn run_level_events(
     mut fired: ResMut<EventsFired>,
     mut messages: MessageWriter<MissionMessage>,
     buildings: Query<(&Building, &Team)>,
+    units: Query<&Team, With<Unit>>,
 ) {
     let level = &level.0;
     fired.0.resize(level.events.len(), false);
     for (index, event) in level.events.iter().enumerate() {
-        if fired.0[index] || !triggered(event.when, clock.elapsed_secs, &buildings) {
+        if fired.0[index] || !triggered(event.when, clock.elapsed_secs, &buildings, &units) {
             continue;
         }
         fired.0[index] = true;
@@ -114,7 +119,12 @@ pub fn run_level_events(
     }
 }
 
-fn triggered(when: Trigger, elapsed_secs: f32, buildings: &Query<(&Building, &Team)>) -> bool {
+fn triggered(
+    when: Trigger,
+    elapsed_secs: f32,
+    buildings: &Query<(&Building, &Team)>,
+    units: &Query<&Team, With<Unit>>,
+) -> bool {
     match when {
         Trigger::AfterMinutes { minutes } => elapsed_secs >= minutes * 60.0,
         Trigger::StructuresLeft { team, at_most } => {
@@ -123,6 +133,9 @@ fn triggered(when: Trigger, elapsed_secs: f32, buildings: &Query<(&Building, &Te
                 .filter(|(building, owner)| **owner == team && building.kind != BuildingKind::Wall)
                 .count();
             standing as u32 <= at_most
+        }
+        Trigger::UnitsLeft { team, at_most } => {
+            units.iter().filter(|&&owner| owner == team).count() as u32 <= at_most
         }
     }
 }

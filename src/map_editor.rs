@@ -5,11 +5,17 @@ use bevy::prelude::*;
 
 use crate::camera::Cursor;
 use crate::catalog::{BuildingKind, Team};
+use crate::event_editing::{
+    ForcePreset, MOST_EVENTS, add_event, adjust_credits, adjust_trigger, cycle_action,
+    cycle_action_side, cycle_corner, cycle_preset, cycle_trigger, cycle_trigger_side, main_action,
+    message, remove_event, sides, tidy_events,
+};
 use crate::i18n::{tr, tr_fmt, tr_owned};
 use crate::level_editing::{
     LevelText, add_enemy, cycle_difficulty, cycle_objective, erase_from, move_side, remove_enemy,
     type_into,
 };
+use crate::level_events::{EventAction, Trigger};
 use crate::levels::{ActiveLevel, LevelDefinition, custom_levels_directory, save_custom_level};
 use crate::map::{
     GameMap, PlayfieldGround, cell_center, cells_by_distance, footprint_center, opposite_cell,
@@ -43,6 +49,8 @@ pub struct MapEditor {
     pub page: EditorPage,
     /// The text the keyboard writes into; brush keys and camera keys rest meanwhile.
     pub typing: Option<LevelText>,
+    /// Which of the level's events the EVENTS page shows; the narrow panel edits one at a time.
+    pub selected_event: usize,
     panel_outdated: bool,
 }
 
@@ -56,6 +64,7 @@ impl MapEditor {
             message: None,
             page: EditorPage::Paint,
             typing: None,
+            selected_event: 0,
             panel_outdated: true,
         }
     }
@@ -65,6 +74,7 @@ impl MapEditor {
 pub enum EditorPage {
     Paint,
     Level,
+    Events,
 }
 
 /// Opens the map editor on a level; `file` is the custom level it overwrites when saved.
@@ -92,6 +102,17 @@ pub enum EditorButton {
     AddEnemy,
     RemoveEnemy,
     Faction,
+    StepEvent(i32),
+    AddEvent,
+    DeleteEvent,
+    EventTrigger,
+    EventTriggerNumber(i32),
+    EventTriggerSide,
+    EventAction,
+    EventActionSide,
+    EventPreset,
+    EventCorner,
+    EventCredits(i32),
     PlayTest,
     Save,
     Exit,
@@ -140,6 +161,7 @@ pub fn rebuild_map_editor_panel(
                 for (page, label) in [
                     (EditorPage::Paint, tr("PAINT")),
                     (EditorPage::Level, tr("LEVEL")),
+                    (EditorPage::Events, tr("EVENTS")),
                 ] {
                     spawn_button(
                         row,
@@ -153,6 +175,7 @@ pub fn rebuild_map_editor_panel(
             match editor.page {
                 EditorPage::Paint => spawn_paint_page(panel, &fonts, &editor),
                 EditorPage::Level => spawn_level_page(panel, &fonts, &level.0, editor.typing),
+                EditorPage::Events => spawn_events_page(panel, &fonts, &level.0, &editor),
             }
             spawn_button(panel, &fonts, tr("PLAY IT"), EditorButton::PlayTest, false);
             spawn_button(panel, &fonts, tr("SAVE"), EditorButton::Save, false);
@@ -261,6 +284,137 @@ fn spawn_level_page(
     });
 }
 
+fn side_name(level: &LevelDefinition, team: Team) -> String {
+    match sides(level).iter().position(|&side| side == team) {
+        Some(0) => tr("You").to_string(),
+        Some(index) => tr_fmt("Computer {}", &[&index]),
+        None => tr(team.name()).to_string(),
+    }
+}
+
+fn trigger_label(level: &LevelDefinition, trigger: Trigger) -> (String, String) {
+    match trigger {
+        Trigger::AfterMinutes { minutes } => (tr("After minutes").into(), format!("{minutes:.0}")),
+        Trigger::StructuresLeft { team, at_most } => (
+            tr_fmt("{}: structures left", &[&side_name(level, team)]),
+            at_most.to_string(),
+        ),
+        Trigger::UnitsLeft { team, at_most } => (
+            tr_fmt("{}: units left", &[&side_name(level, team)]),
+            at_most.to_string(),
+        ),
+    }
+}
+
+fn spawn_events_page(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &UiFonts,
+    level: &LevelDefinition,
+    editor: &MapEditor,
+) {
+    let count = level.events.len();
+    let index = editor.selected_event.min(count.saturating_sub(1));
+    row(panel, |row| {
+        spawn_button(row, fonts, "<", EditorButton::StepEvent(-1), false);
+        let shown = if count == 0 {
+            tr("No events").to_string()
+        } else {
+            tr_fmt("Event {} of {}", &[&(index + 1), &count])
+        };
+        row.spawn(fonts.heading(shown, 15.0, TEXT_MAIN));
+        spawn_button(row, fonts, ">", EditorButton::StepEvent(1), false);
+    });
+    row(panel, |row| {
+        if count < MOST_EVENTS {
+            spawn_button(row, fonts, tr("+ EVENT"), EditorButton::AddEvent, false);
+        }
+        if count > 0 {
+            spawn_button(row, fonts, tr("DELETE"), EditorButton::DeleteEvent, false);
+        }
+    });
+    let Some(event) = level.events.get(index) else {
+        panel.spawn(fonts.text(
+            tr("An event happens once during the mission: after some minutes, or when a side is down to a few structures or units. It can show a message and send reinforcements or credits."),
+            14.0,
+            TEXT_DIM,
+        ));
+        return;
+    };
+    panel.spawn(fonts.heading(tr("WHEN"), 15.0, TEXT_DIM));
+    let (trigger, number) = trigger_label(level, event.when);
+    spawn_button(panel, fonts, &trigger, EditorButton::EventTrigger, false);
+    row(panel, |row| {
+        spawn_button(row, fonts, "-", EditorButton::EventTriggerNumber(-1), false);
+        row.spawn(fonts.heading(number, 15.0, TEXT_MAIN));
+        spawn_button(row, fonts, "+", EditorButton::EventTriggerNumber(1), false);
+        if !matches!(event.when, Trigger::AfterMinutes { .. }) {
+            spawn_button(
+                row,
+                fonts,
+                tr("SIDE"),
+                EditorButton::EventTriggerSide,
+                false,
+            );
+        }
+    });
+    panel.spawn(fonts.heading(tr("MESSAGE"), 15.0, TEXT_DIM));
+    let target = LevelText::EventMessage(index);
+    let typing = editor.typing == Some(target);
+    let written = message(event).unwrap_or_default();
+    let shown = match (written.is_empty(), typing) {
+        (true, false) => tr("(click to write)").to_string(),
+        (_, true) => format!("{written}_"),
+        (false, false) => written.to_string(),
+    };
+    spawn_button(panel, fonts, &shown, EditorButton::Type(target), typing);
+    panel.spawn(fonts.heading(tr("THEN"), 15.0, TEXT_DIM));
+    let action = main_action(event);
+    let action_name = match action {
+        Some(EventAction::Reinforcements { .. }) => tr("Reinforcements"),
+        Some(EventAction::Credits { .. }) => tr("Credits"),
+        _ => tr("Only the message"),
+    };
+    spawn_button(panel, fonts, action_name, EditorButton::EventAction, false);
+    match action {
+        Some(EventAction::Reinforcements { team, units, from }) => {
+            let preset = ForcePreset::of(units, level.faction_of(*team)).map_or_else(
+                || tr_fmt("{} units", &[&units.len()]),
+                |p| tr(p.name()).to_string(),
+            );
+            spawn_button(
+                panel,
+                fonts,
+                &tr_fmt("For: {}", &[&side_name(level, *team)]),
+                EditorButton::EventActionSide,
+                false,
+            );
+            spawn_button(panel, fonts, &preset, EditorButton::EventPreset, false);
+            spawn_button(
+                panel,
+                fonts,
+                &tr_fmt("From: {}", &[&from.name()]),
+                EditorButton::EventCorner,
+                false,
+            );
+        }
+        Some(EventAction::Credits { team, amount }) => {
+            spawn_button(
+                panel,
+                fonts,
+                &tr_fmt("For: {}", &[&side_name(level, *team)]),
+                EditorButton::EventActionSide,
+                false,
+            );
+            row(panel, |row| {
+                spawn_button(row, fonts, "-", EditorButton::EventCredits(-1), false);
+                row.spawn(fonts.heading(format!("${amount}"), 15.0, TEXT_MAIN));
+                spawn_button(row, fonts, "+", EditorButton::EventCredits(1), false);
+            });
+        }
+        _ => {}
+    }
+}
+
 fn row(parent: &mut ChildSpawnerCommands, children: impl FnOnce(&mut ChildSpawnerCommands)) {
     parent
         .spawn(Node {
@@ -333,8 +487,42 @@ fn press_editor_button(
             remove_enemy(level);
         }
         EditorButton::Faction => level.player_faction = level.player_faction.opposite(),
-        EditorButton::PlayTest => next_state.set(GameState::Playing),
-        EditorButton::Save => save_edited_level(&mut editor, level),
+        EditorButton::StepEvent(step) => {
+            let last = level.events.len().saturating_sub(1);
+            editor.selected_event = editor
+                .selected_event
+                .saturating_add_signed(step as isize)
+                .min(last);
+        }
+        EditorButton::AddEvent => {
+            if let Some(index) = add_event(level) {
+                editor.selected_event = index;
+            }
+        }
+        EditorButton::DeleteEvent => {
+            remove_event(level, editor.selected_event);
+            editor.selected_event = editor
+                .selected_event
+                .min(level.events.len().saturating_sub(1));
+        }
+        EditorButton::EventTrigger => cycle_trigger(level, editor.selected_event),
+        EditorButton::EventTriggerNumber(step) => {
+            adjust_trigger(level, editor.selected_event, step)
+        }
+        EditorButton::EventTriggerSide => cycle_trigger_side(level, editor.selected_event),
+        EditorButton::EventAction => cycle_action(level, editor.selected_event),
+        EditorButton::EventActionSide => cycle_action_side(level, editor.selected_event),
+        EditorButton::EventPreset => cycle_preset(level, editor.selected_event),
+        EditorButton::EventCorner => cycle_corner(level, editor.selected_event),
+        EditorButton::EventCredits(step) => adjust_credits(level, editor.selected_event, step),
+        EditorButton::PlayTest => {
+            tidy_events(level);
+            next_state.set(GameState::Playing);
+        }
+        EditorButton::Save => {
+            tidy_events(level);
+            save_edited_level(&mut editor, level);
+        }
         EditorButton::Exit => next_state.set(GameState::MainMenu),
     }
     editor.panel_outdated = true;

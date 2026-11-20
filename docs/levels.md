@@ -141,8 +141,9 @@ Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"Destroy
 `"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 `events` (`src/level_events.rs`) script a mission: each happens once, when its trigger is met, and runs in the
 simulation, so replays and network battles see it too and a save remembers which have happened.
-Triggers: `{ "AfterMinutes": { "minutes": N } }` and `{ "StructuresLeft": { "team": "Crimson", "at_most": N } }`
-(walls not counted). Actions: `{ "Message": { "text": "..." } }` (translated like a briefing),
+Triggers: `{ "AfterMinutes": { "minutes": N } }`, `{ "StructuresLeft": { "team": "Crimson", "at_most": N } }`
+(walls not counted) and `{ "UnitsLeft": { "team": "Crimson", "at_most": N } }`. The map editor's EVENTS page edits
+them too. Actions: `{ "Message": { "text": "..." } }` (translated like a briefing),
 `{ "Reinforcements": { "team": "Player", "units": ["Bomber"], "from": "NorthWest" } }` (they drive in from that
 corner of the map; the player's head for its base, an opponent's attack-move on it) and
 `{ "Credits": { "team": "Player", "amount": N } }`. A level whose events name a side not in the battle is refused.
