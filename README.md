@@ -54,6 +54,7 @@ make help          # every target
 | [Sound and music](docs/audio.md) | effects, recorded gunfire, music, positional sound, voice reports |
 | [Languages](docs/languages.md) | translations and how to edit them |
 | [Determinism and multiplayer](docs/determinism.md) | lockstep simulation, network play, replays |
+| [Dedicated server](docs/server.md) | the planned internet server: what is ready and what separating it takes |
 | [Balance](docs/balance.md) | the balance tool and its latest results |
 | [Development](docs/development.md) | building, tests, packages and releases, the Blender model contract |
 | [Code layout](docs/architecture.md) | what each module is responsible for |

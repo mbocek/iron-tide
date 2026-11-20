@@ -48,8 +48,9 @@ four-player battle with the editor's default alliance becomes a free-for-all; *T
 host with the Amber player. Every guest connects to the host, which passes the guests' turns, checksums and
 chat on to each other; a tick runs once the turns of every player have arrived. To play, everyone opens
 *Network battle* in the main menu. The host clicks *Host a battle*: the battle
-editor's settings with one opponent are used, the game listens on TCP port 47300 and shows this computer's
-local address. The other player types that address (the port may be left out; the last address is
+editor's settings with one opponent are used, the game listens on port 47300 and shows this computer's
+local address. The other player types that address (the port may be left out; a `ws://host:port/path` URL
+works too, the path naming a room on the planned server, [server.md](server.md); the last address is
 remembered) and clicks *Join*. Once connected, the host offers the battle and the guest reads it (objective,
 bases, map, landscape, season, available units) before clicking *I'm ready*; both need the same game
 version. When every guest is ready the host clicks *Start the battle*; all machines count down three seconds and

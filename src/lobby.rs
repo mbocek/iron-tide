@@ -9,7 +9,7 @@ use crate::catalog::{Alliance, Team};
 use crate::i18n::{tr, tr_fmt};
 use crate::levels::{ActiveLevel, LevelDefinition, SkirmishOptions};
 use crate::match_flow::GameState;
-use crate::network::{Link, LobbyNews, MOST_SPECTATORS, NetSession, Offer};
+use crate::network::{JoinTarget, Link, LobbyNews, MOST_SPECTATORS, NetSession, Offer};
 use crate::player_commands::LocalTeam;
 
 pub const DEFAULT_PORT: u16 = 47_300;
@@ -41,7 +41,11 @@ enum LobbyPhase {
         seats: Vec<Seat>,
         start_requested: bool,
     },
-    Connecting(Mutex<Receiver<std::io::Result<TcpStream>>>),
+    Connecting {
+        dialling: Mutex<Receiver<std::io::Result<TcpStream>>>,
+        /// The WebSocket URL to ask for once connected.
+        url: String,
+    },
     WaitingForOffer(Link),
     /// The guest decides whether to play the offered battle.
     Considering {
@@ -141,13 +145,13 @@ impl NetLobby {
         }
     }
 
-    /// Connects in the background so the menu keeps responding; `address` may omit the port.
+    /// Connects in the background so the menu keeps responding; see `JoinTarget` for what `address` may be.
     pub fn join(&mut self, address: &str) {
-        let address = if address.contains(':') {
-            address.to_string()
-        } else {
-            format!("{address}:{DEFAULT_PORT}")
+        let target = match JoinTarget::parse(address, DEFAULT_PORT) {
+            Ok(target) => target,
+            Err(reason) => return self.fail(reason),
         };
+        let JoinTarget { address, url } = target;
         let (sender, receiver) = channel();
         std::thread::spawn(move || {
             let connected = address
@@ -164,7 +168,10 @@ impl NetLobby {
         });
         self.notice = None;
         self.chat.clear();
-        self.enter(LobbyPhase::Connecting(Mutex::new(receiver)));
+        self.enter(LobbyPhase::Connecting {
+            dialling: Mutex::new(receiver),
+            url,
+        });
     }
 
     /// The guest agrees to play the offered battle.
@@ -309,7 +316,7 @@ impl NetLobby {
                     ],
                 ))
             }
-            LobbyPhase::Connecting(_) => Some(tr("Connecting...").to_string()),
+            LobbyPhase::Connecting { .. } => Some(tr("Connecting...").to_string()),
             LobbyPhase::WaitingForOffer(_) => {
                 Some(tr("Connected, waiting for the host").to_string())
             }
@@ -398,14 +405,14 @@ impl NetLobby {
                 seats,
                 start_requested,
             } => self.host_step(listener, level, players, seats, start_requested, now),
-            LobbyPhase::Connecting(receiver) => {
-                let result = receiver
+            LobbyPhase::Connecting { dialling, url } => {
+                let result = dialling
                     .lock()
                     .ok()
                     .and_then(|receiver| receiver.try_recv().ok());
                 match result {
-                    None => LobbyPhase::Connecting(receiver),
-                    Some(Ok(stream)) => match Link::guest_side(stream) {
+                    None => LobbyPhase::Connecting { dialling, url },
+                    Some(Ok(stream)) => match Link::guest_side_to(stream, url) {
                         Ok(link) => self.changed_to(LobbyPhase::WaitingForOffer(link)),
                         Err(error) => self.failed(tr_fmt("Connection failed: {}", &[&error])),
                     },
