@@ -9,12 +9,11 @@ use crate::catalog::{Alliance, Team};
 use crate::i18n::{tr, tr_fmt};
 use crate::levels::{ActiveLevel, LevelDefinition, SkirmishOptions};
 use crate::match_flow::GameState;
-use crate::network::{Link, LobbyNews, NetSession, Offer};
+use crate::network::{Link, LobbyNews, MOST_SPECTATORS, NetSession, Offer};
 use crate::player_commands::LocalTeam;
 
 pub const DEFAULT_PORT: u16 = 47_300;
 pub const MOST_PLAYERS: usize = 4;
-const MOST_SPECTATORS: usize = 4;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const COUNTDOWN_SECS: f32 = 3.0;
 const CHAT_LINES_SHOWN: usize = 6;
@@ -62,6 +61,8 @@ enum LobbyPhase {
         relays: bool,
         /// On the host, which links lead to spectators.
         watchers: Vec<usize>,
+        /// On the host, kept open so spectators can still join once the battle runs.
+        door: Option<TcpListener>,
         starts_at: f32,
     },
     Failed(String),
@@ -317,6 +318,10 @@ impl NetLobby {
                     "The host offers this battle; you would play {}. Ready?",
                     &[&tr(team.name_in(offer.level.faction_of(team)))],
                 ),
+                None if offer.under_way => {
+                    tr("The battle is under way; you can watch it after catching up. Ready?")
+                        .to_string()
+                }
                 None => tr("Every seat is taken; you can watch the battle. Ready?").to_string(),
             }),
             LobbyPhase::Accepted { .. } => {
@@ -355,12 +360,17 @@ impl NetLobby {
                 remote_teams,
                 relays,
                 watchers,
+                door,
                 starts_at,
             } if now >= starts_at => {
                 self.enter(LobbyPhase::Idle);
                 let session = match local_team {
                     Some(_) => NetSession::new(links, remote_teams, relays).with_watchers(watchers),
                     None => NetSession::watching(links, remote_teams),
+                };
+                let session = match door {
+                    Some(listener) => session.with_open_door(listener, (*level).clone()),
+                    None => session,
                 };
                 Some(BattleStart {
                     level: *level,
@@ -452,11 +462,13 @@ impl NetLobby {
                     level,
                     your_team,
                     players,
+                    under_way,
                 } = *offer;
                 let remote_teams = players
                     .into_iter()
                     .filter(|&team| Some(team) != your_team)
                     .collect();
+                let countdown = if under_way { 0.0 } else { COUNTDOWN_SECS };
                 self.changed_to(LobbyPhase::Countdown {
                     level: Box::new(level),
                     links: vec![link],
@@ -464,7 +476,8 @@ impl NetLobby {
                     remote_teams,
                     relays: false,
                     watchers: Vec::new(),
-                    starts_at: now + COUNTDOWN_SECS,
+                    door: None,
+                    starts_at: now + countdown,
                 })
             }
             LobbyPhase::Countdown {
@@ -474,6 +487,7 @@ impl NetLobby {
                 remote_teams,
                 relays,
                 watchers,
+                door,
                 starts_at,
             } => {
                 let left = links
@@ -490,6 +504,7 @@ impl NetLobby {
                     remote_teams,
                     relays,
                     watchers,
+                    door,
                     starts_at,
                 }
             }
@@ -583,6 +598,7 @@ impl NetLobby {
             remote_teams,
             relays: true,
             watchers,
+            door: Some(listener),
             starts_at: now + COUNTDOWN_SECS,
         })
     }

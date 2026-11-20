@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{BufReader, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
@@ -21,7 +21,13 @@ use crate::player_commands::{
 /// Commands wait this many ticks (200 ms) before they run, so they reach every other machine in time.
 pub const NETWORK_COMMAND_DELAY_TICKS: u64 = 4;
 const CHECKSUM_EVERY_TICKS: u64 = 20;
-const LARGEST_MESSAGE_BYTES: usize = 1 << 20;
+/// A late spectator's catch-up carries every order of the battle so far.
+const LARGEST_MESSAGE_BYTES: usize = 1 << 24;
+/// At most this many people watch one battle.
+pub const MOST_SPECTATORS: usize = 4;
+/// A spectator further behind than this (two seconds) runs the battle fast until it has caught up.
+const CATCH_UP_FROM_TICKS: u64 = 40;
+const CATCH_UP_SPEED: f32 = 40.0;
 const PING_INTERVAL: Duration = Duration::from_secs(1);
 const PINGS_REMEMBERED: u64 = 10;
 const ROUND_TRIP_SMOOTHING: f32 = 0.3;
@@ -48,6 +54,15 @@ enum Message {
         level: Box<LevelDefinition>,
         your_team: Option<Team>,
         players: Vec<Team>,
+        /// The battle has already begun: the guest can only watch, after catching up.
+        #[serde(default)]
+        under_way: bool,
+    },
+    /// Every order of a battle under way, for a spectator who joins late: each team's turns are complete
+    /// through its tick in `through`, and only turns with orders are listed.
+    CatchUp {
+        through: Vec<(Team, u64)>,
+        turns: Vec<(Team, u64, Vec<PlayerCommand>)>,
     },
     /// The guest accepts the offered battle.
     Ready,
@@ -74,6 +89,7 @@ pub struct Offer {
     /// None when every seat is taken and the guest may only watch.
     pub your_team: Option<Team>,
     pub players: Vec<Team>,
+    pub under_way: bool,
 }
 
 /// What happened in the lobby on one connection since the last look.
@@ -153,6 +169,17 @@ impl Link {
             level: Box::new(level.clone()),
             your_team,
             players: players.to_vec(),
+            under_way: false,
+        });
+    }
+
+    fn offer_to_watch(&self, level: &LevelDefinition, players: &[Team]) {
+        self.send(&Message::Offer {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            level: Box::new(level.clone()),
+            your_team: None,
+            players: players.to_vec(),
+            under_way: true,
         });
     }
 
@@ -192,12 +219,14 @@ impl Link {
                     level,
                     your_team,
                     players,
+                    under_way,
                 }) => news.push(LobbyNews::Offered(
                     if version == env!("CARGO_PKG_VERSION") {
                         Ok(Box::new(Offer {
                             level: *level,
                             your_team,
                             players,
+                            under_way,
                         }))
                     } else {
                         Err(version)
@@ -259,6 +288,43 @@ pub struct NetSession {
     next_ping: u64,
     last_ping_sent: Option<Instant>,
     round_trip: Option<Duration>,
+    /// On the host: where late spectators knock, and what they need to catch up.
+    door: Option<OpenDoor>,
+}
+
+/// The host keeps accepting spectators during the battle and remembers every order to bring them up to date.
+struct OpenDoor {
+    listener: TcpListener,
+    level: LevelDefinition,
+    players: Vec<Team>,
+    /// Late spectators considering the offer, not yet watching.
+    newcomers: Vec<Link>,
+    history: TurnHistory,
+}
+
+#[derive(Default)]
+struct TurnHistory {
+    /// Keyed by team index; the latest tick of each team's turns.
+    through: BTreeMap<usize, (Team, u64)>,
+    turns: Vec<(Team, u64, Vec<PlayerCommand>)>,
+}
+
+impl TurnHistory {
+    /// Each team's turns reach the host in tick order, so the latest one closes every gap before it.
+    fn record(&mut self, team: Team, tick: u64, commands: &[PlayerCommand]) {
+        let latest = self.through.entry(team.index()).or_insert((team, tick));
+        latest.1 = latest.1.max(tick);
+        if !commands.is_empty() {
+            self.turns.push((team, tick, commands.to_vec()));
+        }
+    }
+
+    fn catch_up(&self) -> Message {
+        Message::CatchUp {
+            through: self.through.values().copied().collect(),
+            turns: self.turns.clone(),
+        }
+    }
 }
 
 impl NetSession {
@@ -281,6 +347,77 @@ impl NetSession {
             next_ping: 0,
             last_ping_sent: None,
             round_trip: None,
+            door: None,
+        }
+    }
+
+    /// Keeps `listener` open during the battle so spectators can still join, offered `level`.
+    pub fn with_open_door(mut self, listener: TcpListener, level: LevelDefinition) -> Self {
+        let players = std::iter::once(Team::Player)
+            .chain(self.remote_teams.iter().copied())
+            .collect();
+        self.door = Some(OpenDoor {
+            listener,
+            level,
+            players,
+            newcomers: Vec::new(),
+            history: TurnHistory::default(),
+        });
+        self
+    }
+
+    fn remember_turn(&mut self, team: Team, tick: u64, commands: &[PlayerCommand]) {
+        if let Some(door) = &mut self.door {
+            door.history.record(team, tick, commands);
+        }
+    }
+
+    /// The last tick for which every other player's orders are known; a spectator far behind it catches up.
+    pub fn known_through(&self) -> Option<u64> {
+        self.remote_teams
+            .iter()
+            .map(|team| {
+                self.remote_turns
+                    .iter()
+                    .filter(|(_, index)| *index == team.index())
+                    .map(|(tick, _)| *tick)
+                    .max()
+            })
+            .min()
+            .flatten()
+    }
+
+    /// Lets late spectators in: offers them the battle and, once they accept, sends every order so far.
+    fn admit_spectators(&mut self) {
+        let watching =
+            self.watcher_links.len() - self.closed_links.intersection(&self.watcher_links).count();
+        let Some(door) = &mut self.door else { return };
+        if watching + door.newcomers.len() < MOST_SPECTATORS
+            && let Ok((stream, _)) = door.listener.accept()
+            && stream.set_nonblocking(false).is_ok()
+            && let Ok(link) = Link::new(stream)
+        {
+            link.offer_to_watch(&door.level, &door.players);
+            door.newcomers.push(link);
+        }
+        let mut admitted = Vec::new();
+        let mut index = 0;
+        while index < door.newcomers.len() {
+            let news = door.newcomers[index].lobby_news();
+            if news.contains(&LobbyNews::Left) {
+                door.newcomers.remove(index);
+            } else if news.contains(&LobbyNews::GuestReady) {
+                let link = door.newcomers.remove(index);
+                link.send(&door.history.catch_up());
+                link.go();
+                admitted.push(link);
+            } else {
+                index += 1;
+            }
+        }
+        for link in admitted {
+            self.watcher_links.insert(self.links.len());
+            self.links.push(link);
         }
     }
 
@@ -439,6 +576,7 @@ impl NetSession {
                         tick,
                         commands,
                     } => {
+                        self.remember_turn(team, tick, &commands);
                         for command in commands {
                             queue.schedule(ScheduledCommand {
                                 tick,
@@ -447,6 +585,21 @@ impl NetSession {
                             });
                         }
                         self.remote_turns.insert((tick, team.index()));
+                    }
+                    Message::CatchUp { through, turns } => {
+                        for (team, last) in through {
+                            self.remote_turns
+                                .extend((0..=last).map(|tick| (tick, team.index())));
+                        }
+                        for (team, tick, commands) in turns {
+                            for command in commands {
+                                queue.schedule(ScheduledCommand {
+                                    tick,
+                                    team,
+                                    command,
+                                });
+                            }
+                        }
                     }
                     Message::Checksum { team, tick, sum } => {
                         self.remote_checksums.insert((tick, team.index()), sum);
@@ -526,12 +679,54 @@ pub fn send_turn(
         return;
     }
     let turn = tick.0 + NETWORK_COMMAND_DELAY_TICKS;
+    let commands = queue.scheduled_for(turn, local.0);
+    session.remember_turn(local.0, turn, &commands);
     let message = Message::Turn {
         team: local.0,
         tick: turn,
-        commands: queue.scheduled_for(turn, local.0),
+        commands,
     };
     session.broadcast(&message);
+}
+
+pub fn admit_late_spectators(session: Option<ResMut<NetSession>>) {
+    if let Some(mut session) = session {
+        session.admit_spectators();
+    }
+}
+
+/// How far a late spectator still has to run to reach the battle as it stands, as a share done; `None` when
+/// it is caught up.
+#[derive(Resource, Default)]
+pub struct CatchingUp(pub Option<f32>);
+
+/// A late spectator runs the battle many times faster, silently, until it reaches the players.
+pub fn catch_up_with_the_battle(
+    session: Option<Res<NetSession>>,
+    tick: Res<SimulationTick>,
+    settings: Res<crate::settings::GameSettings>,
+    mut catching_up: ResMut<CatchingUp>,
+    mut time: ResMut<Time<Virtual>>,
+    mut volume: ResMut<GlobalVolume>,
+) {
+    let behind = session
+        .filter(|session| session.spectating)
+        .and_then(|session| session.known_through())
+        .map(|known| (known.saturating_sub(tick.0), known));
+    let far_behind = behind.filter(|&(ticks, _)| ticks > CATCH_UP_FROM_TICKS);
+    match (far_behind, catching_up.0.is_some()) {
+        (Some((ticks, known)), _) => {
+            catching_up.0 = Some(1.0 - ticks as f32 / known.max(1) as f32);
+            time.set_relative_speed(CATCH_UP_SPEED);
+            volume.volume = bevy::audio::Volume::SILENT;
+        }
+        (None, true) => {
+            catching_up.0 = None;
+            time.set_relative_speed(settings.game_speed_factor());
+            volume.volume = crate::sound::master_volume(&settings);
+        }
+        (None, false) => {}
+    }
 }
 
 pub fn fingerprint_tick(world: &mut World) {

@@ -54,6 +54,7 @@ pub fn refresh_network_hud(
     tick: Res<SimulationTick>,
     real: Res<Time<Real>>,
     game_time: Res<Time<Virtual>>,
+    catching_up: Res<crate::network::CatchingUp>,
     mut last_progress: Local<(u64, f32)>,
     mut latency: Query<&mut Text, (With<LatencyText>, Without<WaitingBanner>)>,
     mut banners: Query<(&mut Text, &mut Node), With<WaitingBanner>>,
@@ -76,18 +77,26 @@ pub fn refresh_network_hud(
     }
     let stalled_for = now - last_progress.1;
     let waiting = in_step && stalled_for > STALL_WORTH_SHOWING_SECS;
+    let banner = match catching_up.0 {
+        Some(done) => Some(tr_fmt(
+            "Catching up with the battle... {} %",
+            &[&((done * 100.0) as u32)],
+        )),
+        None if waiting => Some(tr_fmt(
+            "Waiting for the other player... {} s",
+            &[&(stalled_for as u32)],
+        )),
+        None => None,
+    };
     for (mut text, mut node) in &mut banners {
-        let display = if waiting {
+        let display = if banner.is_some() {
             Display::Flex
         } else {
             Display::None
         };
         set_field(&mut node, |node| &mut node.display, display);
-        if waiting {
-            text.set_if_neq(Text(tr_fmt(
-                "Waiting for the other player... {} s",
-                &[&(stalled_for as u32)],
-            )));
+        if let Some(banner) = &banner {
+            text.set_if_neq(Text(banner.clone()));
         }
     }
 }

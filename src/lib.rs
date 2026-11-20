@@ -161,7 +161,11 @@ impl Plugin for SimulationPlugin {
             .add_systems(FixedFirst, network::receive_turns)
             .add_systems(
                 PreUpdate,
-                (network::receive_turns, network::measure_latency),
+                (
+                    network::receive_turns,
+                    network::measure_latency,
+                    network::admit_late_spectators,
+                ),
             )
             .insert_resource(Time::<Fixed>::from_duration(SIMULATION_TICK))
             .insert_resource(match_flow::MatchRules {
@@ -169,6 +173,7 @@ impl Plugin for SimulationPlugin {
                 starting_forces: self.starting_forces,
             })
             .init_resource::<levels::ActiveLevel>()
+            .init_resource::<network::CatchingUp>()
             .init_resource::<combat::Targets>()
             .init_resource::<determinism::SimulationRng>()
             .init_resource::<determinism::SimIds>()
@@ -554,6 +559,8 @@ impl Plugin for GamePlugin {
                 Update,
                 (
                     network::report_session_trouble,
+                    network::catch_up_with_the_battle
+                        .run_if(in_state(match_flow::GameState::Playing)),
                     network_hud::show_chat.run_if(in_state(match_flow::GameState::Playing)),
                     main_menu::remember_won_missions
                         .run_if(in_state(match_flow::GameState::Playing)),

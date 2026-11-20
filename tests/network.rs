@@ -560,3 +560,77 @@ fn a_guest_beyond_the_seats_is_offered_to_watch() {
         &[Team::Player, Team::Crimson]
     );
 }
+
+#[test]
+fn a_spectator_who_joins_late_catches_up_and_follows_the_battle() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let guest_end = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let (host_to_guest, _) = listener.accept().unwrap();
+    let door = TcpListener::bind("127.0.0.1:0").unwrap();
+    door.set_nonblocking(true).unwrap();
+    let door_address = door.local_addr().unwrap().to_string();
+
+    let mut host = Battle::standard();
+    let level = host
+        .world()
+        .resource::<iron_tide::levels::ActiveLevel>()
+        .0
+        .clone();
+    host.join_session(
+        NetSession::new(
+            vec![Link::new(host_to_guest).unwrap()],
+            vec![Team::Crimson],
+            true,
+        )
+        .with_open_door(door, level),
+        Team::Player,
+    );
+    let mut guest = Battle::standard();
+    guest.join_session(
+        NetSession::new(
+            vec![Link::new(guest_end).unwrap()],
+            vec![Team::Player],
+            false,
+        ),
+        Team::Crimson,
+    );
+    play_until(&mut host, &mut guest, 40);
+    attack_with_tanks(&mut host, Team::Player, IVec2::new(48, 16));
+    attack_with_tanks(&mut guest, Team::Crimson, IVec2::new(16, 48));
+    play_until(&mut host, &mut guest, 300);
+
+    let mut lobby = NetLobby::default();
+    lobby.join(&door_address);
+    let mut clock = 0.0;
+    let start = loop {
+        clock += 0.05;
+        host.run_for(LIMIT_SECS);
+        guest.run_for(LIMIT_SECS);
+        if lobby.can_accept_offer() {
+            lobby.accept_offer();
+        }
+        if let Some(start) = lobby.advance(clock) {
+            break start;
+        }
+        assert!(clock < 30.0, "the late spectator was never let in");
+    };
+    assert!(start.session.is_spectating());
+    let mut watcher = Battle::standard();
+    watcher.join_session(start.session, start.local_team);
+
+    let joined_at = host.tick();
+    let ticks = joined_at + 200;
+    play_until(&mut host, &mut guest, ticks);
+    for _ in 0..40 * ticks {
+        if watcher.tick() >= ticks {
+            break;
+        }
+        watcher.run_for(LIMIT_SECS);
+    }
+    assert_eq!(watcher.tick(), ticks, "the spectator did not catch up");
+    assert_eq!(watcher.session_state(), Some(SessionState::InStep));
+    assert_eq!(
+        simulation_checksum(watcher.world()),
+        simulation_checksum(host.world())
+    );
+}

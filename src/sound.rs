@@ -412,12 +412,16 @@ pub fn play_sound_cues(
 /// Unattended capture runs stay silent so they never play sound on the developer's desk.
 pub fn apply_master_volume(settings: Res<GameSettings>, mut global: ResMut<GlobalVolume>) {
     if settings.is_changed() {
-        let level = if crate::capture::is_capture_run() {
-            0.0
-        } else {
-            settings.master_volume
-        };
-        global.volume = Volume::Linear(level);
+        global.volume = master_volume(&settings);
+    }
+}
+
+/// Capture runs stay silent.
+pub fn master_volume(settings: &GameSettings) -> Volume {
+    if crate::capture::is_capture_run() {
+        Volume::SILENT
+    } else {
+        Volume::Linear(settings.master_volume)
     }
 }
 
