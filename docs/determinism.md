@@ -75,3 +75,8 @@ drawing. `tests/cross_platform.rs` replays a fixed computer-against-computer bat
 fingerprints with `tests/fingerprints.txt`, recorded on an Apple Silicon Mac; CI runs the test on x86
 Linux. When the rules change on purpose, record them again with
 `UPDATE_FINGERPRINTS=1 cargo test --test cross_platform`.
+
+Replays are not re-simulated: they store snapshots of every unit and structure twice a second and redraw the
+battlefield from the level. Changed combat or economy rules therefore leave old replays intact; what breaks
+them is a change to map generation (terrain, crystals, scenery placed from the seed) or to the replay format
+(`REPLAY_VERSION` in `src/replay.rs`). Saves and network battles, in contrast, need the same rules.

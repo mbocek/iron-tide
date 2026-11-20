@@ -25,7 +25,8 @@ building, tests and releases: [docs/development.md](docs/development.md).
   `bump: version X → Y`, push, then push the tag `vX.Y.Z`; CI builds the packages and publishes the release.
 - Every release gets detailed notes, not only the generated changelog link: what is new for players, grouped
   (gameplay, visuals, sound, performance, fixes), with measured numbers where there are some, and anything
-  that breaks (old replays, changed maps). Set them with `gh release edit vX.Y.Z --notes-file <file>` once
+  that breaks (changed maps; old replays only when map generation or the replay format changed, see
+  [docs/determinism.md](docs/determinism.md)). Set them with `gh release edit vX.Y.Z --notes-file <file>` once
   the release exists.
 
 ## Constraints
