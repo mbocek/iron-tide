@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Bevy system dependencies
         run: |
@@ -67,7 +67,7 @@ jobs:
     env:
       BINARY: target/${{ matrix.target }}/release/${{ matrix.executable }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Bevy system dependencies
         if: runner.os == 'Linux'
@@ -114,7 +114,7 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: tools/package_dmg.sh ${{ matrix.platform }} "$BINARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: iron-tide-${{ matrix.platform }}
           path: dist/iron-tide-*
@@ -127,7 +127,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -136,7 +136,7 @@ jobs:
         run: cd dist && sha256sum * > SHA256SUMS.txt
 
       - name: Publish the GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
