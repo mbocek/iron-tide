@@ -1,6 +1,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 use bevy::prelude::*;
+use bevy::render::RenderPlugin;
+use bevy::render::settings::{RenderCreation, WgpuFeatures, WgpuSettings};
 use iron_tide::determinism::run_schedules_on_one_thread;
 use iron_tide::{GamePlugin, capture};
 
@@ -21,12 +23,31 @@ fn game_window() -> Window {
     }
 }
 
+/// Metal caps its GPU counter buffers, and Bevy's render diagnostics take a new one for every frame still in
+/// flight: in a heavy battle the device refuses one and wgpu reports it as a lost device, which quits the game.
+fn gpu_settings() -> WgpuSettings {
+    let timestamps = WgpuFeatures::TIMESTAMP_QUERY
+        | WgpuFeatures::TIMESTAMP_QUERY_INSIDE_PASSES
+        | WgpuFeatures::TIMESTAMP_QUERY_INSIDE_ENCODERS;
+    WgpuSettings {
+        disabled_features: cfg!(target_os = "macos").then_some(timestamps),
+        ..default()
+    }
+}
+
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(game_window()),
-        ..default()
-    }))
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(game_window()),
+                ..default()
+            })
+            .set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(Box::new(gpu_settings())),
+                ..default()
+            }),
+    )
     .add_plugins(GamePlugin);
     run_schedules_on_one_thread(&mut app);
     app.run();
