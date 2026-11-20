@@ -200,7 +200,7 @@
   "Destroy the Syndicate outpost in the north-east. Press {} any time for all controls.": "Zničte základňu Syndikátu na severovýchode. {} kedykoľvek ukáže celé ovládanie.",
   "paused": "pauza",
   "REPLAY  {}  ·  {} / {}  ·  {}  ·  {}": "ZÁZNAM  {}  ·  {} / {}  ·  {}  ·  {}",
-  "Space pause  ·  + / - speed  ·  Left / Right 10 s  ·  Home restart  ·  Esc menu": "Medzerník pauza  ·  + / - rýchlosť  ·  Vľavo / Vpravo 10 s  ·  Home od začiatku  ·  Esc menu",
+  "Space pause  ·  + / - speed  ·  Left / Right 10 s  ·  click the bar below to jump  ·  Esc menu": "Medzerník pauza  ·  + / - rýchlosť  ·  Vľavo / Vpravo 10 s  ·  kliknutím na pás dole skočíš  ·  Esc menu",
   "GAME": "HRA",
   "GRAPHICS": "GRAFIKA",
   "GAMEPLAY": "HRATEĽNOSŤ",

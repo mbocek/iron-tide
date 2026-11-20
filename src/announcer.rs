@@ -138,8 +138,7 @@ pub fn announce(
     commands.spawn((
         OperatorVoice,
         AudioPlayer(recording),
-        PlaybackSettings::DESPAWN
-            .with_volume(Volume::Linear(VOICE_VOLUME * settings.voice_volume)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(VOICE_VOLUME * settings.voice_volume)),
     ));
 }
 

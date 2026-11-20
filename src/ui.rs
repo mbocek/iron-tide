@@ -1,5 +1,3 @@
-use crate::season::Season;
-use crate::weather::{RAINING, WeatherCycle};
 use crate::abilities::MINE_COST;
 use crate::campaigns::{CampaignLibrary, CampaignRun, find_campaign};
 use crate::i18n::{tr, tr_fmt, tr_owned};
@@ -11,7 +9,9 @@ use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
 use crate::replay::{ReplayPlayback, list_replays, load_replay, replay_directory};
 use crate::research::Upgrade;
+use crate::season::Season;
 use crate::structure_tools::spawn_tool_buttons;
+use crate::weather::{RAINING, WeatherCycle};
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 use bevy::text::{FontSize, FontSource};

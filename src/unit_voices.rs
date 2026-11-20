@@ -167,8 +167,7 @@ pub fn answer_the_player(
     commands.spawn((
         UnitReplyVoice,
         AudioPlayer(line),
-        PlaybackSettings::DESPAWN
-            .with_volume(Volume::Linear(REPLY_VOLUME * settings.voice_volume)),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(REPLY_VOLUME * settings.voice_volume)),
     ));
 }
 

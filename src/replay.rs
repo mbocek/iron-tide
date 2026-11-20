@@ -468,7 +468,115 @@ pub struct ReplayActor;
 #[derive(Component)]
 pub struct ReplayHud;
 
-pub fn spawn_replay_hud(mut commands: Commands, fonts: Res<UiFonts>) {
+/// The bar along the bottom of a replay: clicking or dragging on it jumps there.
+#[derive(Component)]
+pub struct ReplayTimeline;
+
+#[derive(Component)]
+pub struct ReplayProgress;
+
+const TIMELINE_BUCKETS: usize = 120;
+const TIMELINE_HEIGHT: f32 = 34.0;
+const TIMELINE_ACTIVITY: Color = Color::srgba(0.95, 0.55, 0.2, 0.75);
+const TIMELINE_PLAYED: Color = Color::srgba(0.35, 0.6, 0.95, 0.35);
+const TIMELINE_BACKGROUND: Color = Color::srgba(0.04, 0.05, 0.06, 0.8);
+
+/// Shots fired in each slice of the match, scaled so the fiercest slice is one; shows where the fighting was.
+fn fighting_by_time(replay: &Replay) -> Vec<f32> {
+    let buckets = TIMELINE_BUCKETS.min(replay.frames.len()).max(1);
+    let mut shots = vec![0usize; buckets];
+    let length = replay.recorded_secs.max(1.0);
+    for frame in &replay.frames {
+        let bucket = ((frame.time / length) * buckets as f32) as usize;
+        let fired = frame
+            .events
+            .iter()
+            .filter(|event| matches!(event, Event::Shot(..)))
+            .count();
+        shots[bucket.min(buckets - 1)] += fired;
+    }
+    let fiercest = shots.iter().copied().max().unwrap_or(0).max(1) as f32;
+    shots
+        .into_iter()
+        .map(|count| count as f32 / fiercest)
+        .collect()
+}
+
+fn seek_to(playback: &mut ReplayPlayback, hit: &bevy::picking::backend::HitData) {
+    let Some(position) = hit.position else { return };
+    let share = (position.x + 0.5).clamp(0.0, 1.0);
+    playback.clock = share * playback.replay.recorded_secs;
+}
+
+fn seek_on_press(press: On<PointerPress>, mut playback: ResMut<ReplayPlayback>) {
+    if press.button == PointerButton::Primary {
+        seek_to(&mut playback, &press.hit);
+    }
+}
+
+fn seek_on_drag(
+    movement: On<PointerMove>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut playback: ResMut<ReplayPlayback>,
+) {
+    if mouse.pressed(MouseButton::Left) {
+        seek_to(&mut playback, &movement.hit);
+    }
+}
+
+fn spawn_replay_timeline(commands: &mut Commands, playback: &ReplayPlayback) {
+    let fighting = fighting_by_time(&playback.replay);
+    commands
+        .spawn((
+            ReplayTimeline,
+            DespawnOnExit(GameState::Replay),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Percent(15.0),
+                right: Val::Percent(15.0),
+                bottom: Val::Px(22.0),
+                height: Val::Px(TIMELINE_HEIGHT),
+                align_items: AlignItems::FlexEnd,
+                ..default()
+            },
+            BackgroundColor(TIMELINE_BACKGROUND),
+        ))
+        .with_children(|bar| {
+            bar.spawn((
+                ReplayProgress,
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    top: Val::Px(0.0),
+                    bottom: Val::Px(0.0),
+                    width: Val::Percent(0.0),
+                    ..default()
+                },
+                BackgroundColor(TIMELINE_PLAYED),
+                Pickable::IGNORE,
+            ));
+            for share in fighting {
+                bar.spawn((
+                    Node {
+                        flex_grow: 1.0,
+                        height: Val::Percent(share * 100.0),
+                        ..default()
+                    },
+                    BackgroundColor(TIMELINE_ACTIVITY),
+                    Pickable::IGNORE,
+                ));
+            }
+        })
+        .observe(seek_on_press)
+        .observe(seek_on_drag);
+}
+
+pub fn spawn_replay_hud(
+    mut commands: Commands,
+    fonts: Res<UiFonts>,
+    playback: Res<ReplayPlayback>,
+) {
+    spawn_replay_timeline(&mut commands, &playback);
     commands
         .spawn((
             DespawnOnExit(GameState::Replay),
@@ -492,7 +600,7 @@ pub fn spawn_replay_hud(mut commands: Commands, fonts: Res<UiFonts>) {
             ));
             hud.spawn((
                 fonts.text(
-                    tr("Space pause  ·  + / - speed  ·  Left / Right 10 s  ·  Home restart  ·  Esc menu"),
+                    tr("Space pause  ·  + / - speed  ·  Left / Right 10 s  ·  click the bar below to jump  ·  Esc menu"),
                     15.0,
                     TEXT_MAIN,
                 ),
@@ -726,7 +834,14 @@ pub fn refresh_replay_hud(
     level: Res<ActiveLevel>,
     playback: Res<ReplayPlayback>,
     mut huds: Query<&mut Text, With<ReplayHud>>,
+    mut progress: Query<&mut Node, With<ReplayProgress>>,
 ) {
+    let played = playback.clock / playback.replay.recorded_secs.max(1.0) * 100.0;
+    for mut node in &mut progress {
+        if node.width != Val::Percent(played) {
+            node.width = Val::Percent(played);
+        }
+    }
     let clock = |secs: f32| format!("{:02}:{:02}", secs as u32 / 60, secs as u32 % 60);
     let state = if playback.paused {
         tr("paused").to_string()
@@ -768,6 +883,33 @@ mod tests {
             actors: vec![actor],
             events: Vec::new(),
         }
+    }
+
+    #[test]
+    fn the_timeline_peaks_where_the_shooting_was() {
+        let shot = Event::Shot(0, [0; 3], [10, 0, 0], 0, 100);
+        let frames = (0..40)
+            .map(|index| Frame {
+                time: index as f32 * FRAME_INTERVAL_SECS,
+                actors: Vec::new(),
+                events: if index >= 30 {
+                    vec![shot; 3]
+                } else {
+                    Vec::new()
+                },
+            })
+            .collect();
+        let replay = Replay {
+            version: REPLAY_VERSION,
+            level: LevelDefinition::default(),
+            outcome: String::new(),
+            recorded_secs: 20.0,
+            frames,
+        };
+        let fighting = fighting_by_time(&replay);
+        assert_eq!(fighting.len(), 40);
+        assert_eq!(fighting[0], 0.0);
+        assert_eq!(fighting[35], 1.0);
     }
 
     #[test]

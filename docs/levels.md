@@ -88,9 +88,10 @@ opens a screen with a *Back* button; Esc goes back too.
   the game). The newest 10 are listed under *Replays* and kept in `~/.config/iron_tide/replays/`. Watching one
   rebuilds the map and shows every unit and structure where it was, walking and driving, with shells,
   missiles and explosions, without the fog of war: Space pauses, `+` / `-` changes the speed (1x-8x), the Left
-  and Right arrows jump 10 s, Home starts over, Esc returns to the menu. A replay stores snapshots twice a
-  second plus the shots and blasts in between (a few MB for half an hour), not the inputs: the simulation is
-  not deterministic enough to re-run them.
+  and Right arrows jump 10 s, Home starts over, Esc returns to the menu. The bar along the bottom shows how much
+  has played and, as orange columns, where the shooting was; clicking or dragging on it jumps there. A replay
+  stores snapshots twice a second plus the shots and blasts in between (a few MB for half an hour), not the
+  inputs, so changed rules leave old replays intact ([determinism.md](determinism.md)).
 
 A level file is plain JSON; omitted fields take defaults:
 
