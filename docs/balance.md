@@ -65,3 +65,16 @@ it is meant to fire first from hiding, which equal-cost duels do not show. The F
 against ground units its duels end even; the computer builds it only once it has seen enemy aircraft. Units now also prefer targets that can
 hurt them (a tank picks the rocketeer before the rifleman next to it), which made matches shorter and left fewer
 unfinished.
+
+## Tried and rejected
+
+Measured with the computer's change on one side only, against the unchanged commander on the other (40 matches per
+pairing, Normal against Normal), so both sides of the result count:
+
+- **Attack waves at one pace.** Holding a wave to its slowest unit won 31:7 and 31:9 without fog of war, but with
+  fog, where nearly every game is played, it lost 11:26 and 16:19 (unchanged: about 15:22); a wave held to its
+  median speed did worse (8:29). Waves still travel at each unit's own speed; only the player's group orders
+  keep a pace.
+- **Stealth Tanks kept in ambush.** Two Stealth Tanks lying still on the approach to the base changed nothing
+  (22 against 23 wins for the side that builds them) and their damage per credit fell from 0.77 to 0.49, as they
+  rarely met anyone.
