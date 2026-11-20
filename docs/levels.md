@@ -41,7 +41,7 @@ opens a screen with a *Back* button; Esc goes back too.
   target it until one of them comes within 8 m. A shot gives it away for 2 s.
 - **Main menu:** a battle scene from the game sits behind the menu; campaign missions won on this computer are
   marked *WON*, and a mission's description lists its objective, map, sides and units as a table.
-- **Sidebar:** the objective and its progress (time left, credits gathered) sit under the credits; selecting
+- **Sidebar:** the objective and its progress (time left, credits gathered) sit under the credits, with the time played (match time, standing still while paused) beside the heading; selecting
   several units shows an icon and a count for each kind. Pointing at a build tile describes it (price, build time, what it needs and, for a unit, where it is built) in a box beside
   the sidebar, so the selection panel keeps showing the selection.
 - **Pause menu and end screen:** the pause menu shows the mission, its objective, the time and the battle so far

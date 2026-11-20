@@ -123,6 +123,9 @@ pub struct ControlsHint;
 pub struct ObjectiveText;
 
 #[derive(Component)]
+pub struct MatchTimeText;
+
+#[derive(Component)]
 pub struct OutcomeOverlay;
 
 #[derive(Component)]
@@ -533,7 +536,15 @@ fn spawn_objective(sidebar: &mut ChildSpawnerCommands, fonts: &UiFonts) {
             BorderColor::all(ACCENT),
         ))
         .with_children(|panel| {
-            panel.spawn(fonts.heading(tr("OBJECTIVE"), 12.0, TEXT_DIM));
+            panel
+                .spawn(Node {
+                    justify_content: JustifyContent::SpaceBetween,
+                    ..default()
+                })
+                .with_children(|header| {
+                    header.spawn(fonts.heading(tr("OBJECTIVE"), 12.0, TEXT_DIM));
+                    header.spawn((MatchTimeText, fonts.heading("0:00", 12.0, TEXT_DIM)));
+                });
             panel.spawn((ObjectiveText, fonts.text("", 14.0, TEXT_MAIN)));
         });
 }
@@ -1874,9 +1885,38 @@ pub fn refresh_objective(
     }
 }
 
+pub fn refresh_match_time(
+    clock: Res<MatchClock>,
+    mut lines: Query<&mut Text, (With<MatchTimeText>, Without<ObjectiveText>)>,
+) {
+    let shown = match_time(clock.elapsed_secs);
+    for mut text in &mut lines {
+        if text.0 != shown {
+            text.0 = shown.clone();
+        }
+    }
+}
+
+fn match_time(elapsed_secs: f32) -> String {
+    let total = elapsed_secs.max(0.0) as u32;
+    let (hours, minutes, seconds) = (total / 3600, total / 60 % 60, total % 60);
+    if hours > 0 {
+        format!("{hours}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes}:{seconds:02}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn match_time_reads_minutes_and_seconds_and_adds_hours_past_one() {
+        assert_eq!(match_time(0.0), "0:00");
+        assert_eq!(match_time(754.9), "12:34");
+        assert_eq!(match_time(3723.0), "1:02:03");
+    }
 
     #[test]
     fn a_unit_tooltip_names_the_building_that_builds_it() {

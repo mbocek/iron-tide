@@ -685,7 +685,7 @@ impl Plugin for GamePlugin {
                         perf_overlay::refresh_performance_overlay,
                         queue_bar::animate_queue_progress,
                         ui::refresh_notifications,
-                        ui::refresh_objective,
+                        (ui::refresh_objective, ui::refresh_match_time),
                         terrain_material::dress_terrain_surfaces,
                         fog_view::paint_fog_texture,
                         fog_view::reveal_explored_scenery,
