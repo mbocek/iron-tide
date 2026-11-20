@@ -96,6 +96,8 @@ pub fn update_intel(
     mut intel: ResMut<Intel>,
     player_fog: Res<FogOfWar>,
     diplomacy: Res<Diplomacy>,
+    clock: Res<crate::match_flow::MatchClock>,
+    forecast: Res<crate::weather::WeatherForecast>,
     viewers: Query<(&Team, &Transform, &Sight), Or<(With<Unit>, With<Building>)>>,
     buildings: Query<(Entity, &Building, &Team, &Transform)>,
 ) {
@@ -104,11 +106,12 @@ pub fn update_intel(
         return;
     }
     *countdown = UPDATE_INTERVAL_SECS;
+    let weather_sight = forecast.sight_factor(clock.elapsed_secs);
     for opponent in Team::OPPONENTS {
         let allied_eyes = viewers
             .iter()
             .filter(|(team, ..)| !diplomacy.hostile(**team, opponent))
-            .map(|(_, transform, sight)| (transform.translation, sight.0));
+            .map(|(_, transform, sight)| (transform.translation, sight.0 * weather_sight));
         intel
             .opponent_vision_mut(opponent)
             .reveal_around(allied_eyes);

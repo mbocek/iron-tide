@@ -131,6 +131,8 @@ pub fn update_fog(
     mut countdown: Local<f32>,
     mut fog: ResMut<FogOfWar>,
     diplomacy: Res<Diplomacy>,
+    clock: Res<crate::match_flow::MatchClock>,
+    forecast: Res<crate::weather::WeatherForecast>,
     viewers: Query<(&Team, &Transform, &Sight), Or<(With<Unit>, With<Building>)>>,
 ) {
     *countdown -= time.delta_secs();
@@ -138,10 +140,11 @@ pub fn update_fog(
         return;
     }
     *countdown = UPDATE_INTERVAL_SECS;
+    let weather_sight = forecast.sight_factor(clock.elapsed_secs);
     let own = viewers
         .iter()
         .filter(|(team, ..)| !diplomacy.hostile(**team, Team::Player))
-        .map(|(_, transform, sight)| (transform.translation, sight.0));
+        .map(|(_, transform, sight)| (transform.translation, sight.0 * weather_sight));
     fog.reveal_around(own);
 }
 

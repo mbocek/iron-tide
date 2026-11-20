@@ -7,7 +7,7 @@ use iron_tide::combat::Targets;
 use iron_tide::components::{Building, Health};
 use iron_tide::fog::{CellSight, FogOfWar};
 use iron_tide::intel::Intel;
-use iron_tide::levels::LevelDefinition;
+use iron_tide::levels::{LevelDefinition, Weather};
 use iron_tide::map::base_sites;
 use iron_tide::savegame::SaveRequests;
 
@@ -185,4 +185,22 @@ fn exploration_is_kept_in_save_games() {
     battle.world().resource_mut::<SaveRequests>().load = Some(3);
     battle.run_for(0.5);
     assert_ne!(sight_at(&mut battle, far_point), CellSight::Unexplored);
+}
+
+#[test]
+fn rain_shortens_how_far_units_see() {
+    let sees_at = |weather: Weather, share: f32| {
+        let mut battle = Battle::on_level(LevelDefinition {
+            weather,
+            ..default()
+        });
+        let scout = battle.spawn_unit(UnitKind::Scout, Team::Player, OPEN_FIELD);
+        battle.run_for(1.0);
+        let reach = UnitKind::Scout.spec().sight * share;
+        let spot = battle.position(scout) + Vec3::new(reach, 0.0, 0.0);
+        battle.world().resource::<FogOfWar>().is_visible(spot)
+    };
+    assert!(sees_at(Weather::Clear, 0.85));
+    assert!(!sees_at(Weather::Rain, 0.85), "rain should cut sight by a quarter");
+    assert!(sees_at(Weather::Rain, 0.6));
 }

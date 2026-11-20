@@ -2,7 +2,10 @@ use bevy::prelude::*;
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 
-use crate::levels::{ActiveLevel, Weather};
+use crate::levels::{ActiveLevel, LevelDefinition, Weather};
+use crate::match_flow::MatchClock;
+use crate::notifications::Notifications;
+use crate::i18n::tr;
 use crate::season::Season;
 use crate::terrain_material::{TerrainMaterial, TerrainMaterialHandle};
 
@@ -22,6 +25,10 @@ const DRYING_PER_SEC: f32 = 1.0 / 120.0;
 const FORECAST_SALT: u64 = 0x0057_4541_5448_4552;
 /// Smaller changes are not worth uploading the ground material again.
 const TERRAIN_UPDATE_STEP: f32 = 0.01;
+/// Share of their sight that units lose in a downpour or a snowfall.
+const SIGHT_LOST_IN_RAIN: f32 = 0.25;
+/// Rainfall above this counts as raining for the player's notice.
+const RAINING: f32 = 0.5;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Sky {
@@ -60,13 +67,17 @@ impl Sky {
     }
 }
 
-/// The weather of a match: the same forecast for every player of a map, as it comes from the map seed.
-/// It only changes how the battlefield looks.
-#[derive(Resource)]
-pub struct WeatherCycle {
+/// The weather of a match, from the map seed so every player of a network battle gets the same: it shortens
+/// sight in the simulation and drives the sky.
+#[derive(Resource, Clone, Debug)]
+pub struct WeatherForecast {
     /// When each spell of weather starts, in seconds of match time.
     spells: Vec<(f32, Sky)>,
-    started_at: f32,
+}
+
+/// The sky as shown now; the ground's wetness lags behind the rain.
+#[derive(Resource)]
+pub struct WeatherCycle {
     pub now: SkyNow,
 }
 
@@ -77,8 +88,16 @@ pub struct SkyNow {
     pub wet_ground: f32,
 }
 
-impl WeatherCycle {
-    fn forecast(map_seed: u64, first: Sky, started_at: f32) -> Self {
+impl WeatherForecast {
+    pub fn for_level(level: &LevelDefinition) -> Self {
+        let first = match level.weather {
+            Weather::Rain => Sky::Rain,
+            Weather::Clear => Sky::Clear,
+        };
+        Self::forecast(level.map_seed, first)
+    }
+
+    fn forecast(map_seed: u64, first: Sky) -> Self {
         let mut rng = StdRng::seed_from_u64(map_seed ^ FORECAST_SALT);
         let mut spells = vec![(0.0, first)];
         let mut sky = first;
@@ -88,15 +107,12 @@ impl WeatherCycle {
             spells.push((starts, sky));
             starts += sky.lasts_secs(&mut rng);
         }
-        Self {
-            spells,
-            started_at,
-            now: SkyNow {
-                cloud_cover: first.cloud_cover(),
-                rainfall: first.rainfall(),
-                wet_ground: first.rainfall(),
-            },
-        }
+        Self { spells }
+    }
+
+    /// How far units see at `secs` into the match, as a share of their usual sight.
+    pub fn sight_factor(&self, secs: f32) -> f32 {
+        1.0 - SIGHT_LOST_IN_RAIN * self.sky_at(secs).1
     }
 
     /// Cloud cover and rainfall at `secs` into the match, blending into the next spell as it approaches.
@@ -119,21 +135,44 @@ impl WeatherCycle {
     }
 }
 
-pub fn begin_weather(mut commands: Commands, level: Res<ActiveLevel>, time: Res<Time<Virtual>>) {
-    let first = match level.0.weather {
-        Weather::Rain => Sky::Rain,
-        Weather::Clear => Sky::Clear,
-    };
-    commands.insert_resource(WeatherCycle::forecast(
-        level.0.map_seed,
-        first,
-        time.elapsed_secs(),
-    ));
+pub fn begin_weather(mut commands: Commands, level: Res<ActiveLevel>, clock: Option<Res<MatchClock>>) {
+    let secs = clock.map_or(0.0, |clock| clock.elapsed_secs);
+    let (cloud_cover, rainfall) = WeatherForecast::for_level(&level.0).sky_at(secs);
+    commands.insert_resource(WeatherCycle {
+        now: SkyNow {
+            cloud_cover,
+            rainfall,
+            wet_ground: rainfall,
+        },
+    });
+}
+
+/// Tells the player when rain or snow starts shortening sight, and when it stops.
+pub fn announce_weather(
+    level: Res<ActiveLevel>,
+    cycle: Option<Res<WeatherCycle>>,
+    mut raining: Local<Option<bool>>,
+    mut notifications: ResMut<Notifications>,
+) {
+    let Some(cycle) = cycle else { return };
+    let now_raining = cycle.now.rainfall > RAINING;
+    let was_raining = raining.replace(now_raining);
+    if was_raining.is_none_or(|was| was == now_raining) {
+        return;
+    }
+    let winter = level.0.season == Season::Winter;
+    notifications.push(match (now_raining, winter) {
+        (true, false) => tr("Rain closes in: units see less far"),
+        (true, true) => tr("Snow is falling: units see less far"),
+        (false, _) => tr("The weather clears"),
+    });
 }
 
 /// Moves the sky along its forecast: clouds dim the sun and the sky light, rain soaks the ground.
 pub fn follow_the_weather(
     time: Res<Time<Virtual>>,
+    clock: Res<MatchClock>,
+    forecast: Option<Res<WeatherForecast>>,
     level: Option<Res<ActiveLevel>>,
     cycle: Option<ResMut<WeatherCycle>>,
     terrain: Option<Res<TerrainMaterialHandle>>,
@@ -141,10 +180,10 @@ pub fn follow_the_weather(
     mut suns: Query<&mut DirectionalLight>,
     mut ambient: ResMut<GlobalAmbientLight>,
 ) {
-    let (Some(level), Some(mut cycle)) = (level, cycle) else {
+    let (Some(level), Some(mut cycle), Some(forecast)) = (level, cycle, forecast) else {
         return;
     };
-    let (cloud_cover, rainfall) = cycle.sky_at(time.elapsed_secs() - cycle.started_at);
+    let (cloud_cover, rainfall) = forecast.sky_at(clock.elapsed_secs);
     let rate = if rainfall > cycle.now.wet_ground {
         SOAKING_PER_SEC
     } else {
@@ -203,15 +242,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn rain_shortens_sight_by_a_quarter() {
+        let rainy = WeatherForecast::forecast(3, Sky::Rain);
+        assert_eq!(rainy.sight_factor(0.0), 0.75);
+        let clear = WeatherForecast::forecast(3, Sky::Clear);
+        assert_eq!(clear.sight_factor(0.0), 1.0);
+    }
+
+    #[test]
     fn every_player_of_a_map_gets_the_same_forecast() {
-        let one = WeatherCycle::forecast(7, Sky::Clear, 0.0);
-        let other = WeatherCycle::forecast(7, Sky::Clear, 0.0);
+        let one = WeatherForecast::forecast(7, Sky::Clear);
+        let other = WeatherForecast::forecast(7, Sky::Clear);
         assert_eq!(one.spells, other.spells);
     }
 
     #[test]
     fn the_sky_changes_during_a_match_and_starts_as_the_level_says() {
-        let cycle = WeatherCycle::forecast(3, Sky::Rain, 0.0);
+        let cycle = WeatherForecast::forecast(3, Sky::Rain);
         assert_eq!(cycle.sky_at(0.0), (1.0, 1.0));
         let skies: Vec<Sky> = cycle.spells.iter().take(6).map(|&(_, sky)| sky).collect();
         assert!(skies.contains(&Sky::Overcast));
@@ -220,7 +267,7 @@ mod tests {
 
     #[test]
     fn rain_fades_in_instead_of_switching_on() {
-        let cycle = WeatherCycle::forecast(11, Sky::Overcast, 0.0);
+        let cycle = WeatherForecast::forecast(11, Sky::Overcast);
         let (turn, next) = cycle.spells[1];
         let (_, halfway) = cycle.sky_at(turn - TRANSITION_SECS * 0.5);
         if next == Sky::Rain {

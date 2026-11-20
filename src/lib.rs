@@ -376,7 +376,7 @@ impl Plugin for GamePlugin {
                     flat_scenery::merge_scenery_models,
                     flat_scenery::dress_flat_scenery,
                     flat_scenery::follow_wind_setting,
-                    weather::follow_the_weather,
+                    (weather::follow_the_weather, weather::announce_weather).chain(),
                     crystal_models::merge_crystal_models,
                     crystal_models::dress_crystals,
                 )

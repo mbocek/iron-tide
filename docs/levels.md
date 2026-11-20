@@ -133,8 +133,10 @@ it is loaded, so seasons cost nothing while playing. The campaign's third and ei
 ninth in autumn.
 Weather: `Clear` or `Rain` is how a match starts. From there the sky changes on its own: clear spells of a
 few minutes, clouds that dim the sun and smooth away the moving cloud shadows, and showers that fade in,
-soak the ground darker and glossier and dry off slowly afterwards. The forecast comes from the map seed, so
-every player of a network match sees the same sky; it does not affect play.
+soak the ground darker and glossier and dry off slowly afterwards. The forecast comes from the map seed and runs
+on match time, so every player of a network match sees the same sky and a loaded save resumes it. Rain and snow
+cut how far every unit and structure sees by up to a quarter (fog of war and what the computer knows; weapons
+still fire as far as they reach), and the player is told when it starts and stops.
 Sites: `SouthWest`, `NorthEast`, `NorthWest`, `SouthEast`. Objectives: `"DestroyAllEnemies"`,
 `"DestroyCommandCenters"`, `"CaptureCommandCenter"`, `{ "Survive": { "minutes": N } }`, `{ "ReachCredits": { "credits": N } }`.
 `events` (`src/level_events.rs`) script a mission: each happens once, when its trigger is met, and runs in the
