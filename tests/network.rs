@@ -5,13 +5,14 @@ use std::net::{TcpListener, TcpStream};
 use bevy::prelude::*;
 use common::Battle;
 use iron_tide::catalog::Alliance;
-use iron_tide::catalog::{Team, UnitKind};
+use iron_tide::catalog::{BuildingKind, Team, UnitKind};
 use iron_tide::determinism::simulation_checksum;
 use iron_tide::economy::Economies;
 use iron_tide::levels::{BaseSite, EnemySetup, ForceSetup, LevelDefinition};
 use iron_tide::lobby::NetLobby;
 use iron_tide::network::{Link, NetSession, SessionState};
 use iron_tide::player_commands::{GroundOrder, PlayerCommand};
+use iron_tide::production::BuildItem;
 use iron_tide::season::Season;
 
 const TICKS_TO_PLAY: u64 = 1200;
@@ -631,6 +632,105 @@ fn a_spectator_who_joins_late_catches_up_and_follows_the_battle() {
     assert_eq!(watcher.session_state(), Some(SessionState::InStep));
     assert_eq!(
         simulation_checksum(watcher.world()),
+        simulation_checksum(host.world())
+    );
+}
+
+#[test]
+fn a_player_whose_connection_drops_rejoins_and_the_battle_goes_on() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let guest_end = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let (host_to_guest, _) = listener.accept().unwrap();
+    let door = TcpListener::bind("127.0.0.1:0").unwrap();
+    door.set_nonblocking(true).unwrap();
+    let door_address = door.local_addr().unwrap().to_string();
+
+    let mut host = Battle::standard();
+    let level = host
+        .world()
+        .resource::<iron_tide::levels::ActiveLevel>()
+        .0
+        .clone();
+    host.join_session(
+        NetSession::new(
+            vec![Link::new(host_to_guest).unwrap()],
+            vec![Team::Crimson],
+            true,
+        )
+        .with_open_door(door, level),
+        Team::Player,
+    );
+    let mut guest = Battle::standard();
+    guest.join_session(
+        NetSession::new(
+            vec![Link::new(guest_end).unwrap()],
+            vec![Team::Player],
+            false,
+        ),
+        Team::Crimson,
+    );
+    play_until(&mut host, &mut guest, 40);
+    attack_with_tanks(&mut host, Team::Player, IVec2::new(48, 16));
+    attack_with_tanks(&mut guest, Team::Crimson, IVec2::new(16, 48));
+    guest.issue(
+        Team::Crimson,
+        PlayerCommand::Enqueue {
+            item: BuildItem::Structure(BuildingKind::PowerPlant),
+            copies: 1,
+        },
+    );
+    play_until(&mut host, &mut guest, 300);
+
+    drop(guest);
+    for _ in 0..40 {
+        host.run_for(LIMIT_SECS);
+    }
+    assert_eq!(
+        host.session_state(),
+        Some(SessionState::InStep),
+        "the host gave up at once"
+    );
+    let stalled_at = host.tick();
+    for _ in 0..40 {
+        host.run_for(LIMIT_SECS);
+    }
+    assert_eq!(
+        host.tick(),
+        stalled_at,
+        "the battle went on without the player"
+    );
+
+    let mut lobby = NetLobby::default();
+    lobby.join(&door_address);
+    let mut clock = 0.0;
+    let start = loop {
+        clock += 0.05;
+        host.run_for(LIMIT_SECS);
+        if lobby.can_accept_offer() {
+            lobby.accept_offer();
+        }
+        if let Some(start) = lobby.advance(clock) {
+            break start;
+        }
+        assert!(clock < 30.0, "the player was never let back in");
+    };
+    assert!(!start.session.is_spectating());
+    assert_eq!(start.local_team, Team::Crimson);
+    let mut rejoined = Battle::standard();
+    rejoined.join_session(start.session, start.local_team);
+
+    let ticks = stalled_at + 200;
+    play_until(&mut host, &mut rejoined, stalled_at + 20);
+    attack_with_tanks(&mut rejoined, Team::Crimson, IVec2::new(20, 40));
+    play_until(&mut host, &mut rejoined, ticks);
+    while host.tick() > rejoined.tick() {
+        rejoined.run_for(LIMIT_SECS);
+    }
+    while rejoined.tick() > host.tick() {
+        host.run_for(LIMIT_SECS);
+    }
+    assert_eq!(
+        simulation_checksum(rejoined.world()),
         simulation_checksum(host.world())
     );
 }

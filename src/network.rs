@@ -28,6 +28,8 @@ pub const MOST_SPECTATORS: usize = 4;
 /// A spectator further behind than this (two seconds) runs the battle fast until it has caught up.
 const CATCH_UP_FROM_TICKS: u64 = 40;
 const CATCH_UP_SPEED: f32 = 40.0;
+/// How long the host holds a battle for a player whose connection dropped before giving up on them.
+const REJOIN_WINDOW: Duration = Duration::from_secs(180);
 const PING_INTERVAL: Duration = Duration::from_secs(1);
 const PINGS_REMEMBERED: u64 = 10;
 const ROUND_TRIP_SMOOTHING: f32 = 0.3;
@@ -173,11 +175,12 @@ impl Link {
         });
     }
 
-    fn offer_to_watch(&self, level: &LevelDefinition, players: &[Team]) {
+    /// Offers a battle under way: to watch, or to take back the seat of a player who lost the connection.
+    fn offer_under_way(&self, level: &LevelDefinition, your_team: Option<Team>, players: &[Team]) {
         self.send(&Message::Offer {
             version: env!("CARGO_PKG_VERSION").to_string(),
             level: Box::new(level.clone()),
-            your_team: None,
+            your_team,
             players: players.to_vec(),
             under_way: true,
         });
@@ -290,6 +293,13 @@ pub struct NetSession {
     round_trip: Option<Duration>,
     /// On the host: where late spectators knock, and what they need to catch up.
     door: Option<OpenDoor>,
+    /// On the host, which link carries which other player's orders.
+    link_teams: BTreeMap<usize, Team>,
+    /// On the host, players whose connection dropped, by team index, and since when the battle waits for them.
+    away: BTreeMap<usize, (Team, Instant)>,
+    /// On a machine that joined late, the latest tick of each team's orders the host already had; a returning
+    /// player must not send those turns again.
+    turns_known_through: BTreeMap<usize, u64>,
 }
 
 /// The host keeps accepting spectators during the battle and remembers every order to bring them up to date.
@@ -298,7 +308,7 @@ struct OpenDoor {
     level: LevelDefinition,
     players: Vec<Team>,
     /// Late spectators considering the offer, not yet watching.
-    newcomers: Vec<Link>,
+    newcomers: Vec<(Link, Option<Team>)>,
     history: TurnHistory,
 }
 
@@ -348,6 +358,9 @@ impl NetSession {
             last_ping_sent: None,
             round_trip: None,
             door: None,
+            link_teams: BTreeMap::new(),
+            away: BTreeMap::new(),
+            turns_known_through: BTreeMap::new(),
         }
     }
 
@@ -355,6 +368,11 @@ impl NetSession {
     pub fn with_open_door(mut self, listener: TcpListener, level: LevelDefinition) -> Self {
         let players = std::iter::once(Team::Player)
             .chain(self.remote_teams.iter().copied())
+            .collect();
+        let player_links =
+            (0..self.links.len()).filter(|index| !self.watcher_links.contains(index));
+        self.link_teams = player_links
+            .zip(self.remote_teams.iter().copied())
             .collect();
         self.door = Some(OpenDoor {
             listener,
@@ -387,38 +405,69 @@ impl NetSession {
             .flatten()
     }
 
-    /// Lets late spectators in: offers them the battle and, once they accept, sends every order so far.
-    fn admit_spectators(&mut self) {
+    /// Lets late guests in: a player whose connection dropped gets their seat back, anyone else may watch.
+    /// Once they accept they get every order so far.
+    fn admit_late_guests(&mut self) {
+        if self
+            .away
+            .values()
+            .any(|(_, since)| since.elapsed() > REJOIN_WINDOW)
+        {
+            self.state = SessionState::Disconnected;
+        }
         let watching =
             self.watcher_links.len() - self.closed_links.intersection(&self.watcher_links).count();
         let Some(door) = &mut self.door else { return };
-        if watching + door.newcomers.len() < MOST_SPECTATORS
+        let free_seat = self.away.values().map(|&(team, _)| team).find(|&team| {
+            door.newcomers
+                .iter()
+                .all(|(_, offered)| *offered != Some(team))
+        });
+        let spectator_room = watching + door.newcomers.len() < MOST_SPECTATORS;
+        if (free_seat.is_some() || spectator_room)
             && let Ok((stream, _)) = door.listener.accept()
             && stream.set_nonblocking(false).is_ok()
             && let Ok(link) = Link::new(stream)
         {
-            link.offer_to_watch(&door.level, &door.players);
-            door.newcomers.push(link);
+            link.offer_under_way(&door.level, free_seat, &door.players);
+            door.newcomers.push((link, free_seat));
         }
         let mut admitted = Vec::new();
         let mut index = 0;
         while index < door.newcomers.len() {
-            let news = door.newcomers[index].lobby_news();
+            let news = door.newcomers[index].0.lobby_news();
             if news.contains(&LobbyNews::Left) {
                 door.newcomers.remove(index);
             } else if news.contains(&LobbyNews::GuestReady) {
-                let link = door.newcomers.remove(index);
+                let (link, seat) = door.newcomers.remove(index);
                 link.send(&door.history.catch_up());
                 link.go();
-                admitted.push(link);
+                admitted.push((link, seat));
             } else {
                 index += 1;
             }
         }
-        for link in admitted {
-            self.watcher_links.insert(self.links.len());
+        for (link, seat) in admitted {
+            let index = self.links.len();
+            match seat {
+                Some(team) => {
+                    self.link_teams.insert(index, team);
+                    self.away.remove(&team.index());
+                }
+                None => {
+                    self.watcher_links.insert(index);
+                }
+            }
             self.links.push(link);
         }
+    }
+
+    /// On the host: a player who lost the connection and how long the battle has waited for them.
+    pub fn waiting_for_rejoin(&self) -> Option<(Team, Duration)> {
+        self.away
+            .values()
+            .map(|&(team, since)| (team, since.elapsed()))
+            .max_by_key(|&(_, waited)| waited)
     }
 
     /// A battle against one other machine over `stream`.
@@ -448,11 +497,23 @@ impl NetSession {
         self.spectating
     }
 
+    /// A spectator may go; a player's dropped connection holds the battle for a while on a host that can
+    /// take them back, and ends it anywhere else.
     fn lose_link(&mut self, index: usize) {
         if self.watcher_links.contains(&index) {
             self.closed_links.insert(index);
-        } else {
-            self.state = SessionState::Disconnected;
+            return;
+        }
+        match self
+            .link_teams
+            .remove(&index)
+            .filter(|_| self.door.is_some())
+        {
+            Some(team) => {
+                self.closed_links.insert(index);
+                self.away.insert(team.index(), (team, Instant::now()));
+            }
+            None => self.state = SessionState::Disconnected,
         }
     }
 
@@ -590,6 +651,7 @@ impl NetSession {
                         for (team, last) in through {
                             self.remote_turns
                                 .extend((0..=last).map(|tick| (tick, team.index())));
+                            self.turns_known_through.insert(team.index(), last);
                         }
                         for (team, tick, commands) in turns {
                             for command in commands {
@@ -679,6 +741,13 @@ pub fn send_turn(
         return;
     }
     let turn = tick.0 + NETWORK_COMMAND_DELAY_TICKS;
+    let already_sent = session
+        .turns_known_through
+        .get(&local.0.index())
+        .is_some_and(|&known| turn <= known);
+    if already_sent {
+        return;
+    }
     let commands = queue.scheduled_for(turn, local.0);
     session.remember_turn(local.0, turn, &commands);
     let message = Message::Turn {
@@ -689,9 +758,9 @@ pub fn send_turn(
     session.broadcast(&message);
 }
 
-pub fn admit_late_spectators(session: Option<ResMut<NetSession>>) {
+pub fn admit_late_guests(session: Option<ResMut<NetSession>>) {
     if let Some(mut session) = session {
-        session.admit_spectators();
+        session.admit_late_guests();
     }
 }
 
@@ -700,7 +769,7 @@ pub fn admit_late_spectators(session: Option<ResMut<NetSession>>) {
 #[derive(Resource, Default)]
 pub struct CatchingUp(pub Option<f32>);
 
-/// A late spectator runs the battle many times faster, silently, until it reaches the players.
+/// A machine that joined late runs the battle many times faster, silently, until it reaches the players.
 pub fn catch_up_with_the_battle(
     session: Option<Res<NetSession>>,
     tick: Res<SimulationTick>,
@@ -710,7 +779,6 @@ pub fn catch_up_with_the_battle(
     mut volume: ResMut<GlobalVolume>,
 ) {
     let behind = session
-        .filter(|session| session.spectating)
         .and_then(|session| session.known_through())
         .map(|known| (known.saturating_sub(tick.0), known));
     let far_behind = behind.filter(|&(ticks, _)| ticks > CATCH_UP_FROM_TICKS);

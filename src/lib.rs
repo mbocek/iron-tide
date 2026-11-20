@@ -164,7 +164,7 @@ impl Plugin for SimulationPlugin {
                 (
                     network::receive_turns,
                     network::measure_latency,
-                    network::admit_late_spectators,
+                    network::admit_late_guests,
                 ),
             )
             .insert_resource(Time::<Fixed>::from_duration(SIMULATION_TICK))

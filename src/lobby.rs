@@ -314,6 +314,10 @@ impl NetLobby {
                 Some(tr("Connected, waiting for the host").to_string())
             }
             LobbyPhase::Considering { offer, .. } => Some(match offer.your_team {
+                Some(team) if offer.under_way => tr_fmt(
+                    "Your battle is under way; take back {} after catching up?",
+                    &[&tr(team.name_in(offer.level.faction_of(team)))],
+                ),
                 Some(team) => tr_fmt(
                     "The host offers this battle; you would play {}. Ready?",
                     &[&tr(team.name_in(offer.level.faction_of(team)))],

@@ -56,7 +56,12 @@ fog, follows everyone's orders and gives none, has no build menu or chat, and le
 Spectators can also join a battle under way: the host keeps its port open, offers the battle to watch, and on
 *I'm ready* sends every order so far (each team's turns, complete through their latest tick, listing only those
 with orders). The spectator's machine then runs the battle silently at 40x speed, with a *Catching up* banner,
-until it reaches the players; being deterministic, it arrives at exactly their battle. At most four people watch. Every machine also records the battle as a replay. Either side can leave the lobby: a host whose guest leaves goes back to waiting
+until it reaches the players; being deterministic, it arrives at exactly their battle. At most four people watch.
+When a guest's connection drops, the host holds the battle for up to three minutes with a banner counting the
+wait, and offers the next person who connects that player's seat back. Catching up works as for a spectator,
+except that the returning player then sends orders again, starting after the last turn the host already had:
+sending the earlier turns once more would run their orders twice on the host. If the host's own connection
+drops, the battle ends, as the host is the hub every other machine talks through. Every machine also records the battle as a replay. Either side can leave the lobby: a host whose guest leaves goes back to waiting
 for another player. While hosting, the network page shows the battle editor's settings (all but the number
 of players), and the host can still change them: every guest at once sees the new battle, is told the host
 changed it, and has to click *I'm ready* again. Leaving or quitting a battle closes the connection at once, so the other player is told

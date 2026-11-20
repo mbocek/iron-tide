@@ -581,5 +581,7 @@
   "Voice volume": "Hlasitost hlasů",
   "Snow": "Sníh",
   "Catching up with the battle... {} %": "Dohánění bitvy... {} %",
-  "The battle is under way; you can watch it after catching up. Ready?": "Bitva už běží; můžeš ji sledovat, až ji doženeš. Připraven?"
+  "The battle is under way; you can watch it after catching up. Ready?": "Bitva už běží; můžeš ji sledovat, až ji doženeš. Připraven?",
+  "Your battle is under way; take back {} after catching up?": "Tvoje bitva běží; převezmeš {}, až ji doženeš?",
+  "{} lost the connection; waiting for them to rejoin... {} s": "{} ztratil spojení; čeká se na jeho návrat... {} s"
 }

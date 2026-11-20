@@ -77,16 +77,23 @@ pub fn refresh_network_hud(
     }
     let stalled_for = now - last_progress.1;
     let waiting = in_step && stalled_for > STALL_WORTH_SHOWING_SECS;
-    let banner = match catching_up.0 {
-        Some(done) => Some(tr_fmt(
+    let rejoin = session
+        .as_ref()
+        .and_then(|session| session.waiting_for_rejoin());
+    let banner = match (catching_up.0, rejoin) {
+        (Some(done), _) => Some(tr_fmt(
             "Catching up with the battle... {} %",
             &[&((done * 100.0) as u32)],
         )),
-        None if waiting => Some(tr_fmt(
+        (None, Some((team, waited))) => Some(tr_fmt(
+            "{} lost the connection; waiting for them to rejoin... {} s",
+            &[&tr(team.name()), &waited.as_secs()],
+        )),
+        (None, None) if waiting => Some(tr_fmt(
             "Waiting for the other player... {} s",
             &[&(stalled_for as u32)],
         )),
-        None => None,
+        (None, None) => None,
     };
     for (mut text, mut node) in &mut banners {
         let display = if banner.is_some() {
