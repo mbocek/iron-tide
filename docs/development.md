@@ -69,3 +69,11 @@ scripted army wins, and saving then loading restores the battle.
 1 Blender unit = 1 m, one cell = 2×2 m, the model's front faces Blender +X, the origin sits at the center of
 its footprint on the ground. Rotating turrets are separate objects named `Turret` with their pivot at the origin.
 Team variants are exported as `<id>_blue.glb` / `<id>_red.glb`.
+
+Units and structures are exported with a single material, `Palette` (`tools/blender/irontide_models/palette.py`):
+every surface of the palette in `materials.py` becomes a cell of three small textures (colour,
+roughness/metallic, glow) and each face's UVs point at its cell, so a mesh is one glTF primitive and Bevy one
+entity, and each team variant only repaints the team-colour cell. Measured over 40 s of a 210-unit battle on an
+Apple M5 Pro: 24,800 → 18,800 entities and about 26 % less CPU time (≈69 s → 51 s); a large map at the start of
+a mission has 7 % fewer entities and no measurable change in CPU time. Trees, rocks and crystals keep their named
+materials, which the game merges itself (`flat_scenery.rs`, `crystal_models.rs`).

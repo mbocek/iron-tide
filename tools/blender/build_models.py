@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from irontide_models import buildings, decorations, nature, ore, soldier, units, upgrades, vegetation  # noqa: E402
 from irontide_models.materials import TEAM_COLOR_MATERIAL, set_team_color  # noqa: E402
+from irontide_models.palette import PALETTE_MATERIAL, convert_to_palette  # noqa: E402
 from irontide_models.parts import TURRET, begin_model  # noqa: E402
 from irontide_models.pipeline import export_glb, inspect_glb, render_icon, render_preview, reset_scene  # noqa: E402
 
@@ -186,14 +187,17 @@ def build_all(arguments):
         root = build_model(model_id, builder)
         has_teams = model_id in TEAM_MODELS
         teams = TEAMS if has_teams else (None,)
+        palette = convert_to_palette(root) if has_teams else None
         for team in teams:
             if team:
-                set_team_color(team)
+                palette.set_team(team)
             path = arguments.out / (f"{model_id}_{team}.glb" if team else f"{model_id}.glb")
             export_glb(root, path)
             summary, problems = verify_export(model_id, path, budget)
-            if has_teams and TEAM_COLOR_MATERIAL not in summary.material_names:
-                problems.append("TeamColor material not exported")
+            if has_teams and TEAM_COLOR_MATERIAL not in palette.names:
+                problems.append("no TeamColor surface")
+            if has_teams and summary.material_names != [PALETTE_MATERIAL]:
+                problems.append(f"expected only the palette material, got {summary.material_names}")
             failures.extend(f"{path.name}: {p}" for p in problems)
             report.append(f"{path.name:28s} {summary.triangles:6d} tris  nodes={summary.node_names}")
             for name, (duration, targets) in summary.animations.items():
