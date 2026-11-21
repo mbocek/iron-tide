@@ -61,7 +61,8 @@ Anyone who joins while every seat is taken is offered to watch instead: a specta
 fog, follows everyone's orders and gives none, has no build menu or chat, and leaving does not stop the battle.
 Spectators can also join a battle under way: the host keeps its port open, offers the battle to watch, and on
 *I'm ready* sends every order so far (each team's turns, complete through their latest tick, listing only those
-with orders). The spectator's machine then runs the battle silently at 40x speed, with a *Catching up* banner,
+with orders). The spectator's machine then runs the battle silently at 40x speed (up to two seconds of battle per frame, past Bevy's default
+250 ms limit that would otherwise hold it to about 15x), with a *Catching up* banner,
 until it reaches the players; being deterministic, it arrives at exactly their battle. At most four people watch.
 When a guest's connection drops, the host holds the battle for up to three minutes with a banner counting the
 wait, and offers the next person who connects that player's seat back. Catching up works as for a spectator,

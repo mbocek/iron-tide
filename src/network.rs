@@ -32,6 +32,10 @@ pub const MOST_SPECTATORS: usize = 4;
 /// A spectator further behind than this (two seconds) runs the battle fast until it has caught up.
 const CATCH_UP_FROM_TICKS: u64 = 40;
 const CATCH_UP_SPEED: f32 = 40.0;
+/// Bevy clamps each frame's scaled game time to `max_delta`, 250 ms by default, which would hold catching up
+/// to 5 ticks a frame whatever the speed.
+const CATCH_UP_LONGEST_FRAME: Duration = Duration::from_secs(2);
+const REGULAR_LONGEST_FRAME: Duration = Duration::from_millis(250);
 const PING_INTERVAL: Duration = Duration::from_secs(1);
 const PINGS_REMEMBERED: u64 = 10;
 const ROUND_TRIP_SMOOTHING: f32 = 0.3;
@@ -592,6 +596,51 @@ pub enum SessionState {
     Disconnected,
 }
 
+/// Which ticks' turns have arrived from one team, kept as the tick every turn up to which is known plus the few
+/// that arrived ahead of a gap.
+struct ReceivedTurns {
+    all_through: u64,
+    ahead: BTreeSet<u64>,
+}
+
+impl Default for ReceivedTurns {
+    fn default() -> Self {
+        Self {
+            all_through: NETWORK_COMMAND_DELAY_TICKS - 1,
+            ahead: BTreeSet::new(),
+        }
+    }
+}
+
+impl ReceivedTurns {
+    fn has(&self, tick: u64) -> bool {
+        tick <= self.all_through || self.ahead.contains(&tick)
+    }
+
+    fn latest(&self) -> u64 {
+        self.ahead.last().copied().unwrap_or(self.all_through)
+    }
+
+    fn record(&mut self, tick: u64) {
+        if !self.has(tick) {
+            self.ahead.insert(tick);
+            self.close_gaps();
+        }
+    }
+
+    fn record_all_through(&mut self, last: u64) {
+        self.all_through = self.all_through.max(last);
+        self.ahead.retain(|&tick| tick > last);
+        self.close_gaps();
+    }
+
+    fn close_gaps(&mut self) {
+        while self.ahead.remove(&(self.all_through + 1)) {
+            self.all_through += 1;
+        }
+    }
+}
+
 /// A battle with players on other machines: every machine runs the whole simulation and they exchange only
 /// commands. A guest has one link, to the hub; the hub (the host) has one per guest and passes messages
 /// between them, see `Relay`.
@@ -601,7 +650,8 @@ pub struct NetSession {
     remote_teams: Vec<Team>,
     /// This machine only watches: it sends no orders and no fingerprints.
     spectating: bool,
-    remote_turns: BTreeSet<(u64, usize)>,
+    /// Indexed by `Team::index`.
+    remote_turns: [ReceivedTurns; Team::ALL.len()],
     local_checksums: BTreeMap<u64, u64>,
     remote_checksums: BTreeMap<(u64, usize), u64>,
     pub state: SessionState,
@@ -625,7 +675,7 @@ impl NetSession {
             relay: Relay::new(links, relays),
             remote_teams,
             spectating: false,
-            remote_turns: BTreeSet::new(),
+            remote_turns: Default::default(),
             local_checksums: BTreeMap::new(),
             remote_checksums: BTreeMap::new(),
             state: SessionState::InStep,
@@ -654,15 +704,8 @@ impl NetSession {
     pub fn known_through(&self) -> Option<u64> {
         self.remote_teams
             .iter()
-            .map(|team| {
-                self.remote_turns
-                    .iter()
-                    .filter(|(_, index)| *index == team.index())
-                    .map(|(tick, _)| *tick)
-                    .max()
-            })
+            .map(|team| self.remote_turns[team.index()].latest())
             .min()
-            .flatten()
     }
 
     fn admit_late_guests(&mut self) {
@@ -781,7 +824,7 @@ impl NetSession {
             || self
                 .remote_teams
                 .iter()
-                .all(|team| self.remote_turns.contains(&(tick, team.index())))
+                .all(|team| self.remote_turns[team.index()].has(tick))
     }
 
     fn broadcast(&mut self, message: &Message) {
@@ -819,12 +862,11 @@ impl NetSession {
                             command,
                         });
                     }
-                    self.remote_turns.insert((tick, team.index()));
+                    self.remote_turns[team.index()].record(tick);
                 }
                 Message::CatchUp { through, turns } => {
                     for (team, last) in through {
-                        self.remote_turns
-                            .extend((0..=last).map(|tick| (tick, team.index())));
+                        self.remote_turns[team.index()].record_all_through(last);
                         self.turns_known_through.insert(team.index(), last);
                     }
                     for (team, tick, commands) in turns {
@@ -900,9 +942,6 @@ pub fn send_turn(
     local: Res<LocalTeam>,
 ) {
     let Some(mut session) = session else { return };
-    session
-        .remote_turns
-        .retain(|&(received, _)| received >= tick.0);
     if session.spectating {
         return;
     }
@@ -935,6 +974,16 @@ pub fn admit_late_guests(session: Option<ResMut<NetSession>>) {
 #[derive(Resource, Default)]
 pub struct CatchingUp(pub Option<f32>);
 
+fn pace_for_catching_up(time: &mut Time<Virtual>) {
+    time.set_relative_speed(CATCH_UP_SPEED);
+    time.set_max_delta(CATCH_UP_LONGEST_FRAME);
+}
+
+fn pace_normally(time: &mut Time<Virtual>, game_speed: f32) {
+    time.set_relative_speed(game_speed);
+    time.set_max_delta(REGULAR_LONGEST_FRAME);
+}
+
 /// A machine that joined late runs the battle many times faster, silently, until it reaches the players.
 pub fn catch_up_with_the_battle(
     session: Option<Res<NetSession>>,
@@ -951,12 +1000,12 @@ pub fn catch_up_with_the_battle(
     match (far_behind, catching_up.0.is_some()) {
         (Some((ticks, known)), _) => {
             catching_up.0 = Some(1.0 - ticks as f32 / known.max(1) as f32);
-            time.set_relative_speed(CATCH_UP_SPEED);
+            pace_for_catching_up(&mut time);
             volume.volume = bevy::audio::Volume::SILENT;
         }
         (None, true) => {
             catching_up.0 = None;
-            time.set_relative_speed(settings.game_speed_factor());
+            pace_normally(&mut time, settings.game_speed_factor());
             volume.volume = crate::sound::master_volume(&settings);
         }
         (None, false) => {}
@@ -1037,5 +1086,52 @@ mod tests {
         assert_eq!(secure.address, "play.example.org:443");
         assert_eq!(secure.url, "wss://play.example.org:443/room/K7Q2");
         assert!(JoinTarget::parse("ws://", 47300).is_err());
+    }
+}
+
+#[cfg(test)]
+mod catching_up_tests {
+    use super::*;
+
+    fn game_time_of_one_frame(time: &mut Time<Virtual>, frame: Duration) -> Duration {
+        let start = Instant::now();
+        let mut real = Time::<Real>::new(start);
+        real.update_with_instant(start);
+        real.update_with_instant(start + frame);
+        bevy::time::update_virtual_time(&mut Time::default(), time, &real);
+        time.delta()
+    }
+
+    #[test]
+    fn catching_up_runs_the_full_speed_even_in_a_slow_background_frame() {
+        let background_frame = Duration::from_millis(33);
+        let mut time = Time::<Virtual>::default();
+        pace_for_catching_up(&mut time);
+        let game_time = game_time_of_one_frame(&mut time, background_frame);
+        assert!(game_time >= background_frame.mul_f32(CATCH_UP_SPEED * 0.99));
+        pace_normally(&mut time, 1.0);
+        assert_eq!(time.max_delta(), Time::<Virtual>::default().max_delta());
+    }
+
+    #[test]
+    fn turns_arriving_after_a_gap_count_once_the_gap_closes() {
+        let mut turns = ReceivedTurns::default();
+        let first = NETWORK_COMMAND_DELAY_TICKS;
+        turns.record(first + 1);
+        assert!(!turns.has(first));
+        assert!(turns.has(first + 1));
+        assert_eq!(turns.latest(), first + 1);
+        turns.record(first);
+        assert_eq!(turns.all_through, first + 1);
+        assert!(turns.ahead.is_empty());
+    }
+
+    #[test]
+    fn a_catch_up_marks_every_turn_through_its_last_tick() {
+        let mut turns = ReceivedTurns::default();
+        turns.record(900);
+        turns.record_all_through(500);
+        assert!(turns.has(0) && turns.has(500) && !turns.has(501));
+        assert_eq!(turns.latest(), 900);
     }
 }
