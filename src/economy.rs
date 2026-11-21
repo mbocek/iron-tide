@@ -111,13 +111,15 @@ pub fn run_harvesters(
             HarvestState::SeekingField => {
                 if harvester.cargo >= HARVESTER_CAPACITY {
                     head_to_refinery(&mut mobile, &map, position, team, &refineries)
-                } else {
+                } else if map.has_crystal_left() {
                     let search_from = harvester.preferred_field.unwrap_or(world_to_cell(position));
                     nearest_free_crystal(&map, search_from, &claimed)
                         .or_else(|| map.nearest_crystal(search_from, FIELD_SEARCH_RADIUS))
                         .or_else(|| distant_field(&map, search_from))
                         .filter(|&cell| order_move(&mut mobile, &map, position, cell, false))
                         .map(HarvestState::TravellingToField)
+                } else {
+                    None
                 }
             }
             HarvestState::TravellingToField(cell) => {

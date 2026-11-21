@@ -419,11 +419,14 @@ pub fn cells_by_distance(center: IVec2, max_radius: i32) -> impl Iterator<Item =
     let direction = if mirrored { -1 } else { 1 };
     (0..=max_radius).flat_map(move |radius| {
         (-radius..=radius).flat_map(move |dy| {
-            (-radius..=radius).filter_map(move |dx| {
-                let on_ring = dx.abs() == radius || dy.abs() == radius;
-                let cell = center + IVec2::new(dx, dy) * direction;
-                (on_ring && GameMap::in_bounds(cell)).then_some(cell)
-            })
+            let whole_row = dy.abs() == radius;
+            let between_sides = if whole_row { 1 } else { 2 * radius };
+            (-radius..=radius)
+                .step_by(between_sides.max(1) as usize)
+                .filter_map(move |dx| {
+                    let cell = center + IVec2::new(dx, dy) * direction;
+                    GameMap::in_bounds(cell).then_some(cell)
+                })
         })
     })
 }
@@ -916,6 +919,41 @@ mod tests {
         assert_eq!(map.mine_crystal(cell, 25), (5, true));
         assert_eq!(map.crystal_at(cell), 0);
         assert!(map.is_buildable(cell));
+    }
+
+    fn every_ring_cell_scanned_row_by_row(center: IVec2, max_radius: i32) -> Vec<IVec2> {
+        let direction = if center.x + center.y > mirror_sum() {
+            -1
+        } else {
+            1
+        };
+        (0..=max_radius)
+            .flat_map(|radius| {
+                (-radius..=radius).flat_map(move |dy| {
+                    (-radius..=radius).filter_map(move |dx| {
+                        let on_ring = dx.abs() == radius || dy.abs() == radius;
+                        let cell = center + IVec2::new(dx, dy) * direction;
+                        (on_ring && GameMap::in_bounds(cell)).then_some(cell)
+                    })
+                })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn walking_only_the_ring_visits_the_same_cells_in_the_same_order() {
+        let far = map_cells() - 3;
+        for center in [
+            IVec2::new(0, 0),
+            IVec2::new(10, 30),
+            IVec2::new(far, far - 20),
+        ] {
+            assert_eq!(
+                cells_by_distance(center, 12).collect::<Vec<_>>(),
+                every_ring_cell_scanned_row_by_row(center, 12),
+                "around {center}"
+            );
+        }
     }
 
     #[test]
