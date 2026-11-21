@@ -11,7 +11,8 @@ transform back before each tick, so drawing never changes the battle.
 Presentation adds its own components to units at moments that differ from machine to machine, which
 changes the order in which Bevy's queries visit them; so every simulation step whose outcome depends on that
 order (firing, projectile hits, destruction, harvesting, healing, repairs, engineers, the computer's army
-and turret walls, choosing a producer or a refinery) goes through `in_simulation_order` or a tie-break on
+and turret walls, choosing a producer, a refinery, a healer's patient, an aircraft's helipad, a service
+station or the nearest known enemy structure) goes through `in_simulation_order` or a tie-break on
 position. `determinism::simulation_checksum` fingerprints units, structures and credits. One test plays
 the same computer-against-computer battle twice for eight minutes and compares the fingerprints every 15
 seconds; another does the same while reshuffling the storage of units, structures and projectiles in one

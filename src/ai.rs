@@ -720,11 +720,12 @@ fn direct_army(
     let scout_alive = ai.scout.is_some_and(|scout| army.contains(scout));
     let needs_scout = known_objective.is_none() && !scout_alive;
 
-    let stations: Vec<&Building> = buildings
+    let mut stations: Vec<&Building> = buildings
         .iter()
         .filter(|(_, owner)| **owner == team)
         .map(|(building, _)| building)
         .collect();
+    stations.sort_by_key(|building| (building.origin.y, building.origin.x));
     let mut waiting_at_home = Vec::new();
     let mut in_simulation_order: Vec<_> = army.iter_mut().collect();
     in_simulation_order.sort_by_key(|member| *member.8);

@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use crate::catalog::{Diplomacy, Team};
 use crate::components::{Building, Unit};
+use crate::determinism::SimId;
 use crate::fog::{FogOfWar, Sight};
 use crate::map::{base_sites, cell_center};
 
@@ -15,7 +16,8 @@ const UPDATE_INTERVAL_SECS: f32 = 0.2;
 pub struct Intel {
     /// Indexed by `Team::index`; the player's slot is unused.
     visions: [FogOfWar; 4],
-    known_structures: [BTreeMap<Entity, Vec3>; 4],
+    /// Keyed by simulation id, so every machine visits them in the same order.
+    known_structures: [BTreeMap<SimId, (Entity, Vec3)>; 4],
 }
 
 impl Intel {
@@ -40,16 +42,16 @@ impl Intel {
 
     /// Last known positions of enemy structures that `viewer`'s side has spotted and not seen destroyed.
     pub fn known_enemy_structures(&self, viewer: Team) -> impl Iterator<Item = Vec3> + '_ {
-        self.known_structures[viewer.index()].values().copied()
+        self.known_structures[viewer.index()]
+            .values()
+            .map(|&(_, position)| position)
     }
 
     pub fn known_enemy_structure_entities(
         &self,
         viewer: Team,
     ) -> impl Iterator<Item = (Entity, Vec3)> + '_ {
-        self.known_structures[viewer.index()]
-            .iter()
-            .map(|(&entity, &position)| (entity, position))
+        self.known_structures[viewer.index()].values().copied()
     }
 
     /// Where to look for an enemy nobody has found: the nearest base site never explored, or failing that
@@ -99,7 +101,7 @@ pub fn update_intel(
     clock: Res<crate::match_flow::MatchClock>,
     forecast: Res<crate::weather::WeatherForecast>,
     viewers: Query<(&Team, &Transform, &Sight), Or<(With<Unit>, With<Building>)>>,
-    buildings: Query<(Entity, &Building, &Team, &Transform)>,
+    buildings: Query<(Entity, &Building, &Team, &Transform, &SimId)>,
 ) {
     if !cadences
         .intel
@@ -120,9 +122,9 @@ pub fn update_intel(
 
     let intel = &mut *intel;
     for known in &mut intel.known_structures {
-        known.retain(|&entity, _| buildings.contains(entity));
+        known.retain(|_, &mut (entity, _)| buildings.contains(entity));
     }
-    for (entity, building, &team, transform) in &buildings {
+    for (entity, building, &team, transform, &id) in &buildings {
         if building.kind.is_wall() {
             continue;
         }
@@ -131,7 +133,7 @@ pub fn update_intel(
             let spotted = diplomacy.hostile(team, viewer)
                 && intel.vision(viewer, &player_fog).is_visible(position);
             if spotted {
-                intel.known_structures[viewer.index()].insert(entity, position);
+                intel.known_structures[viewer.index()].insert(id, (entity, position));
             }
         }
     }

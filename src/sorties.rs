@@ -56,9 +56,13 @@ pub fn fly_home_to_rearm(
         &SimId,
     )>,
 ) {
-    let helipads: Vec<(Team, Vec3)> = pads
+    let mut pads: Vec<(&Building, &Team)> = pads
         .iter()
         .filter(|(building, _)| building.kind == BuildingKind::Helipad)
+        .collect();
+    pads.sort_by_key(|(building, _)| (building.origin.y, building.origin.x));
+    let helipads: Vec<(Team, Vec3)> = pads
+        .into_iter()
         .map(|(building, &team)| {
             let footprint = building.kind.spec().footprint;
             (team, footprint_center(building.origin, footprint))
