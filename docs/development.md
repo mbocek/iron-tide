@@ -78,3 +78,8 @@ entity, and each team variant only repaints the team-colour cell. Measured over 
 Apple M5 Pro: 24,800 → 18,800 entities and about 26 % less CPU time (≈69 s → 51 s); a large map at the start of
 a mission has 7 % fewer entities and no measurable change in CPU time. Trees, rocks and crystals keep their named
 materials, which the game merges itself (`flat_scenery.rs`, `crystal_models.rs`).
+
+Writing a unit's `Transform` only when it changes (interpolation, settling on the terrain, separation, turret
+nodes), so Bevy could skip propagating the transforms of units standing still, made no measurable difference:
+over 40 s of a custom level with 120 idle units, 38.9 and 38.2 s of CPU time before, 38.2 and 38.5 s after
+(Apple M5 Pro). It was left out.
