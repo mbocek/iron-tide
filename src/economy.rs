@@ -16,6 +16,8 @@ const CRYSTAL_PER_MINING_TICK: u32 = 25;
 const UNLOAD_SECS: f32 = 2.0;
 const FIELD_SEARCH_RADIUS: i32 = 40;
 const ARRIVAL_DISTANCE: f32 = 0.6;
+/// A harvester whose route ends this close to its crystal starts mining; crowding can stop it short.
+const MINING_REACH: f32 = ARRIVAL_DISTANCE * 2.0;
 /// Production runs at this speed while a team consumes more power than it generates.
 pub const LOW_POWER_PRODUCTION_RATE: f32 = 0.5;
 
@@ -126,8 +128,7 @@ pub fn run_harvesters(
                 if map.crystal_at(cell) == 0 {
                     Some(HarvestState::SeekingField)
                 } else if !mobile.is_moving() {
-                    let arrived =
-                        position.xz().distance(cell_center(cell).xz()) < ARRIVAL_DISTANCE * 2.0;
+                    let arrived = position.xz().distance(cell_center(cell).xz()) < MINING_REACH;
                     Some(if arrived {
                         HarvestState::Mining {
                             cell,
@@ -294,10 +295,8 @@ pub fn link_ore_load_nodes(
     nodes: Query<(&Name, &Transform)>,
 ) {
     for harvester in &unlinked {
-        let found = children.iter_descendants(harvester).find_map(|node| {
-            let (name, transform) = nodes.get(node).ok()?;
-            (name.as_str() == LOAD_NODE_NAME).then_some((node, transform.scale))
-        });
+        let found = crate::assets::named_node(harvester, LOAD_NODE_NAME, &children, &nodes)
+            .map(|(node, transform)| (node, transform.scale));
         if let Some((node, full_scale)) = found {
             commands
                 .entity(harvester)

@@ -14,6 +14,8 @@ const REPAIR_SHARE_PER_SEC: f32 = 0.04;
 const REPAIR_COST_SHARE: f32 = 0.5;
 const SELL_REFUND_SHARE: f32 = 0.5;
 const SELL_ANIMATION_SECS: f32 = 1.0;
+/// How far a sold structure sinks into the ground before it disappears.
+const SELL_SINK_DEPTH: f32 = 3.0;
 /// The Command Center is never bought, but repairing it should still cost something.
 const COMMAND_CENTER_VALUE: i32 = 3000;
 
@@ -174,7 +176,8 @@ pub fn finish_sales(
         sale.remaining_secs -= time.delta_secs();
         let footprint = building.kind.spec().footprint;
         let sunk = 1.0 - (sale.remaining_secs / SELL_ANIMATION_SECS).clamp(0.0, 1.0);
-        transform.translation.y = footprint_center(building.origin, footprint).y - sunk * 3.0;
+        transform.translation.y =
+            footprint_center(building.origin, footprint).y - sunk * SELL_SINK_DEPTH;
         if sale.remaining_secs > 0.0 {
             continue;
         }

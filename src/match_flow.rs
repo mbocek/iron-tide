@@ -100,8 +100,8 @@ pub fn continue_after_restart(mut next: ResMut<NextState<GameState>>) {
     next.set(GameState::Playing);
 }
 
-/// Everything spawned while a match runs goes away when it ends, except entities marked `Persistent`.
-/// Everything spawned during a match or a replay goes away when it ends.
+/// Everything spawned during a match, a replay or a map editing session goes away when it ends, except
+/// entities marked `Persistent`.
 pub fn scope_match_entities(
     mut commands: Commands,
     state: Res<State<GameState>>,

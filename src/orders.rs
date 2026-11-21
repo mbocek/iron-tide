@@ -152,7 +152,12 @@ fn pointer_at_height(ray: Ray3d, height: f32) -> Option<Vec3> {
 }
 
 /// What the pointer is on. Aircraft are picked where they are seen, up in the air, not by the ground beneath.
-fn target_under(targets: &Targets, ground: Vec3, ray: Option<Ray3d>) -> Option<&TargetInfo> {
+fn target_under(
+    targets: &Targets,
+    viewer: Team,
+    ground: Vec3,
+    ray: Option<Ray3d>,
+) -> Option<&TargetInfo> {
     let pointed_at = |t: &TargetInfo| {
         let airborne = t.armor == ArmorClass::Aircraft;
         ray.filter(|_| airborne)
@@ -161,7 +166,7 @@ fn target_under(targets: &Targets, ground: Vec3, ray: Option<Ray3d>) -> Option<&
     };
     targets
         .iter()
-        .filter(|t| t.seen_locally)
+        .filter(|t| t.seen_by(viewer))
         .filter(|t| {
             let point = pointed_at(t);
             let offset = (point - t.position).xz().abs();
@@ -281,7 +286,7 @@ pub fn select_units(
         }
     } else if let Some(hit) = cursor
         .ground
-        .and_then(|ground| target_under(&targets, ground, cursor.ray))
+        .and_then(|ground| target_under(&targets, local.0, ground, cursor.ray))
         && hit.team == local.0
     {
         commands.entity(hit.entity).insert(Selected);
@@ -390,7 +395,7 @@ pub fn issue_orders(
     let hovered = if from_minimap.is_some() {
         None
     } else {
-        target_under(&targets, ground, cursor.ray).copied()
+        target_under(&targets, team, ground, cursor.ray).copied()
     };
     let goal = world_to_cell(ground);
     let mut acknowledge = |marker: &mut OrderMarker, position: Vec3, kind: MarkerKind| {

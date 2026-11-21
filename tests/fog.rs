@@ -18,7 +18,7 @@ fn seen_locally(battle: &mut Battle, entity: Entity) -> bool {
         .world()
         .resource::<Targets>()
         .get(entity)
-        .is_some_and(|target| target.seen_locally)
+        .is_some_and(|target| target.seen_by(Team::Player))
 }
 
 fn sight_at(battle: &mut Battle, cell: IVec2) -> CellSight {

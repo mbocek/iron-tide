@@ -81,7 +81,7 @@ pub fn spawn_damage_numbers(
         let Some(victim) = targets.get(hit.victim) else {
             continue;
         };
-        if !victim.seen_locally {
+        if !victim.seen_by(local.0) {
             continue;
         }
         let color = if hit.team == local.0 {

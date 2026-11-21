@@ -106,3 +106,16 @@ pub fn load_models(mut commands: Commands, asset_server: Res<AssetServer>) {
         .collect::<HashMap<_, _>>();
     commands.insert_resource(ModelLibrary { scenes });
 }
+
+/// The node of a spawned model's scene with this name, found once the scene has spawned under `root`.
+pub fn named_node<'a>(
+    root: Entity,
+    name: &str,
+    children: &Query<&Children>,
+    nodes: &'a Query<(&Name, &Transform)>,
+) -> Option<(Entity, &'a Transform)> {
+    children.iter_descendants(root).find_map(|node| {
+        let (node_name, transform) = nodes.get(node).ok()?;
+        (node_name.as_str() == name).then_some((node, transform))
+    })
+}

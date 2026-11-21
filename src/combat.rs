@@ -16,7 +16,6 @@ use crate::intel::Intel;
 use crate::interpolation::TickTransforms;
 use crate::map::{CELL_SIZE, GameMap, world_to_cell};
 use crate::movement::order_move;
-use crate::player_commands::LocalTeam;
 use crate::production::Production;
 use crate::research::{incoming_damage_factor, outgoing_damage_factor, reload_factor};
 use crate::sim_math;
@@ -35,6 +34,13 @@ const MUZZLE_HEIGHT: f32 = 1.2;
 const TARGET_CENTER_HEIGHT: f32 = 0.7;
 const SHELL_SCORCH_RADIUS: f32 = 0.8;
 const VEHICLE_SCORCH_RADIUS: f32 = 1.8;
+/// The share of splash damage lost from the centre of a blast to its edge.
+const SPLASH_EDGE_FALLOFF: f32 = 0.6;
+/// How far an artillery shell scorches the ground, as a share of its splash radius.
+const ARTILLERY_SCORCH_SHARE: f32 = 0.8;
+/// How far a collapsing structure scorches the ground, as a share of its larger side.
+const COLLAPSE_SCORCH_SHARE: f32 = 0.6;
+const WRECK_BLAST_HEIGHT: f32 = 0.5;
 
 #[derive(Clone, Copy)]
 pub struct TargetInfo {
@@ -47,8 +53,6 @@ pub struct TargetInfo {
     pub health_fraction: f32,
     /// What it shoots with, so a shooter can tell how dangerous it is; `None` for the unarmed.
     pub weapon: Option<WeaponSpec>,
-    /// Whether the local player may see it; only the interface reads this.
-    pub seen_locally: bool,
     /// Indexed by `Team::index`: whether that team can currently see it.
     seen_by_team: [bool; 4],
 }
@@ -190,7 +194,6 @@ impl Projectile {
 }
 
 pub fn snapshot_targets(
-    local: Res<LocalTeam>,
     mut targets: ResMut<Targets>,
     intel: Res<Intel>,
     diplomacy: Res<Diplomacy>,
@@ -210,10 +213,8 @@ pub fn snapshot_targets(
     targets.list.clear();
     targets.by_entity.clear();
     targets.diplomacy = *diplomacy;
-    let mut in_simulation_order: Vec<_> = damageable.iter().collect();
-    in_simulation_order.sort_by_key(|target| *target.0);
     for (_, entity, &team, transform, radius, armor, is_building, camouflage, health, weapon) in
-        in_simulation_order
+        in_simulation_order(damageable, |target| *target.0)
     {
         let concealed = camouflage.is_some_and(|camouflage| camouflage.concealed);
         let index = targets.list.len();
@@ -227,8 +228,6 @@ pub fn snapshot_targets(
             is_building,
             health_fraction: health.fraction(),
             weapon: weapon.map(|weapon| weapon.spec),
-            seen_locally: !diplomacy.hostile(team, local.0)
-                || (!concealed && intel.vision(local.0).is_visible(transform.translation)),
             seen_by_team: Team::ALL.map(|viewer| {
                 !diplomacy.hostile(team, viewer)
                     || (!concealed && intel.vision(viewer).is_visible(transform.translation))
@@ -527,7 +526,7 @@ pub fn fly_projectiles(
                 if distance > weapon.splash_radius {
                     continue;
                 }
-                let falloff = 1.0 - 0.6 * distance / weapon.splash_radius;
+                let falloff = 1.0 - SPLASH_EDGE_FALLOFF * distance / weapon.splash_radius;
                 apply_damage(
                     &mut healths,
                     &mut damage_log,
@@ -559,7 +558,7 @@ pub fn fly_projectiles(
             ProjectileStyle::Shell | ProjectileStyle::Missile | ProjectileStyle::Flame => {
                 SHELL_SCORCH_RADIUS
             }
-            ProjectileStyle::ArtilleryShell => weapon.splash_radius * 0.8,
+            ProjectileStyle::ArtilleryShell => weapon.splash_radius * ARTILLERY_SCORCH_SHARE,
         };
         if scorch_radius > 0.0 {
             impacts.write(Impact {
@@ -664,7 +663,9 @@ pub fn remove_destroyed(
         };
         let scorch_radius = match (blast, building) {
             (BlastSize::BuildingCollapse, Some(building)) => {
-                building.kind.spec().footprint.as_vec2().max_element() * CELL_SIZE * 0.6
+                building.kind.spec().footprint.as_vec2().max_element()
+                    * CELL_SIZE
+                    * COLLAPSE_SCORCH_SHARE
             }
             (BlastSize::VehicleWreck, _) => VEHICLE_SCORCH_RADIUS,
             _ => 0.0,
@@ -683,7 +684,10 @@ pub fn remove_destroyed(
         if let Some(sound) = destruction_sound {
             cues.write(SoundCue::at(sound, transform.translation));
         }
-        blasts.write(BlastCue::at(transform.translation + Vec3::Y * 0.5, blast));
+        blasts.write(BlastCue::at(
+            transform.translation + Vec3::Y * WRECK_BLAST_HEIGHT,
+            blast,
+        ));
         commands.entity(entity).despawn();
     }
 }
@@ -697,13 +701,8 @@ pub fn link_turret_nodes(
         if turret.node.is_some() {
             continue;
         }
-        let found = children.iter_descendants(entity).find_map(|node| {
-            nodes
-                .get(node)
-                .ok()
-                .filter(|(name, _)| name.as_str() == "Turret")
-                .map(|(_, t)| (node, t.rotation))
-        });
+        let found = crate::assets::named_node(entity, "Turret", &children, &nodes)
+            .map(|(node, transform)| (node, transform.rotation));
         if let Some((node, base_rotation)) = found {
             turret.node = Some(node);
             turret.node_base_rotation = base_rotation;

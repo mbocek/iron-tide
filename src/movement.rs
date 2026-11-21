@@ -21,6 +21,8 @@ const FLIGHT_NOSE_DOWN: f32 = 0.12;
 /// Vehicles drive forward only once roughly facing their next waypoint, so they turn on the spot like tracked vehicles.
 const DRIVE_ALIGNMENT_TOLERANCE: f32 = 0.7;
 const SEPARATION_STRENGTH: f32 = 2.5;
+/// Units on the move yield half as much to a crowd, so they push through it to their waypoint.
+const MOVING_SEPARATION_SHARE: f32 = 0.5;
 const VEHICLE_HALF_LENGTH_PER_RADIUS: f32 = 1.2;
 const VEHICLE_HALF_WIDTH_PER_RADIUS: f32 = 0.75;
 const HULL_CLEARANCE: f32 = 0.03;
@@ -222,7 +224,11 @@ pub fn separate_units(
                 push += away * overlap;
             }
         }
-        let resting_factor = if mobile.is_moving() { 0.5 } else { 1.0 };
+        let resting_factor = if mobile.is_moving() {
+            MOVING_SEPARATION_SHARE
+        } else {
+            1.0
+        };
         let candidate = transform.translation + push * SEPARATION_STRENGTH * resting_factor * dt;
         if mobile.flying || map.is_passable(world_to_cell(candidate)) {
             transform.translation = candidate;

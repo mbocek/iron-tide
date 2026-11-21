@@ -387,13 +387,8 @@ pub fn link_rotor_nodes(
 ) {
     for entity in &aircraft {
         let find = |wanted: &str| {
-            children.iter_descendants(entity).find_map(|node| {
-                nodes
-                    .get(node)
-                    .ok()
-                    .filter(|(name, _)| name.as_str() == wanted)
-                    .map(|(_, transform)| (node, transform.rotation))
-            })
+            crate::assets::named_node(entity, wanted, &children, &nodes)
+                .map(|(node, transform)| (node, transform.rotation))
         };
         if let Some(main) = find("Rotor") {
             commands.entity(entity).insert(Rotors {

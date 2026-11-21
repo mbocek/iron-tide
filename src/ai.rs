@@ -720,9 +720,8 @@ fn direct_army(
         .collect();
     stations.sort_by_key(|building| (building.origin.y, building.origin.x));
     let mut waiting_at_home = Vec::new();
-    let mut in_simulation_order: Vec<_> = army.iter_mut().collect();
-    in_simulation_order.sort_by_key(|member| *member.8);
-    for (entity, unit, &owner, transform, health, mobile, attack, orders, _) in in_simulation_order
+    for (entity, unit, &owner, transform, health, mobile, attack, orders, _) in
+        in_simulation_order(army.iter_mut(), |member| *member.8)
     {
         let is_soldier = owner == team && fights(unit.0);
         let Some(mut orders) = orders.filter(|_| is_soldier) else {
@@ -908,9 +907,8 @@ pub fn mine_the_approaches(
     mut engineers: Query<MinerUnit>,
 ) {
     let mut mined: Vec<IVec2> = mines.iter().map(|mine| mine.cell).collect();
-    let mut in_simulation_order: Vec<_> = engineers.iter_mut().collect();
-    in_simulation_order.sort_by_key(|engineer| *engineer.7);
-    for (entity, _, team, transform, mobile, trip, ..) in &in_simulation_order {
+    let mut engineers = in_simulation_order(engineers.iter_mut(), |engineer| *engineer.7);
+    for (entity, _, team, transform, mobile, trip, ..) in &engineers {
         let Some(MineTrip(goal)) = trip else {
             continue;
         };
@@ -941,19 +939,20 @@ pub fn mine_the_approaches(
             continue;
         }
         let home = footprint_center(ai.base, BuildingKind::CommandCenter.spec().footprint);
-        let has_engineer = in_simulation_order
+        let has_engineer = engineers
             .iter()
             .any(|(_, unit, team, ..)| **team == ai.team && unit.0 == UnitKind::Engineer);
-        let idle_engineer = in_simulation_order.iter_mut().find(
-            |(_, unit, team, transform, mobile, trip, tasked, _)| {
-                **team == ai.team
-                    && unit.0 == UnitKind::Engineer
-                    && trip.is_none()
-                    && !tasked
-                    && !mobile.is_moving()
-                    && transform.translation.distance(home) < BASE_DEFENSE_RADIUS
-            },
-        );
+        let idle_engineer =
+            engineers
+                .iter_mut()
+                .find(|(_, unit, team, transform, mobile, trip, tasked, _)| {
+                    **team == ai.team
+                        && unit.0 == UnitKind::Engineer
+                        && trip.is_none()
+                        && !tasked
+                        && !mobile.is_moving()
+                        && transform.translation.distance(home) < BASE_DEFENSE_RADIUS
+                });
         let Some((entity, _, _, transform, mobile, ..)) = idle_engineer else {
             let engineer = BuildItem::Unit(UnitKind::Engineer);
             let queued = production
