@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use crate::catalog::Team;
+use crate::combat::Projectile;
 use crate::components::{Building, Unit};
 use crate::fog::{CellSight, FogOfWar};
 use crate::local_view::LocalView;
@@ -156,6 +157,21 @@ pub fn reveal_explored_scenery(
             *visibility = Visibility::Inherited;
             commands.entity(entity).remove::<Shrouded>();
         }
+    }
+}
+
+/// Shells and bullets show only where the player can see, like the explosions they end in.
+pub fn show_seen_projectiles(
+    view: LocalView,
+    mut projectiles: Query<(&Transform, &mut Visibility), With<Projectile>>,
+) {
+    for (transform, mut visibility) in &mut projectiles {
+        let wanted = if view.sight().is_visible(transform.translation) {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        visibility.set_if_neq(wanted);
     }
 }
 

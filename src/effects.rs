@@ -3,6 +3,7 @@ use rand::RngExt;
 
 use crate::catalog::ProjectileStyle;
 use crate::combat::Projectile;
+use crate::local_view::LocalView;
 
 #[derive(Resource)]
 pub struct EffectAssets {
@@ -167,9 +168,13 @@ pub fn animate_sparkles(
 pub fn show_blasts(
     mut commands: Commands,
     effects: Res<EffectAssets>,
+    view: LocalView,
     mut cues: MessageReader<BlastCue>,
 ) {
-    for cue in cues.read() {
+    let seen = cues
+        .read()
+        .filter(|cue| view.sight().is_visible(cue.position));
+    for cue in seen {
         spawn_blast(&mut commands, &effects, cue.position, cue.size);
     }
 }

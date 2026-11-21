@@ -160,6 +160,7 @@ pub fn emit_damage_smoke(
     mut commands: Commands,
     time: Res<Time>,
     effects: Res<EffectAssets>,
+    view: crate::local_view::LocalView,
     mut damaged: Query<(
         Entity,
         &Health,
@@ -171,7 +172,7 @@ pub fn emit_damage_smoke(
     let mut rng = rand::rng();
     for (entity, health, transform, radius, smoke) in &mut damaged {
         let fraction = health.fraction();
-        if fraction >= SMOKING_BELOW {
+        if fraction >= SMOKING_BELOW || !view.sight().is_visible(transform.translation) {
             continue;
         }
         let Some(mut smoke) = smoke else {

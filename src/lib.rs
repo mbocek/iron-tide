@@ -717,6 +717,7 @@ impl Plugin for GamePlugin {
                         fog_view::paint_fog_texture,
                         fog_view::reveal_explored_scenery,
                         fog_view::show_seen_enemies,
+                        fog_view::show_seen_projectiles,
                         minimap::redraw_minimap,
                         ui::show_outcome,
                     )

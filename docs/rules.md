@@ -87,7 +87,8 @@
   stockpile credits). The end screen compares you with your opponents (units trained and lost, structures built and
   lost, enemies destroyed, damage, credits harvested, match time) and offers the replay of the match.
 - **Fog of war:** unexplored ground is black; explored ground stays visible but enemy units show only within
-  the sight of your units and buildings. Enemy structures stay on the map once spotted. Your units only open
+  the sight of your units and buildings, and so do shells, explosions and the smoke of damaged vehicles and
+  structures. Enemy structures stay on the map once spotted. Your units only open
   fire on enemies someone on your side can see, so long-range artillery needs a spotter. The computer
   opponents play by the same rules: allied Syndicate commanders share one view of the map, remember the
   structures they have spotted, and send a scout (a Scout Buggy if they have one) and then their attack
