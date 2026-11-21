@@ -20,6 +20,7 @@
 | `crystal_models`, `motion_material` | crystal deposits merged into one mesh per material; GPU vertex motion (wind, hovering shards) |
 | `minimap`, `notifications` | minimap, status messages |
 | `ui`, `overlay` | sidebar (tabs, tiles with icons), health bars, selection |
+| `ui/` | `mod.rs` fonts, colours and the sidebar's frame; `build_menu` tabs, tiles and their tooltip; `resources` credits and power; `info_panel` the selection; `mission_status` objective, match time and notifications; `controls_help` the key overview; `outcome` the victory or defeat screen |
 | `settings`, `menu`, `perf_overlay`, `frame_pacing` | settings and their persistence, in-game menu, performance overlay, frame rate limit |
 | `savegame` | saving and loading games (JSON) |
 | `lib.rs` | `SimulationPlugin` (battle logic, also used headless by the tests) and `GamePlugin` (the full game) |
