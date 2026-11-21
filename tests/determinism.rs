@@ -80,3 +80,52 @@ fn presentation_reordering_units_does_not_change_the_battle() {
         );
     }
 }
+
+const COMMANDER_JOINS_AT_TICK: u64 = 6;
+const SECOND_MATCH_SAMPLE_TICKS: u64 = 600;
+
+fn step_to_tick(battle: &mut Battle, tick: u64) {
+    while battle.tick() < tick {
+        battle.app.update();
+    }
+}
+
+fn restart_match(battle: &mut Battle) {
+    use bevy::prelude::*;
+    use iron_tide::match_flow::GameState;
+    battle
+        .world()
+        .resource_mut::<NextState<GameState>>()
+        .set(GameState::Restarting);
+    battle.app.update();
+    while battle.state() != GameState::Playing {
+        battle.app.update();
+    }
+}
+
+fn computer_battle_checksums(battle: &mut Battle) -> Vec<u64> {
+    step_to_tick(battle, COMMANDER_JOINS_AT_TICK);
+    battle.add_ai(Team::Player, BaseSite::SouthWest.origin(), Difficulty::Hard);
+    (1..=4)
+        .map(|sample| {
+            step_to_tick(
+                battle,
+                COMMANDER_JOINS_AT_TICK + sample * SECOND_MATCH_SAMPLE_TICKS,
+            );
+            simulation_checksum(battle.world())
+        })
+        .collect()
+}
+
+#[test]
+fn a_second_match_in_the_same_process_plays_out_like_a_fresh_one() {
+    let fresh = computer_battle_checksums(&mut Battle::standard());
+    let mut rematch = Battle::standard();
+    step_to_tick(&mut rematch, 3);
+    restart_match(&mut rematch);
+    assert_eq!(
+        fresh,
+        computer_battle_checksums(&mut rematch),
+        "a match played after an earlier one drifted from a fresh one"
+    );
+}

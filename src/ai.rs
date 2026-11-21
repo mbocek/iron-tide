@@ -213,7 +213,7 @@ fn turret_shield(turret: IVec2) -> [IVec2; 3] {
 pub fn fortify_turrets(
     mut commands: Commands,
     time: Res<Time>,
-    mut countdown: Local<f32>,
+    mut cadences: ResMut<crate::cadence::SimulationCadences>,
     models: Res<ModelLibrary>,
     commanders: Res<AiCommanders>,
     mut map: ResMut<GameMap>,
@@ -222,11 +222,12 @@ pub fn fortify_turrets(
     buildings: Query<(&Building, &Team)>,
     units: Query<&Transform, With<Unit>>,
 ) {
-    *countdown -= time.delta_secs();
-    if *countdown > 0.0 {
+    if !cadences
+        .turret_fortification
+        .is_due(time.delta_secs(), FORTIFY_INTERVAL_SECS)
+    {
         return;
     }
-    *countdown = FORTIFY_INTERVAL_SECS;
     let wall = BuildingKind::Wall;
     let occupied: Vec<IVec2> = units.iter().map(|t| world_to_cell(t.translation)).collect();
     for ai in &commanders.0 {
@@ -263,7 +264,7 @@ pub fn fortify_turrets(
 pub fn employ_engineers(
     mut commands: Commands,
     time: Res<Time>,
-    mut countdown: Local<f32>,
+    mut cadences: ResMut<crate::cadence::SimulationCadences>,
     commanders: Res<AiCommanders>,
     intel: Res<Intel>,
     mut production: ResMut<Production>,
@@ -279,11 +280,12 @@ pub fn employ_engineers(
         &SimId,
     )>,
 ) {
-    *countdown -= time.delta_secs();
-    if *countdown > 0.0 {
+    if !cadences
+        .engineer_dispatch
+        .is_due(time.delta_secs(), ENGINEER_INTERVAL_SECS)
+    {
         return;
     }
-    *countdown = ENGINEER_INTERVAL_SECS;
     for ai in &commanders.0 {
         let home = footprint_center(ai.base, BuildingKind::CommandCenter.spec().footprint);
         let Some((target, _)) = intel
@@ -901,7 +903,7 @@ type MinerUnit<'a> = (
 pub fn mine_the_approaches(
     mut commands: Commands,
     time: Res<Time>,
-    mut countdown: Local<f32>,
+    mut cadences: ResMut<crate::cadence::SimulationCadences>,
     mut rng: ResMut<SimulationRng>,
     commanders: Res<AiCommanders>,
     map: Res<GameMap>,
@@ -932,11 +934,12 @@ pub fn mine_the_approaches(
         commands.entity(*entity).remove::<MineTrip>();
     }
 
-    *countdown -= time.delta_secs();
-    if *countdown > 0.0 {
+    if !cadences
+        .minefield_planning
+        .is_due(time.delta_secs(), MINING_INTERVAL_SECS)
+    {
         return;
     }
-    *countdown = MINING_INTERVAL_SECS;
     for ai in &commanders.0 {
         let laid = mines.iter().filter(|mine| mine.team == ai.team).count();
         let rich = economies.of(ai.team).credits >= MINE_COST + RESEARCH_RESERVE;
@@ -1001,12 +1004,13 @@ type GuardUnit<'a> = (
 /// When an enemy shoots at one of its harvesters, a commander sends soldiers idling at home to drive it off.
 pub fn defend_harvesters(
     time: Res<Time>,
-    mut cooldowns: Local<[f32; 4]>,
+    mut cadences: ResMut<crate::cadence::SimulationCadences>,
     commanders: Res<AiCommanders>,
     mut hits: MessageReader<DamageDealt>,
     harvesters: Query<&Transform, With<Harvester>>,
     mut army: Query<GuardUnit>,
 ) {
+    let cooldowns = &mut cadences.harvester_rescue_cooldown_secs;
     for cooldown in cooldowns.iter_mut() {
         *cooldown = (*cooldown - time.delta_secs()).max(0.0);
     }

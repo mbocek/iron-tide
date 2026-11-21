@@ -15,7 +15,9 @@ and turret walls, choosing a producer or a refinery) goes through `in_simulation
 position. `determinism::simulation_checksum` fingerprints units, structures and credits. One test plays
 the same computer-against-computer battle twice for eight minutes and compares the fingerprints every 15
 seconds; another does the same while reshuffling the storage of units, structures and projectiles in one
-of the two battles every second.
+of the two battles every second; a third replays the battle in a process that already played a short match,
+since every rhythm of the simulation (fog and intel updates, the computer's periodic plans) lives in
+`SimulationCadences`, which each match starts afresh.
 
 Everything the player does to the battle (orders to units, rally points, engineers, production and its
 cancelling, placing structures and walls, repairing and selling) becomes a `PlayerCommand`, which names

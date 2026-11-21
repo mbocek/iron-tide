@@ -9,6 +9,7 @@ pub mod army_mix;
 pub mod assets;
 pub mod battle_noise;
 pub mod battlefield;
+pub mod cadence;
 pub mod camera;
 pub mod campaigns;
 pub mod capture;
@@ -198,6 +199,7 @@ impl Plugin for SimulationPlugin {
             .init_resource::<match_flow::MatchClock>()
             .init_resource::<fog::FogOfWar>()
             .init_resource::<intel::Intel>()
+            .init_resource::<cadence::SimulationCadences>()
             .init_resource::<catalog::Diplomacy>()
             .init_resource::<veterancy::LastHits>()
             .init_resource::<match_stats::MatchStats>()

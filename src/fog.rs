@@ -128,18 +128,16 @@ impl Default for FogOfWar {
 
 pub fn update_fog(
     time: Res<Time>,
-    mut countdown: Local<f32>,
+    mut cadences: ResMut<crate::cadence::SimulationCadences>,
     mut fog: ResMut<FogOfWar>,
     diplomacy: Res<Diplomacy>,
     clock: Res<crate::match_flow::MatchClock>,
     forecast: Res<crate::weather::WeatherForecast>,
     viewers: Query<(&Team, &Transform, &Sight), Or<(With<Unit>, With<Building>)>>,
 ) {
-    *countdown -= time.delta_secs();
-    if *countdown > 0.0 {
+    if !cadences.fog.is_due(time.delta_secs(), UPDATE_INTERVAL_SECS) {
         return;
     }
-    *countdown = UPDATE_INTERVAL_SECS;
     let weather_sight = forecast.sight_factor(clock.elapsed_secs);
     let own = viewers
         .iter()

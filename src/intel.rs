@@ -92,7 +92,7 @@ impl Default for Intel {
 
 pub fn update_intel(
     time: Res<Time>,
-    mut countdown: Local<f32>,
+    mut cadences: ResMut<crate::cadence::SimulationCadences>,
     mut intel: ResMut<Intel>,
     player_fog: Res<FogOfWar>,
     diplomacy: Res<Diplomacy>,
@@ -101,11 +101,12 @@ pub fn update_intel(
     viewers: Query<(&Team, &Transform, &Sight), Or<(With<Unit>, With<Building>)>>,
     buildings: Query<(Entity, &Building, &Team, &Transform)>,
 ) {
-    *countdown -= time.delta_secs();
-    if *countdown > 0.0 {
+    if !cadences
+        .intel
+        .is_due(time.delta_secs(), UPDATE_INTERVAL_SECS)
+    {
         return;
     }
-    *countdown = UPDATE_INTERVAL_SECS;
     let weather_sight = forecast.sight_factor(clock.elapsed_secs);
     for opponent in Team::OPPONENTS {
         let allied_eyes = viewers
