@@ -13,6 +13,7 @@ use crate::crystal_models::{CRYSTAL_MODELS, CrystalModel};
 use crate::fog_view::FogTexture;
 use crate::levels::ActiveLevel;
 use crate::scenery;
+use crate::sim_math;
 use crate::terrain::{
     FAR_RING_WIDTH, Landscape, OUTLANDS_WIDTH, WATER_LEVEL, approximate_ground,
     build_far_terrain_mesh, build_terrain_mesh,
@@ -564,8 +565,8 @@ impl FieldOutline {
 
     fn reach(&self, angle: f32) -> f32 {
         let [(twice, twice_phase), (thrice, thrice_phase)] = self.lobes;
-        1.0 + twice * (2.0 * angle + twice_phase).sin()
-            + thrice * (3.0 * angle + thrice_phase).sin()
+        1.0 + twice * sim_math::sin(2.0 * angle + twice_phase)
+            + thrice * sim_math::sin(3.0 * angle + thrice_phase)
     }
 }
 
@@ -576,7 +577,7 @@ fn seed_crystal_fields(commands: &mut Commands, map: &mut GameMap, rng: &mut Std
         for cell in cells_by_distance(field.center, reach) {
             let offset = (cell - field.center).as_vec2();
             let distance = offset.length();
-            let edge = field.radius * outline.reach(offset.y.atan2(offset.x));
+            let edge = field.radius * outline.reach(sim_math::atan2(offset.y, offset.x));
             let inside = distance + rng.random_range(-EDGE_JITTER..EDGE_JITTER) <= edge;
             let stray = !inside && distance <= edge + STRAY_REACH && rng.random_bool(STRAY_CHANCE);
             let Some(i) = GameMap::index(cell) else {
