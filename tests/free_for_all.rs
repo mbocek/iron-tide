@@ -4,7 +4,6 @@ use bevy::prelude::*;
 use common::{Battle, BattleSetup};
 use iron_tide::catalog::{Team, UnitKind};
 use iron_tide::components::Health;
-use iron_tide::fog::FogOfWar;
 use iron_tide::intel::Intel;
 use iron_tide::levels::{EnemySetup, LevelDefinition};
 use iron_tide::map::cell_center;
@@ -46,11 +45,8 @@ fn in_a_free_for_all_every_opponent_sees_only_through_its_own_eyes() {
         battle.spawn_unit(UnitKind::Scout, Team::Crimson, FIELD);
         battle.run_for(0.5);
         let world = battle.world();
-        let player_fog = world.resource::<FogOfWar>().clone();
         let intel = world.resource::<Intel>();
-        let seen_by_amber = intel
-            .vision(Team::Amber, &player_fog)
-            .is_visible(cell_center(FIELD));
+        let seen_by_amber = intel.vision(Team::Amber).is_visible(cell_center(FIELD));
         assert_eq!(seen_by_amber, !free_for_all, "free for all: {free_for_all}");
     }
 }

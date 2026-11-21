@@ -12,7 +12,6 @@ use crate::catalog::{
 use crate::components::*;
 use crate::determinism::{SimId, SimulationRng, in_simulation_order};
 use crate::effects::{BlastCue, BlastSize};
-use crate::fog::FogOfWar;
 use crate::intel::Intel;
 use crate::interpolation::TickTransforms;
 use crate::map::{CELL_SIZE, GameMap, world_to_cell};
@@ -193,7 +192,6 @@ impl Projectile {
 pub fn snapshot_targets(
     local: Res<LocalTeam>,
     mut targets: ResMut<Targets>,
-    fog: Res<FogOfWar>,
     intel: Res<Intel>,
     diplomacy: Res<Diplomacy>,
     damageable: Query<(
@@ -230,13 +228,10 @@ pub fn snapshot_targets(
             health_fraction: health.fraction(),
             weapon: weapon.map(|weapon| weapon.spec),
             seen_locally: !diplomacy.hostile(team, local.0)
-                || (!concealed
-                    && intel
-                        .vision(local.0, &fog)
-                        .is_visible(transform.translation)),
+                || (!concealed && intel.vision(local.0).is_visible(transform.translation)),
             seen_by_team: Team::ALL.map(|viewer| {
                 !diplomacy.hostile(team, viewer)
-                    || (!concealed && intel.vision(viewer, &fog).is_visible(transform.translation))
+                    || (!concealed && intel.vision(viewer).is_visible(transform.translation))
             }),
         });
     }

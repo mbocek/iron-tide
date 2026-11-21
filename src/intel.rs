@@ -10,12 +10,12 @@ use crate::map::{base_sites, cell_center};
 
 const UPDATE_INTERVAL_SECS: f32 = 0.2;
 
-/// What each team knows. A computer opponent sees what its own and its allies' units and buildings see;
-/// the Coalition's view is the player's `FogOfWar`. Enemy structures stay known once spotted.
+/// What each team knows: every side sees what its own and its allies' units and buildings see, and
+/// enemy structures stay known once spotted.
 #[derive(Resource, Clone)]
 pub struct Intel {
-    /// Indexed by `Team::index`; the player's slot is unused.
-    visions: [FogOfWar; 4],
+    /// Indexed by `Team::index`.
+    visions: [FogOfWar; Team::ALL.len()],
     /// Keyed by simulation id, so every machine visits them in the same order.
     known_structures: [BTreeMap<SimId, (Entity, Vec3)>; 4],
 }
@@ -28,16 +28,12 @@ impl Intel {
         }
     }
 
-    pub fn vision<'a>(&'a self, viewer: Team, player_fog: &'a FogOfWar) -> &'a FogOfWar {
-        if viewer == Team::Player {
-            player_fog
-        } else {
-            &self.visions[viewer.index()]
-        }
+    pub fn vision(&self, viewer: Team) -> &FogOfWar {
+        &self.visions[viewer.index()]
     }
 
-    pub fn opponent_vision_mut(&mut self, opponent: Team) -> &mut FogOfWar {
-        &mut self.visions[opponent.index()]
+    pub fn vision_mut(&mut self, viewer: Team) -> &mut FogOfWar {
+        &mut self.visions[viewer.index()]
     }
 
     /// Last known positions of enemy structures that `viewer`'s side has spotted and not seen destroyed.
@@ -56,13 +52,8 @@ impl Intel {
 
     /// Where to look for an enemy nobody has found: the nearest base site never explored, or failing that
     /// the nearest one out of sight right now.
-    pub fn base_site_to_search(
-        &self,
-        viewer: Team,
-        player_fog: &FogOfWar,
-        from: Vec3,
-    ) -> Option<Vec3> {
-        let vision = self.vision(viewer, player_fog);
+    pub fn base_site_to_search(&self, viewer: Team, from: Vec3) -> Option<Vec3> {
+        let vision = self.vision(viewer);
         let sites: Vec<Vec3> = base_sites()
             .iter()
             .map(|&site| cell_center(site + IVec2::ONE))
@@ -96,7 +87,6 @@ pub fn update_intel(
     time: Res<Time>,
     mut cadences: ResMut<crate::cadence::SimulationCadences>,
     mut intel: ResMut<Intel>,
-    player_fog: Res<FogOfWar>,
     diplomacy: Res<Diplomacy>,
     clock: Res<crate::match_flow::MatchClock>,
     forecast: Res<crate::weather::WeatherForecast>,
@@ -110,14 +100,12 @@ pub fn update_intel(
         return;
     }
     let weather_sight = forecast.sight_factor(clock.elapsed_secs);
-    for opponent in Team::OPPONENTS {
+    for viewer in Team::ALL {
         let allied_eyes = viewers
             .iter()
-            .filter(|(team, ..)| !diplomacy.hostile(**team, opponent))
+            .filter(|(team, ..)| !diplomacy.hostile(**team, viewer))
             .map(|(_, transform, sight)| (transform.translation, sight.0 * weather_sight));
-        intel
-            .opponent_vision_mut(opponent)
-            .reveal_around(allied_eyes);
+        intel.vision_mut(viewer).reveal_around(allied_eyes);
     }
 
     let intel = &mut *intel;
@@ -130,8 +118,8 @@ pub fn update_intel(
         }
         let position = transform.translation;
         for viewer in Team::ALL {
-            let spotted = diplomacy.hostile(team, viewer)
-                && intel.vision(viewer, &player_fog).is_visible(position);
+            let spotted =
+                diplomacy.hostile(team, viewer) && intel.vision(viewer).is_visible(position);
             if spotted {
                 intel.known_structures[viewer.index()].insert(id, (entity, position));
             }

@@ -1,11 +1,7 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{Diplomacy, Team};
-use crate::components::{Building, Unit};
 use crate::map::{CELL_SIZE, GameMap, map_cells, world_to_cell};
-
-const UPDATE_INTERVAL_SECS: f32 = 0.2;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum CellSight {
@@ -15,8 +11,8 @@ pub enum CellSight {
     Visible,
 }
 
-/// What one side knows about each map cell: the player's view, or the Syndicate's inside `Intel`.
-#[derive(Resource, Clone)]
+/// What one side knows about each map cell; `Intel` keeps one per team.
+#[derive(Clone)]
 pub struct FogOfWar {
     enabled: bool,
     cells: Vec<CellSight>,
@@ -124,26 +120,6 @@ impl Default for FogOfWar {
     fn default() -> Self {
         Self::new(true)
     }
-}
-
-pub fn update_fog(
-    time: Res<Time>,
-    mut cadences: ResMut<crate::cadence::SimulationCadences>,
-    mut fog: ResMut<FogOfWar>,
-    diplomacy: Res<Diplomacy>,
-    clock: Res<crate::match_flow::MatchClock>,
-    forecast: Res<crate::weather::WeatherForecast>,
-    viewers: Query<(&Team, &Transform, &Sight), Or<(With<Unit>, With<Building>)>>,
-) {
-    if !cadences.fog.is_due(time.delta_secs(), UPDATE_INTERVAL_SECS) {
-        return;
-    }
-    let weather_sight = forecast.sight_factor(clock.elapsed_secs);
-    let own = viewers
-        .iter()
-        .filter(|(team, ..)| !diplomacy.hostile(**team, Team::Player))
-        .map(|(_, transform, sight)| (transform.translation, sight.0 * weather_sight));
-    fog.reveal_around(own);
 }
 
 #[cfg(test)]

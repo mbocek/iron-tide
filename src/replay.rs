@@ -291,7 +291,7 @@ impl ReplayRecorder {
 /// Replays show everything; the fog of war belongs to the match.
 pub fn clear_the_fog(mut commands: Commands, level: Res<ActiveLevel>) {
     level.0.shape_the_world();
-    commands.insert_resource(crate::fog::FogOfWar::new(false));
+    commands.insert_resource(crate::intel::Intel::new(false));
 }
 
 pub fn stop_watching(mut commands: Commands) {

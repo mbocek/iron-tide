@@ -12,7 +12,6 @@ use crate::camera::RtsCamera;
 use crate::catalog::{BuildingKind, Team, UnitKind};
 use crate::components::*;
 use crate::economy::Economies;
-use crate::fog::FogOfWar;
 use crate::i18n::{tr, tr_fmt};
 use crate::intel::Intel;
 use crate::key_bindings::Action;
@@ -199,7 +198,6 @@ pub fn write_requested_save(
     economies: Res<Economies>,
     production: Res<Production>,
     commanders: Res<AiCommanders>,
-    fog: Res<FogOfWar>,
     intel: Res<Intel>,
     cameras: Query<&RtsCamera>,
     mines: Query<&Mine>,
@@ -301,10 +299,10 @@ pub fn write_requested_save(
         camera_focus: cameras
             .single()
             .map_or([0.0; 3], |camera| camera.focus.to_array()),
-        explored: fog.explored_cells(),
+        explored: intel.vision(Team::Player).explored_cells(),
         explored_by_syndicate: Vec::new(),
         explored_by_opponents: Team::OPPONENTS
-            .map(|opponent| intel.vision(opponent, &fog).explored_cells())
+            .map(|opponent| intel.vision(opponent).explored_cells())
             .to_vec(),
     };
     let path = slot_path(&directory, slot);
@@ -374,7 +372,6 @@ pub fn restore_pending_load(
     mut clock: ResMut<MatchClock>,
     mut events_fired: ResMut<EventsFired>,
     mut notifications: ResMut<Notifications>,
-    mut fog: ResMut<FogOfWar>,
     mut intel: ResMut<Intel>,
     mut cameras: Query<&mut RtsCamera>,
 ) {
@@ -463,15 +460,15 @@ pub fn restore_pending_load(
     *commanders = save.ai;
     clock.elapsed_secs = save.match_secs;
     events_fired.0 = save.events_fired.clone();
-    fog.restore_explored(&save.explored);
+    intel
+        .vision_mut(Team::Player)
+        .restore_explored(&save.explored);
     for (index, opponent) in Team::OPPONENTS.into_iter().enumerate() {
         let explored = save
             .explored_by_opponents
             .get(index)
             .unwrap_or(&save.explored_by_syndicate);
-        intel
-            .opponent_vision_mut(opponent)
-            .restore_explored(explored);
+        intel.vision_mut(opponent).restore_explored(explored);
     }
     for mut camera in &mut cameras {
         camera.focus = Vec3::from_array(save.camera_focus);

@@ -126,7 +126,6 @@ pub fn command_enemies(
     models: Res<ModelLibrary>,
     targets: Res<Targets>,
     intel: Res<Intel>,
-    player_fog: Res<FogOfWar>,
     mut commanders: ResMut<AiCommanders>,
     mut map: ResMut<GameMap>,
     mut production: ResMut<Production>,
@@ -152,7 +151,7 @@ pub fn command_enemies(
             &models,
             &mut map,
             &mut production,
-            intel.vision(ai.team, &player_fog),
+            intel.vision(ai.team),
             &buildings,
             &unit_positions,
         );
@@ -190,7 +189,6 @@ pub fn command_enemies(
         let knowledge = Knowledge {
             targets: &targets,
             intel: &intel,
-            player_fog: &player_fog,
         };
         direct_army(ai, &knowledge, &map, &buildings, &mut army);
     }
@@ -659,7 +657,6 @@ fn pursue_research(
 struct Knowledge<'a> {
     targets: &'a Targets,
     intel: &'a Intel,
-    player_fog: &'a FogOfWar,
 }
 
 fn direct_army(
@@ -705,11 +702,7 @@ fn direct_army(
         })
         .map(|t| t.position);
     let known_objective = known_assault_objective(team, home, &visible_enemies, knowledge.intel);
-    let search_site = || {
-        knowledge
-            .intel
-            .base_site_to_search(team, knowledge.player_fog, home)
-    };
+    let search_site = || knowledge.intel.base_site_to_search(team, home);
     let assault_objective = known_objective.or_else(search_site);
 
     if visible_enemies.iter().any(|t| !t.is_building) {

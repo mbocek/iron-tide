@@ -23,7 +23,6 @@ impl Cadence {
 /// every machine joining it does.
 #[derive(Resource, Clone, Default)]
 pub struct SimulationCadences {
-    pub fog: Cadence,
     pub intel: Cadence,
     pub turret_fortification: Cadence,
     pub engineer_dispatch: Cadence,

@@ -197,7 +197,6 @@ impl Plugin for SimulationPlugin {
             .init_resource::<notifications::LastAlert>()
             .init_resource::<control_groups::ControlGroups>()
             .init_resource::<match_flow::MatchClock>()
-            .init_resource::<fog::FogOfWar>()
             .init_resource::<intel::Intel>()
             .init_resource::<cadence::SimulationCadences>()
             .init_resource::<catalog::Diplomacy>()
@@ -266,7 +265,6 @@ impl Plugin for SimulationPlugin {
                     )
                         .chain(),
                     (
-                        fog::update_fog,
                         intel::update_intel,
                         abilities::update_camouflage,
                         combat::snapshot_targets,

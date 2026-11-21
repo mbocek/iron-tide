@@ -632,7 +632,6 @@ pub fn place_structure(
     mut placement: ResMut<Placement>,
     economies: Res<Economies>,
     intel: Res<Intel>,
-    player_fog: Res<FogOfWar>,
     buildings: Query<(&Building, &Team)>,
     units: Query<&Transform, With<Unit>>,
     mut ghosts: Query<
@@ -672,7 +671,7 @@ pub fn place_structure(
     };
     let origin = placement_origin(ground, footprint);
     let team = issuer.team();
-    let known_ground = intel.vision(team, &player_fog);
+    let known_ground = intel.vision(team);
     let valid =
         placement_context(&map, team, known_ground, &buildings, &units).can_place(kind, origin);
     if let Ok((mut transform, mut material, mut visibility)) = ghosts.get_mut(ghost) {
@@ -736,7 +735,6 @@ pub fn preview_wall_drag(
     map: Res<GameMap>,
     economies: Res<Economies>,
     intel: Res<Intel>,
-    player_fog: Res<FogOfWar>,
     local: Res<LocalTeam>,
     ghost_materials: Res<GhostMaterials>,
     buildings: Query<(&Building, &Team)>,
@@ -758,13 +756,7 @@ pub fn preview_wall_drag(
     let segments: Vec<(IVec2, bool)> = match dragged {
         Some((anchor, end)) => {
             let team = local.0;
-            let mut context = placement_context(
-                &map,
-                team,
-                intel.vision(team, &player_fog),
-                &buildings,
-                &units,
-            );
+            let mut context = placement_context(&map, team, intel.vision(team), &buildings, &units);
             let laid = affordable_wall_line(&mut context, anchor, end, economies.of(team).credits);
             wall_line(anchor, end)
                 .into_iter()
@@ -1112,7 +1104,6 @@ mod tests {
         economies.of_mut(Team::Player).credits = BuildingKind::Wall.spec().cost * 3 + 10;
         world.insert_resource(economies);
         world.insert_resource(Intel::new(false));
-        world.insert_resource(FogOfWar::new(false));
         world.insert_resource(LocalTeam(Team::Player));
         world.spawn((
             Building {

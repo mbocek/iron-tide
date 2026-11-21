@@ -11,7 +11,6 @@ use crate::player_commands::LocalTeam;
 /// the interface must use only the local one, or a networked opponent would see through the fog.
 #[derive(SystemParam)]
 pub struct LocalView<'w> {
-    fog: Res<'w, FogOfWar>,
     intel: Res<'w, Intel>,
     local: Res<'w, LocalTeam>,
     diplomacy: Res<'w, Diplomacy>,
@@ -39,7 +38,7 @@ impl LocalView<'_> {
     pub fn sight(&self) -> &FogOfWar {
         match &self.spectator {
             Some(view) => &view.0,
-            None => self.intel.vision(self.local.0, &self.fog),
+            None => self.intel.vision(self.local.0),
         }
     }
 
