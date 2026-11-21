@@ -70,30 +70,52 @@ fn shade(sight: CellSight) -> u8 {
 
 /// Softens the blocky cell grid with a separable box blur so the fog edge reads as a gradient.
 fn blurred_shades(fog: &FogOfWar) -> Vec<u8> {
-    let size = resolution() as i32;
-    let at = |values: &[u32], x: i32, y: i32| {
-        values[(y.clamp(0, size - 1) * size + x.clamp(0, size - 1)) as usize]
-    };
+    let size = resolution() as usize;
     let raw: Vec<u32> = (0..size * size)
-        .map(|i| shade(fog.sight_at(IVec2::new(i % size, i / size) / TEXELS_PER_CELL)) as u32)
+        .map(|i| {
+            let texel = IVec2::new((i % size) as i32, (i / size) as i32);
+            shade(fog.sight_at(texel / TEXELS_PER_CELL)) as u32
+        })
         .collect();
+    box_blur(&raw, size)
+}
+
+/// Each output averages the `2 * BLUR_RADIUS + 1` inputs around it along a row, then along a column, the edge
+/// repeating beyond the border. A running sum makes each texel cost the same whatever the radius.
+fn box_blur(raw: &[u32], size: usize) -> Vec<u8> {
     let taps = (2 * BLUR_RADIUS + 1) as u32;
-    let horizontal: Vec<u32> = (0..size * size)
-        .map(|i| {
-            (-BLUR_RADIUS..=BLUR_RADIUS)
-                .map(|d| at(&raw, i % size + d, i / size))
-                .sum::<u32>()
-                / taps
-        })
-        .collect();
-    (0..size * size)
-        .map(|i| {
-            ((-BLUR_RADIUS..=BLUR_RADIUS)
-                .map(|d| at(&horizontal, i % size, i / size + d))
-                .sum::<u32>()
-                / taps) as u8
-        })
-        .collect()
+    let mut horizontal = vec![0u32; raw.len()];
+    let mut line = vec![0u32; size];
+    for row in 0..size {
+        let start = row * size;
+        sliding_sums(&raw[start..start + size], &mut line);
+        for (column, sum) in line.iter().enumerate() {
+            horizontal[start + column] = sum / taps;
+        }
+    }
+    let mut blurred = vec![0u8; raw.len()];
+    let mut column_values = vec![0u32; size];
+    for column in 0..size {
+        for (row, value) in column_values.iter_mut().enumerate() {
+            *value = horizontal[row * size + column];
+        }
+        sliding_sums(&column_values, &mut line);
+        for (row, sum) in line.iter().enumerate() {
+            blurred[row * size + column] = (sum / taps) as u8;
+        }
+    }
+    blurred
+}
+
+fn sliding_sums(values: &[u32], sums: &mut [u32]) {
+    let last = values.len() as i32 - 1;
+    let at = |index: i32| values[index.clamp(0, last) as usize];
+    let mut sum: u32 = (-BLUR_RADIUS..=BLUR_RADIUS).map(at).sum();
+    for (index, slot) in sums.iter_mut().enumerate() {
+        *slot = sum;
+        let index = index as i32;
+        sum = sum + at(index + BLUR_RADIUS + 1) - at(index - BLUR_RADIUS);
+    }
 }
 
 pub fn paint_fog_texture(
@@ -208,5 +230,44 @@ pub fn show_seen_enemies(
         } else {
             visibility.set_if_neq(Visibility::Hidden);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn box_blur_tap_by_tap(raw: &[u32], size: usize) -> Vec<u8> {
+        let size = size as i32;
+        let at = |values: &[u32], x: i32, y: i32| {
+            values[(y.clamp(0, size - 1) * size + x.clamp(0, size - 1)) as usize]
+        };
+        let taps = (2 * BLUR_RADIUS + 1) as u32;
+        let horizontal: Vec<u32> = (0..size * size)
+            .map(|i| {
+                (-BLUR_RADIUS..=BLUR_RADIUS)
+                    .map(|d| at(raw, i % size + d, i / size))
+                    .sum::<u32>()
+                    / taps
+            })
+            .collect();
+        (0..size * size)
+            .map(|i| {
+                ((-BLUR_RADIUS..=BLUR_RADIUS)
+                    .map(|d| at(&horizontal, i % size, i / size + d))
+                    .sum::<u32>()
+                    / taps) as u8
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_running_blur_matches_summing_every_tap() {
+        let size = 37;
+        let shades = [UNEXPLORED_SHADE, EXPLORED_SHADE, VISIBLE_SHADE];
+        let raw: Vec<u32> = (0..size * size)
+            .map(|i| shades[(i * 7 + i / 5) % shades.len()] as u32)
+            .collect();
+        assert_eq!(box_blur(&raw, size), box_blur_tap_by_tap(&raw, size));
     }
 }
