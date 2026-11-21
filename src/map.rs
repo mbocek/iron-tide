@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::f32::consts::TAU;
+use std::sync::{Mutex, PoisonError};
 
 use bevy::prelude::*;
 use pathfinding::prelude::astar;
@@ -155,6 +156,49 @@ pub struct GameMap {
     crystal: Vec<u32>,
     /// How many cells still hold crystal, so a search of the whole map can be skipped once it is mined out.
     crystal_cells: usize,
+    /// `None` after passability changed; labelled again by the next route search that needs it.
+    regions: Mutex<Option<Regions>>,
+}
+
+/// Areas of passable cells a unit can drive between, so a route into another one fails at once instead of
+/// after searching every cell it could reach.
+struct Regions(Vec<u32>);
+
+impl Regions {
+    const IMPASSABLE: u32 = 0;
+
+    fn label(map: &GameMap) -> Self {
+        let size = map_cells();
+        let mut labels = vec![Self::IMPASSABLE; (size * size) as usize];
+        let mut next_label = Self::IMPASSABLE;
+        let mut frontier = Vec::new();
+        for index in 0..labels.len() {
+            let seed = IVec2::new(index as i32 % size, index as i32 / size);
+            if labels[index] != Self::IMPASSABLE || !map.is_passable(seed) {
+                continue;
+            }
+            next_label += 1;
+            labels[index] = next_label;
+            frontier.push(seed);
+            while let Some(cell) = frontier.pop() {
+                for step in [IVec2::X, IVec2::NEG_X, IVec2::Y, IVec2::NEG_Y] {
+                    let next = cell + step;
+                    let Some(i) = GameMap::index(next) else {
+                        continue;
+                    };
+                    if labels[i] == Self::IMPASSABLE && map.is_passable(next) {
+                        labels[i] = next_label;
+                        frontier.push(next);
+                    }
+                }
+            }
+        }
+        Self(labels)
+    }
+
+    fn of(&self, cell: IVec2) -> u32 {
+        GameMap::index(cell).map_or(Self::IMPASSABLE, |i| self.0[i])
+    }
 }
 
 #[derive(Component)]
@@ -172,6 +216,7 @@ impl GameMap {
             building: vec![None; cells],
             crystal: vec![0; cells],
             crystal_cells: 0,
+            regions: Mutex::new(None),
         }
     }
 
@@ -209,6 +254,7 @@ impl GameMap {
                 self.building[i] = occupant;
             }
         }
+        self.forget_regions();
     }
 
     pub fn crystal_amounts(&self) -> Vec<u32> {
@@ -222,6 +268,7 @@ impl GameMap {
             self.crystal = crystal;
         }
         self.building.fill(None);
+        self.forget_regions();
     }
 
     pub fn set_crystal(&mut self, cell: IVec2, amount: u32) {
@@ -244,6 +291,25 @@ impl GameMap {
         if let Some(i) = Self::index(cell) {
             self.terrain_blocked[i] = blocked;
         }
+        self.forget_regions();
+    }
+
+    fn forget_regions(&mut self) {
+        *self
+            .regions
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner) = None;
+    }
+
+    /// Whether a unit at `from` could drive to the passable cell `to`. A unit stuck on a blocked cell, inside
+    /// a new building for one, may be able to step out to several areas, so the route search decides for it.
+    fn may_reach(&self, from: IVec2, to: IVec2) -> bool {
+        if !self.is_passable(from) {
+            return true;
+        }
+        let mut regions = self.regions.lock().unwrap_or_else(PoisonError::into_inner);
+        let regions = regions.get_or_insert_with(|| Regions::label(self));
+        regions.of(from) == regions.of(to)
     }
 
     pub fn crystal_at(&self, cell: IVec2) -> u32 {
@@ -297,6 +363,9 @@ impl GameMap {
         } else {
             cells_by_distance(goal, map_cells()).find(|&cell| passable(cell))?
         };
+        if !self.may_reach(to_map(start), to_map(goal)) {
+            return None;
+        }
         let (path, _cost) = astar(
             &start,
             |&cell| walkable_neighbours(cell, passable),
@@ -465,8 +534,9 @@ fn block_water(map: &mut GameMap, landscape: Landscape) {
     let size = map_cells();
     for row in 0..size {
         for column in 0..size {
-            if is_water(landscape, IVec2::new(column, row)) {
-                map.terrain_blocked[(row * size + column) as usize] = true;
+            let cell = IVec2::new(column, row);
+            if is_water(landscape, cell) {
+                map.set_obstacle(cell, true);
             }
         }
     }
@@ -656,6 +726,34 @@ mod tests {
         [(9, 13), (29, 33), (49, 53)]
             .iter()
             .any(|&(start, end)| column >= start && column <= end)
+    }
+
+    fn wall_in(map: &mut GameMap, center: IVec2) -> Vec<IVec2> {
+        let ring: Vec<IVec2> = cells_by_distance(center, 1).skip(1).collect();
+        for &cell in &ring {
+            map.set_obstacle(cell, true);
+        }
+        ring
+    }
+
+    #[test]
+    fn a_route_into_a_walled_in_pocket_fails_until_the_wall_opens() {
+        let mut map = GameMap::empty();
+        let pocket = IVec2::new(20, 20);
+        let ring = wall_in(&mut map, pocket);
+        assert_eq!(map.find_path(IVec2::new(2, 2), pocket), None);
+        assert_eq!(map.find_path(pocket, IVec2::new(2, 2)), None);
+        map.set_obstacle(ring[1], false);
+        let route = map.find_path(IVec2::new(2, 2), pocket);
+        assert_eq!(route.and_then(|route| route.last().copied()), Some(pocket));
+    }
+
+    #[test]
+    fn a_unit_standing_on_a_blocked_cell_still_finds_its_way_out() {
+        let mut map = GameMap::empty();
+        let blocked = IVec2::new(20, 20);
+        map.set_obstacle(blocked, true);
+        assert!(map.find_path(blocked, IVec2::new(2, 2)).is_some());
     }
 
     #[test]

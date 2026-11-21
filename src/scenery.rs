@@ -352,9 +352,7 @@ fn block_with_prop(
         return;
     }
     for cell in pair {
-        if let Some(i) = GameMap::index(cell) {
-            map.terrain_blocked[i] = true;
-        }
+        map.set_obstacle(cell, true);
         let jitter = Vec3::new(
             rng.random_range(-0.3..0.3),
             0.0,
