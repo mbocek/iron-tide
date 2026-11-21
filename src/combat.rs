@@ -498,81 +498,103 @@ pub fn fly_projectiles(
 ) {
     let in_order = in_simulation_order(projectiles.iter_mut(), |item| *item.3);
     for (entity, mut projectile, mut transform, _) in in_order {
-        if let Some(target) = projectile.target.and_then(|e| targets.get(e)) {
-            projectile.end = target.position + Vec3::Y * TARGET_CENTER_HEIGHT;
-        }
-        projectile.elapsed += time.delta_secs();
-        let t = (projectile.elapsed / projectile.duration).min(1.0);
-        let previous = transform.translation;
-        let arc = 4.0 * projectile.arc_height * t * (1.0 - t);
-        transform.translation = projectile.start.lerp(projectile.end, t) + Vec3::Y * arc;
-        let heading = transform.translation - previous;
-        if heading.length_squared() > 1e-6 {
-            transform.rotation = Quat::from_rotation_arc(Vec3::Y, heading.normalize());
-        }
-        if t < 1.0 {
+        let landed = fly(&mut projectile, &mut transform, &targets, time.delta_secs());
+        if !landed {
             continue;
         }
-
         commands.entity(entity).despawn();
+        deal_impact_damage(
+            &projectile,
+            &targets,
+            &mut healths,
+            &mut damage_log,
+            &production,
+        );
         let impact = projectile.end;
-        let weapon = projectile.weapon;
-        if weapon.splash_radius > 0.0 {
-            for victim in targets
-                .iter()
-                .filter(|t| targets.hostile(t.team, projectile.team))
-            {
-                let distance = surface_distance(impact, victim);
-                if distance > weapon.splash_radius {
-                    continue;
-                }
-                let falloff = 1.0 - SPLASH_EDGE_FALLOFF * distance / weapon.splash_radius;
-                apply_damage(
-                    &mut healths,
-                    &mut damage_log,
-                    &production,
-                    victim,
-                    weapon.damage * falloff * weapon.multiplier_against(victim.armor),
-                    &projectile,
-                );
-            }
-        } else if let Some(victim) = projectile.target.and_then(|e| targets.get(e)) {
-            apply_damage(
-                &mut healths,
-                &mut damage_log,
-                &production,
-                victim,
-                weapon.damage * weapon.multiplier_against(victim.armor),
-                &projectile,
-            );
-        }
-        let blast = match weapon.style {
-            ProjectileStyle::Bullet | ProjectileStyle::Flame => BlastSize::BulletImpact,
-            ProjectileStyle::Shell | ProjectileStyle::ArtilleryShell | ProjectileStyle::Missile => {
-                BlastSize::ShellImpact
-            }
-        };
-        blasts.write(BlastCue::at(impact, blast));
-        let scorch_radius = match weapon.style {
-            ProjectileStyle::Bullet => 0.0,
-            ProjectileStyle::Shell | ProjectileStyle::Missile | ProjectileStyle::Flame => {
-                SHELL_SCORCH_RADIUS
-            }
-            ProjectileStyle::ArtilleryShell => weapon.splash_radius * ARTILLERY_SCORCH_SHARE,
-        };
+        let style = projectile.weapon.style;
+        blasts.write(BlastCue::at(impact, impact_blast(style)));
+        let scorch_radius = scorch_radius(&projectile.weapon);
         if scorch_radius > 0.0 {
             impacts.write(Impact {
                 position: impact,
                 scorch_radius,
             });
         }
-        let impact_sound = match weapon.style {
-            ProjectileStyle::Bullet | ProjectileStyle::Flame => Sound::BulletImpact,
-            ProjectileStyle::Shell | ProjectileStyle::ArtilleryShell | ProjectileStyle::Missile => {
-                Sound::ShellExplosion
+        cues.write(SoundCue::at(impact_sound(style), impact));
+    }
+}
+
+/// Moves a projectile along its arc, still following a homing target; true once it reaches the end.
+fn fly(projectile: &mut Projectile, transform: &mut Transform, targets: &Targets, dt: f32) -> bool {
+    if let Some(target) = projectile.target.and_then(|e| targets.get(e)) {
+        projectile.end = target.position + Vec3::Y * TARGET_CENTER_HEIGHT;
+    }
+    projectile.elapsed += dt;
+    let t = (projectile.elapsed / projectile.duration).min(1.0);
+    let previous = transform.translation;
+    let arc = 4.0 * projectile.arc_height * t * (1.0 - t);
+    transform.translation = projectile.start.lerp(projectile.end, t) + Vec3::Y * arc;
+    let heading = transform.translation - previous;
+    if heading.length_squared() > 1e-6 {
+        transform.rotation = Quat::from_rotation_arc(Vec3::Y, heading.normalize());
+    }
+    t >= 1.0
+}
+
+/// A splash weapon hurts every enemy within its radius, less towards the edge; any other only its target.
+fn deal_impact_damage(
+    projectile: &Projectile,
+    targets: &Targets,
+    healths: &mut Query<&mut Health>,
+    damage_log: &mut MessageWriter<DamageDealt>,
+    production: &Production,
+) {
+    let impact = projectile.end;
+    let weapon = projectile.weapon;
+    if weapon.splash_radius > 0.0 {
+        for victim in targets
+            .iter()
+            .filter(|t| targets.hostile(t.team, projectile.team))
+        {
+            let distance = surface_distance(impact, victim);
+            if distance > weapon.splash_radius {
+                continue;
             }
-        };
-        cues.write(SoundCue::at(impact_sound, impact));
+            let falloff = 1.0 - SPLASH_EDGE_FALLOFF * distance / weapon.splash_radius;
+            let amount = weapon.damage * falloff * weapon.multiplier_against(victim.armor);
+            apply_damage(healths, damage_log, production, victim, amount, projectile);
+        }
+    } else if let Some(victim) = projectile.target.and_then(|e| targets.get(e)) {
+        let amount = weapon.damage * weapon.multiplier_against(victim.armor);
+        apply_damage(healths, damage_log, production, victim, amount, projectile);
+    }
+}
+
+fn impact_blast(style: ProjectileStyle) -> BlastSize {
+    match style {
+        ProjectileStyle::Bullet | ProjectileStyle::Flame => BlastSize::BulletImpact,
+        ProjectileStyle::Shell | ProjectileStyle::ArtilleryShell | ProjectileStyle::Missile => {
+            BlastSize::ShellImpact
+        }
+    }
+}
+
+fn scorch_radius(weapon: &WeaponSpec) -> f32 {
+    match weapon.style {
+        ProjectileStyle::Bullet => 0.0,
+        ProjectileStyle::Shell | ProjectileStyle::Missile | ProjectileStyle::Flame => {
+            SHELL_SCORCH_RADIUS
+        }
+        ProjectileStyle::ArtilleryShell => weapon.splash_radius * ARTILLERY_SCORCH_SHARE,
+    }
+}
+
+fn impact_sound(style: ProjectileStyle) -> Sound {
+    match style {
+        ProjectileStyle::Bullet | ProjectileStyle::Flame => Sound::BulletImpact,
+        ProjectileStyle::Shell | ProjectileStyle::ArtilleryShell | ProjectileStyle::Missile => {
+            Sound::ShellExplosion
+        }
     }
 }
 
