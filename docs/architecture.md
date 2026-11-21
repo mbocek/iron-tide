@@ -22,6 +22,7 @@
 | `settings`, `menu`, `perf_overlay`, `frame_pacing` | settings and their persistence, in-game menu, performance overlay, frame rate limit |
 | `savegame` | saving and loading games (JSON) |
 | `lib.rs` | `SimulationPlugin` (battle logic, also used headless by the tests) and `GamePlugin` (the full game) |
+| `game_plugins` | the parts `GamePlugin` adds to the simulation: battle view, menus, sound, display, replays, map editor, asset loading, network battle |
 | `campaigns` | campaigns as chains of missions: unlocking, progress, campaign difficulty |
 | `levels`, `match_flow`, `main_menu` | level definitions, campaign and custom levels; match setup and states; main menu and battle editor |
 | `medical` | field medics healing infantry |
