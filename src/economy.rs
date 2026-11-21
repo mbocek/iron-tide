@@ -87,6 +87,18 @@ pub fn tally_power(mut economies: ResMut<Economies>, buildings: Query<(&Building
     }
 }
 
+type Refineries<'w, 's> =
+    Query<'w, 's, (Entity, &'static Building, &'static Team, &'static Transform)>;
+type CrystalVisuals<'w, 's> = Query<
+    'w,
+    's,
+    (&'static CrystalVisual, &'static mut Transform),
+    (Without<Harvester>, Without<Building>),
+>;
+
+/// A harvester whose route ends this close to the refinery's dock unloads there.
+const DOCKING_REACH: f32 = ARRIVAL_DISTANCE * 2.0;
+
 pub fn run_harvesters(
     local: Res<LocalTeam>,
     mut cues: MessageWriter<SoundCue>,
@@ -94,11 +106,8 @@ pub fn run_harvesters(
     mut map: ResMut<GameMap>,
     mut economies: ResMut<Economies>,
     mut harvesters: Query<(&Team, &Transform, &mut Harvester, &mut Mobile, &SimId)>,
-    refineries: Query<(Entity, &Building, &Team, &Transform)>,
-    mut crystal_visuals: Query<
-        (&CrystalVisual, &mut Transform),
-        (Without<Harvester>, Without<Building>),
-    >,
+    refineries: Refineries,
+    mut crystal_visuals: CrystalVisuals,
 ) {
     let dt = time.delta_secs();
     let mut claimed: Vec<IVec2> = harvesters
@@ -108,79 +117,31 @@ pub fn run_harvesters(
     let in_order = in_simulation_order(harvesters.iter_mut(), |item| *item.4);
     for (&team, transform, mut harvester, mut mobile, _) in in_order {
         let position = transform.translation;
+        let mobile = &mut *mobile;
         let next_state = match harvester.state {
             HarvestState::Holding => None,
-            HarvestState::SeekingField => {
-                if harvester.cargo >= HARVESTER_CAPACITY {
-                    head_to_refinery(&mut mobile, &map, position, team, &refineries)
-                } else if map.has_crystal_left() {
-                    let search_from = harvester.preferred_field.unwrap_or(world_to_cell(position));
-                    nearest_free_crystal(&map, search_from, &claimed)
-                        .or_else(|| map.nearest_crystal(search_from, FIELD_SEARCH_RADIUS))
-                        .or_else(|| distant_field(&map, search_from))
-                        .filter(|&cell| order_move(&mut mobile, &map, position, cell, false))
-                        .map(HarvestState::TravellingToField)
-                } else {
-                    None
-                }
-            }
-            HarvestState::TravellingToField(cell) => {
-                if map.crystal_at(cell) == 0 {
-                    Some(HarvestState::SeekingField)
-                } else if !mobile.is_moving() {
-                    let arrived = position.xz().distance(cell_center(cell).xz()) < MINING_REACH;
-                    Some(if arrived {
-                        HarvestState::Mining {
-                            cell,
-                            timer: MINING_TICK_SECS,
-                        }
-                    } else {
-                        HarvestState::SeekingField
-                    })
-                } else {
-                    None
-                }
-            }
+            HarvestState::SeekingField => seek_field(
+                &harvester,
+                mobile,
+                &map,
+                position,
+                team,
+                &refineries,
+                &claimed,
+            ),
+            HarvestState::TravellingToField(cell) => arrive_at_field(cell, mobile, &map, position),
             HarvestState::Mining { cell, timer } => {
                 let timer = timer - dt;
                 if timer > 0.0 {
                     Some(HarvestState::Mining { cell, timer })
                 } else {
-                    let room = HARVESTER_CAPACITY - harvester.cargo;
-                    let (mined, depleted) =
-                        map.mine_crystal(cell, room.min(CRYSTAL_PER_MINING_TICK));
-                    harvester.cargo += mined;
-                    harvester.preferred_field = Some(cell);
-                    if !depleted {
-                        resize_crystal_visual(&map, &mut crystal_visuals, cell);
-                    }
-                    if harvester.cargo >= HARVESTER_CAPACITY {
-                        head_to_refinery(&mut mobile, &map, position, team, &refineries)
-                    } else if depleted {
-                        Some(HarvestState::SeekingField)
-                    } else {
-                        Some(HarvestState::Mining {
-                            cell,
-                            timer: MINING_TICK_SECS,
-                        })
-                    }
+                    let ground = (&mut *map, &mut crystal_visuals, &refineries);
+                    mine_a_load(cell, &mut harvester, mobile, ground, position, team)
                 }
             }
-            HarvestState::ReturningToRefinery(refinery) => match refineries.get(refinery) {
-                Err(_) => Some(HarvestState::SeekingField),
-                Ok(_) if mobile.is_moving() => None,
-                Ok((_, building, _, _)) => {
-                    let dock = cell_center(exit_cell(building));
-                    if position.xz().distance(dock.xz()) < ARRIVAL_DISTANCE * 2.0 {
-                        Some(HarvestState::Unloading {
-                            refinery,
-                            timer: UNLOAD_SECS,
-                        })
-                    } else {
-                        head_to_refinery(&mut mobile, &map, position, team, &refineries)
-                    }
-                }
-            },
+            HarvestState::ReturningToRefinery(refinery) => {
+                dock_at_refinery(refinery, mobile, &map, position, team, &refineries)
+            }
             HarvestState::Unloading { refinery, timer } => {
                 let timer = timer - dt;
                 if refineries.get(refinery).is_err() {
@@ -188,11 +149,7 @@ pub fn run_harvesters(
                 } else if timer > 0.0 {
                     Some(HarvestState::Unloading { refinery, timer })
                 } else {
-                    let economy = economies.of_mut(team);
-                    let earned = (harvester.cargo as f32 * economy.income_rate).round() as i32;
-                    economy.credits += earned;
-                    economy.harvested += earned;
-                    harvester.cargo = 0;
+                    sell_the_cargo(&mut harvester, economies.of_mut(team));
                     if team == local.0 {
                         cues.write(SoundCue::at(Sound::Credits, position));
                     }
@@ -205,6 +162,112 @@ pub fn run_harvesters(
             harvester.state = state;
         }
     }
+}
+
+/// A full harvester heads for a refinery; an empty one for the nearest crystal no other harvester claimed.
+fn seek_field(
+    harvester: &Harvester,
+    mobile: &mut Mobile,
+    map: &GameMap,
+    position: Vec3,
+    team: Team,
+    refineries: &Refineries,
+    claimed: &[IVec2],
+) -> Option<HarvestState> {
+    if harvester.cargo >= HARVESTER_CAPACITY {
+        return head_to_refinery(mobile, map, position, team, refineries);
+    }
+    if !map.has_crystal_left() {
+        return None;
+    }
+    let search_from = harvester.preferred_field.unwrap_or(world_to_cell(position));
+    nearest_free_crystal(map, search_from, claimed)
+        .or_else(|| map.nearest_crystal(search_from, FIELD_SEARCH_RADIUS))
+        .or_else(|| distant_field(map, search_from))
+        .filter(|&cell| order_move(mobile, map, position, cell, false))
+        .map(HarvestState::TravellingToField)
+}
+
+fn arrive_at_field(
+    cell: IVec2,
+    mobile: &Mobile,
+    map: &GameMap,
+    position: Vec3,
+) -> Option<HarvestState> {
+    if map.crystal_at(cell) == 0 {
+        return Some(HarvestState::SeekingField);
+    }
+    if mobile.is_moving() {
+        return None;
+    }
+    let arrived = position.xz().distance(cell_center(cell).xz()) < MINING_REACH;
+    Some(if arrived {
+        HarvestState::Mining {
+            cell,
+            timer: MINING_TICK_SECS,
+        }
+    } else {
+        HarvestState::SeekingField
+    })
+}
+
+fn mine_a_load(
+    cell: IVec2,
+    harvester: &mut Harvester,
+    mobile: &mut Mobile,
+    (map, crystal_visuals, refineries): (&mut GameMap, &mut CrystalVisuals, &Refineries),
+    position: Vec3,
+    team: Team,
+) -> Option<HarvestState> {
+    let room = HARVESTER_CAPACITY - harvester.cargo;
+    let (mined, depleted) = map.mine_crystal(cell, room.min(CRYSTAL_PER_MINING_TICK));
+    harvester.cargo += mined;
+    harvester.preferred_field = Some(cell);
+    if !depleted {
+        resize_crystal_visual(map, crystal_visuals, cell);
+    }
+    if harvester.cargo >= HARVESTER_CAPACITY {
+        head_to_refinery(mobile, map, position, team, refineries)
+    } else if depleted {
+        Some(HarvestState::SeekingField)
+    } else {
+        Some(HarvestState::Mining {
+            cell,
+            timer: MINING_TICK_SECS,
+        })
+    }
+}
+
+fn dock_at_refinery(
+    refinery: Entity,
+    mobile: &mut Mobile,
+    map: &GameMap,
+    position: Vec3,
+    team: Team,
+    refineries: &Refineries,
+) -> Option<HarvestState> {
+    let Ok((_, building, _, _)) = refineries.get(refinery) else {
+        return Some(HarvestState::SeekingField);
+    };
+    if mobile.is_moving() {
+        return None;
+    }
+    let dock = cell_center(exit_cell(building));
+    if position.xz().distance(dock.xz()) < DOCKING_REACH {
+        Some(HarvestState::Unloading {
+            refinery,
+            timer: UNLOAD_SECS,
+        })
+    } else {
+        head_to_refinery(mobile, map, position, team, refineries)
+    }
+}
+
+fn sell_the_cargo(harvester: &mut Harvester, economy: &mut TeamEconomy) {
+    let earned = (harvester.cargo as f32 * economy.income_rate).round() as i32;
+    economy.credits += earned;
+    economy.harvested += earned;
+    harvester.cargo = 0;
 }
 
 fn claimed_crystal(state: HarvestState) -> Option<IVec2> {
@@ -233,7 +296,7 @@ fn head_to_refinery(
     map: &GameMap,
     position: Vec3,
     team: Team,
-    refineries: &Query<(Entity, &Building, &Team, &Transform)>,
+    refineries: &Refineries,
 ) -> Option<HarvestState> {
     let (refinery, building, _, _) = refineries
         .iter()
@@ -251,11 +314,7 @@ fn head_to_refinery(
         .then_some(HarvestState::ReturningToRefinery(refinery))
 }
 
-fn resize_crystal_visual(
-    map: &GameMap,
-    visuals: &mut Query<(&CrystalVisual, &mut Transform), (Without<Harvester>, Without<Building>)>,
-    cell: IVec2,
-) {
+fn resize_crystal_visual(map: &GameMap, visuals: &mut CrystalVisuals, cell: IVec2) {
     if let Some((visual, mut transform)) =
         visuals.iter_mut().find(|(visual, _)| visual.cell == cell)
     {
