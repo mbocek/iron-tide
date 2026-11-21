@@ -8,7 +8,8 @@
 | `movement` | path following, unit separation |
 | `combat` | target acquisition, chasing, turrets, projectiles, damage |
 | `economy` | credits, power, harvester state machine |
-| `production` | production queues, placing structures |
+| `production` | production queues and the rules for where structures and walls may stand |
+| `placement` | placing a structure or dragging a wall with the mouse: ghosts, previews and the resulting command |
 | `structures`, `structure_tools` | repairing and selling structures; the repair / sell mouse modes, buttons and hint |
 | `orders` | selection and player orders |
 | `ai` | computer opponents: build plan, saving up for structures, gathered attack waves, base defense |

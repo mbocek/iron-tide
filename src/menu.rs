@@ -13,8 +13,8 @@ use crate::match_flow::GameState;
 use crate::match_flow::MatchClock;
 use crate::match_stats::MatchStats;
 use crate::outcome::objective_status;
+use crate::placement::Placement;
 use crate::player_commands::LocalTeam;
-use crate::production::Placement;
 use crate::savegame::{
     NAMED_SLOTS, QUICK_SAVE_SLOT, SaveDirectory, SaveRequests, slot_label, slot_summary,
 };

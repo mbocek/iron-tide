@@ -2,9 +2,10 @@ use bevy::prelude::*;
 
 use crate::catalog::{BuildingKind, Team};
 use crate::i18n::tr;
+use crate::placement::Placement;
 use crate::player_commands::LocalTeam;
 use crate::player_commands::{CommandIssuer, PlayerCommand};
-use crate::production::{BuildItem, Lane, Placement, Production};
+use crate::production::{BuildItem, Lane, Production};
 use crate::ui::{
     ACCENT, FRAME, GOOD, PANEL, SIDEBAR_WIDTH, TEXT_DIM, UiFonts, icon_path, set_field,
 };

@@ -7,7 +7,7 @@ use crate::{
     battlefield, camera, campaigns, capture, combat, control_groups, crystal_models,
     damage_feedback, economy, effects, field_tips, flat_scenery, fog_view, frame_pacing, graphics,
     interpolation, lobby, local_view, main_menu, map, map_editor, map_edits, match_flow, menu,
-    minimap, motion_material, network, network_hud, orders, overlay, perf_overlay, production,
+    minimap, motion_material, network, network_hud, orders, overlay, perf_overlay, placement,
     queue_bar, replay, savegame, settings, sorties, sound, structure_tools, terrain_material,
     tutorial, ui, unit_voices, updates, wall_joints, weather,
 };
@@ -132,8 +132,8 @@ impl Plugin for BattleViewPlugin {
                     ui::toggle_controls_help,
                     orders::select_units,
                     orders::issue_orders,
-                    production::place_structure,
-                    production::preview_wall_drag,
+                    placement::place_structure,
+                    placement::preview_wall_drag,
                     structure_tools::apply_structure_tool,
                     structure_tools::switch_tools_by_keyboard,
                 )
@@ -431,7 +431,7 @@ impl Plugin for AssetLoadingPlugin {
                 animation::load_animation_sources,
                 terrain_material::load_terrain_textures,
                 effects::create_effect_assets,
-                production::create_ghost_materials,
+                placement::create_ghost_materials,
                 camera::setup_scene,
                 overlay::configure_gizmos,
                 ui::load_fonts,

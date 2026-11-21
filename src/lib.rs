@@ -63,6 +63,7 @@ pub mod orders;
 pub mod outcome;
 pub mod overlay;
 pub mod perf_overlay;
+pub mod placement;
 pub mod player_commands;
 pub mod production;
 pub mod queue_bar;
@@ -191,7 +192,7 @@ impl Plugin for SimulationPlugin {
             .add_observer(determinism::number_new_projectile)
             .init_resource::<economy::Economies>()
             .init_resource::<production::Production>()
-            .init_resource::<production::Placement>()
+            .init_resource::<placement::Placement>()
             .init_resource::<ai::AiCommanders>()
             .init_resource::<outcome::GameOutcome>()
             .init_resource::<notifications::Notifications>()

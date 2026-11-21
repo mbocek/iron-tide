@@ -29,9 +29,8 @@ use crate::network_hud::{spawn_chat_line, spawn_network_hud};
 use crate::notifications::Notifications;
 use crate::outcome::{GameOutcome, objective_status};
 use crate::perf_overlay::spawn_performance_overlay;
-use crate::production::{
-    BuildItem, EnqueueRefusal, Lane, Placement, Production, owned_building_kinds,
-};
+use crate::placement::Placement;
+use crate::production::{BuildItem, EnqueueRefusal, Lane, Production, owned_building_kinds};
 use crate::queue_bar::spawn_queue_bar;
 use crate::settings::GameSettings;
 use crate::sound::{Sound, SoundCue};
