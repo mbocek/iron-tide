@@ -26,6 +26,7 @@
 | `game_plugins` | the parts `GamePlugin` adds to the simulation: battle view, menus, sound, display, replays, map editor, asset loading, network battle |
 | `campaigns` | campaigns as chains of missions: unlocking, progress, campaign difficulty |
 | `levels`, `match_flow`, `main_menu` | level definitions, campaign and custom levels; match setup and states; main menu and battle editor |
+| `main_menu/` | `mod.rs` the menu's state, hub and screens; `campaign_map` the operations map and briefings; `battle_setup` the battle editor and random battle options; `network_page` hosting and joining; `commands` what each button does; `widgets` its buttons and fields; `update_banner` the update notice |
 | `medical` | field medics healing infantry |
 | `unit_orders` | move, attack-move, patrol and queued waypoints |
 | `veterancy` | experience from kills, Veteran and Elite ranks and their bonuses |
