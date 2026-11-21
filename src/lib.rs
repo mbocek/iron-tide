@@ -41,6 +41,7 @@ pub mod key_bindings;
 pub mod level_editing;
 pub mod level_events;
 pub mod levels;
+pub mod link;
 pub mod lobby;
 pub mod local_view;
 pub mod main_menu;
