@@ -82,4 +82,5 @@ materials, which the game merges itself (`flat_scenery.rs`, `crystal_models.rs`)
 Writing a unit's `Transform` only when it changes (interpolation, settling on the terrain, separation, turret
 nodes), so Bevy could skip propagating the transforms of units standing still, made no measurable difference:
 over 40 s of a custom level with 120 idle units, 38.9 and 38.2 s of CPU time before, 38.2 and 38.5 s after
-(Apple M5 Pro). It was left out.
+(Apple M5 Pro). It was left out. Not even attaching animation players at all (an upper bound for stopping
+the clips of idle or hidden units) measured anything on the same level: 38.3 and 38.1 s.
