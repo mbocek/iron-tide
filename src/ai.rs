@@ -729,16 +729,8 @@ fn direct_army(
         };
         let position = transform.translation;
         let station = nearest_station(&stations, unit.0, position);
-        let wounded = health.current / health.max;
-        if let Some((spot, in_reach)) = station {
-            let retreating = orders.current == Some(Order::Move(spot));
-            if wounded < RETREAT_BELOW_HEALTH && !in_reach && !retreating {
-                orders.replace_with(Order::Move(spot));
-                continue;
-            }
-            if in_reach && wounded < BACK_TO_THE_FRONT_HEALTH {
-                continue;
-            }
+        if busy_with_repairs(&mut orders, station, health.current / health.max) {
+            continue;
         }
         let idle = !mobile.is_moving()
             && attack.is_none_or(|a| a.target.is_none())
@@ -760,30 +752,64 @@ fn direct_army(
     }
 
     if needs_scout && let Some(site) = search_site() {
-        let pick = waiting_at_home
-            .iter()
-            .position(|(_, kind, _)| *kind == UnitKind::Scout)
-            .or((!waiting_at_home.is_empty()).then_some(0));
-        if let Some(index) = pick {
-            let (scout, _, mut orders) = waiting_at_home.swap_remove(index);
-            orders.replace_with(Order::Move(world_to_cell(site)));
-            ai.scout = Some(scout);
-        }
+        send_out_a_scout(ai, &mut waiting_at_home, site);
     }
-
     if let Some(prey) = prey {
         raid(&mut waiting_at_home, prey);
     }
+    if let Some(objective) = assault_objective {
+        launch_a_wave_when_ready(ai, waiting_at_home, map, home, objective);
+    }
+}
 
+type WaitingUnit<'a> = (Entity, UnitKind, Mut<'a, Orders>);
+
+/// A badly hurt soldier falls back to the nearest station that services it and stays until mended; true
+/// while it is busy doing so.
+fn busy_with_repairs(
+    orders: &mut Mut<Orders>,
+    station: Option<(IVec2, bool)>,
+    health_share: f32,
+) -> bool {
+    let Some((spot, in_reach)) = station else {
+        return false;
+    };
+    let retreating = orders.current == Some(Order::Move(spot));
+    if health_share < RETREAT_BELOW_HEALTH && !in_reach && !retreating {
+        orders.replace_with(Order::Move(spot));
+        return true;
+    }
+    in_reach && health_share < BACK_TO_THE_FRONT_HEALTH
+}
+
+/// A scout if one waits at home, otherwise anyone, goes to look at `site`.
+fn send_out_a_scout(ai: &mut AiCommander, waiting_at_home: &mut Vec<WaitingUnit>, site: Vec3) {
+    let pick = waiting_at_home
+        .iter()
+        .position(|(_, kind, _)| *kind == UnitKind::Scout)
+        .or((!waiting_at_home.is_empty()).then_some(0));
+    if let Some(index) = pick {
+        let (scout, _, mut orders) = waiting_at_home.swap_remove(index);
+        orders.replace_with(Order::Move(world_to_cell(site)));
+        ai.scout = Some(scout);
+    }
+}
+
+/// Once enough soldiers wait at home, or the enemy army has gone quiet, they attack together; a big wave
+/// sends every other unit round the flank.
+fn launch_a_wave_when_ready(
+    ai: &mut AiCommander,
+    waiting_at_home: Vec<WaitingUnit>,
+    map: &GameMap,
+    home: Vec3,
+    objective: Vec3,
+) {
     let wave_ready = waiting_at_home.len() >= ai.wave_size;
     let enemy_army_gone_quiet = ai.secs_since_enemy_army_seen > QUIET_FRONT_SECS;
     let finish_them_off = enemy_army_gone_quiet && !waiting_at_home.is_empty();
     if !wave_ready && !finish_them_off {
         return;
     }
-    let Some(objective) = assault_objective else {
-        return;
-    };
     let flank = (waiting_at_home.len() >= SPLIT_WAVES_FROM)
         .then(|| flank_waypoint(map, home, objective))
         .flatten();
@@ -800,7 +826,7 @@ fn direct_army(
 }
 
 /// Fast units waiting at home dash off to hunt an enemy harvester instead of waiting for the wave.
-fn raid(waiting_at_home: &mut Vec<(Entity, UnitKind, Mut<Orders>)>, prey: Vec3) {
+fn raid(waiting_at_home: &mut Vec<WaitingUnit>, prey: Vec3) {
     for _ in 0..RAID_SIZE {
         let Some(index) = waiting_at_home
             .iter()
