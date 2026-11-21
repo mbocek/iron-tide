@@ -1542,6 +1542,19 @@ impl MainMenu {
     }
 
     /// The battle the editor-like pages describe right now.
+    /// The selected custom level and its file, or else the battle on the editor page, which has no file yet.
+    fn level_to_edit(&self) -> (LevelDefinition, Option<std::path::PathBuf>) {
+        let Selection::Level(index) = self.selection else {
+            return (self.level_on_page(), None);
+        };
+        let entry = &self.entries[index];
+        let file = match &entry.source {
+            LevelSource::Custom(path) => Some(path.clone()),
+            LevelSource::Campaign(_) | LevelSource::Skirmish => None,
+        };
+        (entry.level.clone(), file)
+    }
+
     fn level_on_page(&self) -> LevelDefinition {
         match self.selection {
             Selection::Random => self.random_level(),
@@ -2262,57 +2275,16 @@ fn run_command(
             menu.message = None;
             menu.needs_rebuild = true;
         }
-        MenuCommand::SaveEditorLevel => {
-            let level = menu.level_on_page();
-            menu.message = Some(
-                match save_custom_level(&custom_levels_directory(), &level) {
-                    Ok(path) => tr_fmt(
-                        "Saved as {} - it now appears under Custom levels.",
-                        &[&path.display()],
-                    ),
-                    Err(error) => tr_fmt("Could not save the level: {}", &[&error]),
-                },
-            );
-            menu.entries = all_levels();
-            menu.needs_rebuild = true;
-        }
+        MenuCommand::SaveEditorLevel => save_the_editor_level(&mut menu),
         MenuCommand::EditMap => {
-            let (level, file) = match menu.selection {
-                Selection::Level(index) => {
-                    let entry = &menu.entries[index];
-                    let file = match &entry.source {
-                        LevelSource::Custom(path) => Some(path.clone()),
-                        LevelSource::Campaign(_) | LevelSource::Skirmish => None,
-                    };
-                    (entry.level.clone(), file)
-                }
-                _ => (menu.level_on_page(), None),
-            };
+            let (level, file) = menu.level_to_edit();
             open_map_editor(&mut commands, &mut next_state, level, file);
         }
         MenuCommand::WatchReplay => {
-            let Selection::Replay(index) = menu.selection else {
-                return;
-            };
-            match load_replay(&menu.replays[index].path) {
-                Ok(replay) => {
-                    commands.insert_resource(ActiveLevel(replay.level.clone()));
-                    commands.insert_resource(ReplayPlayback::new(replay));
-                    next_state.set(GameState::Replay);
-                }
-                Err(error) => {
-                    menu.message = Some(tr_fmt("Could not open the replay: {}", &[&error]));
-                    menu.needs_rebuild = true;
-                }
-            }
+            watch_the_selected_replay(&mut commands, &mut next_state, &mut menu)
         }
         MenuCommand::CycleLanguage => {
-            let next = Language::ALL
-                .iter()
-                .position(|&language| language == settings.language)
-                .map_or(0, |index| (index + 1) % Language::ALL.len());
-            settings.language = Language::ALL[next];
-            set_language(settings.language);
+            switch_to_the_next_language(&mut settings);
             next_state.set(GameState::MainMenu);
         }
         MenuCommand::ContinueQuickSave => requests.load = Some(QUICK_SAVE_SLOT),
@@ -2333,28 +2305,7 @@ fn run_command(
             settings.campaign_difficulty = menu.campaign_difficulty;
             menu.needs_rebuild = true;
         }
-        MenuCommand::AddToMyCampaign => {
-            let Selection::Level(index) = menu.selection else {
-                return;
-            };
-            let entry = &menu.entries[index];
-            let LevelSource::Custom(path) = &entry.source else {
-                return;
-            };
-            let added =
-                add_to_my_campaign(&custom_levels_directory(), path, entry.level.player_faction);
-            menu.message = Some(match added {
-                Ok(count) => tr_fmt(
-                    "Added - My campaign now has {} missions under Campaigns.",
-                    &[&count],
-                ),
-                Err(error) => tr_fmt("Could not add the level: {}", &[&error]),
-            });
-            let mut campaigns = built_in_campaigns();
-            campaigns.extend(custom_campaigns(&custom_levels_directory()));
-            menu.campaigns = campaigns;
-            menu.needs_rebuild = true;
-        }
+        MenuCommand::AddToMyCampaign => add_the_selected_level_to_my_campaign(&mut menu),
         MenuCommand::ContinueCampaign => {
             if let Some((campaign, mission)) = menu.campaign_to_continue(&settings.last_campaign) {
                 start_campaign_mission(
@@ -2390,6 +2341,73 @@ fn run_command(
             exit.write(AppExit::Success);
         }
     }
+}
+
+fn save_the_editor_level(menu: &mut MainMenu) {
+    let level = menu.level_on_page();
+    menu.message = Some(
+        match save_custom_level(&custom_levels_directory(), &level) {
+            Ok(path) => tr_fmt(
+                "Saved as {} - it now appears under Custom levels.",
+                &[&path.display()],
+            ),
+            Err(error) => tr_fmt("Could not save the level: {}", &[&error]),
+        },
+    );
+    menu.entries = all_levels();
+    menu.needs_rebuild = true;
+}
+
+fn watch_the_selected_replay(
+    commands: &mut Commands,
+    next_state: &mut NextState<GameState>,
+    menu: &mut MainMenu,
+) {
+    let Selection::Replay(index) = menu.selection else {
+        return;
+    };
+    match load_replay(&menu.replays[index].path) {
+        Ok(replay) => {
+            commands.insert_resource(ActiveLevel(replay.level.clone()));
+            commands.insert_resource(ReplayPlayback::new(replay));
+            next_state.set(GameState::Replay);
+        }
+        Err(error) => {
+            menu.message = Some(tr_fmt("Could not open the replay: {}", &[&error]));
+            menu.needs_rebuild = true;
+        }
+    }
+}
+
+fn switch_to_the_next_language(settings: &mut GameSettings) {
+    let next = Language::ALL
+        .iter()
+        .position(|&language| language == settings.language)
+        .map_or(0, |index| (index + 1) % Language::ALL.len());
+    settings.language = Language::ALL[next];
+    set_language(settings.language);
+}
+
+fn add_the_selected_level_to_my_campaign(menu: &mut MainMenu) {
+    let Selection::Level(index) = menu.selection else {
+        return;
+    };
+    let entry = &menu.entries[index];
+    let LevelSource::Custom(path) = &entry.source else {
+        return;
+    };
+    let added = add_to_my_campaign(&custom_levels_directory(), path, entry.level.player_faction);
+    menu.message = Some(match added {
+        Ok(count) => tr_fmt(
+            "Added - My campaign now has {} missions under Campaigns.",
+            &[&count],
+        ),
+        Err(error) => tr_fmt("Could not add the level: {}", &[&error]),
+    });
+    let mut campaigns = built_in_campaigns();
+    campaigns.extend(custom_campaigns(&custom_levels_directory()));
+    menu.campaigns = campaigns;
+    menu.needs_rebuild = true;
 }
 
 pub fn refresh_main_menu(
