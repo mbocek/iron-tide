@@ -11,7 +11,7 @@ use crate::catalog::{
 };
 use crate::components::*;
 use crate::determinism::{SimId, SimulationRng, in_simulation_order};
-use crate::effects::{BlastSize, EffectAssets, spawn_blast};
+use crate::effects::{BlastCue, BlastSize};
 use crate::fog::FogOfWar;
 use crate::intel::Intel;
 use crate::interpolation::TickTransforms;
@@ -174,6 +174,10 @@ pub struct Projectile {
 }
 
 impl Projectile {
+    pub fn style(&self) -> ProjectileStyle {
+        self.weapon.style
+    }
+
     /// Start, end, arc height, style and flight time: enough to show the shot again in a replay.
     pub fn flight(&self) -> (Vec3, Vec3, f32, ProjectileStyle, f32) {
         (
@@ -327,7 +331,7 @@ pub fn aim_and_fire(
     mut rng: ResMut<SimulationRng>,
     time: Res<Time>,
     targets: Res<Targets>,
-    effects: Res<EffectAssets>,
+    mut blasts: MessageWriter<BlastCue>,
     mut shooters: Query<(
         Entity,
         &Team,
@@ -413,7 +417,7 @@ pub fn aim_and_fire(
             muzzle,
             weapon: ranked_weapon,
         };
-        fire_projectile(&mut commands, &mut rng, &effects, shot, target);
+        fire_projectile(&mut commands, &mut rng, &mut blasts, shot, target);
         cues.write(SoundCue::at(weapon.spec.report, muzzle));
     }
 }
@@ -430,7 +434,7 @@ pub(crate) struct Shot {
 pub(crate) fn fire_projectile(
     commands: &mut Commands,
     rng: &mut SimulationRng,
-    effects: &EffectAssets,
+    blasts: &mut MessageWriter<BlastCue>,
     shot: Shot,
     target: &TargetInfo,
 ) {
@@ -466,7 +470,7 @@ pub(crate) fn fire_projectile(
         1.0
     };
     if flash_size > 0.0 {
-        spawn_blast(commands, effects, muzzle, BlastSize::MuzzleFlash);
+        blasts.write(BlastCue::at(muzzle, BlastSize::MuzzleFlash));
     }
     commands.spawn((
         Projectile {
@@ -481,7 +485,6 @@ pub(crate) fn fire_projectile(
             arc_height,
             weapon,
         },
-        effects.projectile_visual(weapon.style),
         Transform::from_translation(muzzle),
         TickTransforms::default(),
     ));
@@ -493,7 +496,7 @@ pub fn fly_projectiles(
     production: Res<Production>,
     time: Res<Time>,
     targets: Res<Targets>,
-    effects: Res<EffectAssets>,
+    mut blasts: MessageWriter<BlastCue>,
     mut projectiles: Query<(Entity, &mut Projectile, &mut Transform, &SimId)>,
     mut healths: Query<&mut Health>,
     mut damage_log: MessageWriter<DamageDealt>,
@@ -555,7 +558,7 @@ pub fn fly_projectiles(
                 BlastSize::ShellImpact
             }
         };
-        spawn_blast(&mut commands, &effects, impact, blast);
+        blasts.write(BlastCue::at(impact, blast));
         let scorch_radius = match weapon.style {
             ProjectileStyle::Bullet => 0.0,
             ProjectileStyle::Shell | ProjectileStyle::Missile | ProjectileStyle::Flame => {
@@ -617,7 +620,7 @@ pub fn remove_destroyed(
     mut losses: MessageWriter<Destroyed>,
     mut impacts: MessageWriter<Impact>,
     mut commands: Commands,
-    effects: Res<EffectAssets>,
+    mut blasts: MessageWriter<BlastCue>,
     models: Res<ModelLibrary>,
     mut map: ResMut<GameMap>,
     destroyed: Query<(
@@ -685,12 +688,7 @@ pub fn remove_destroyed(
         if let Some(sound) = destruction_sound {
             cues.write(SoundCue::at(sound, transform.translation));
         }
-        spawn_blast(
-            &mut commands,
-            &effects,
-            transform.translation + Vec3::Y * 0.5,
-            blast,
-        );
+        blasts.write(BlastCue::at(transform.translation + Vec3::Y * 0.5, blast));
         commands.entity(entity).despawn();
     }
 }

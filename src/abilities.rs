@@ -5,7 +5,7 @@ use crate::catalog::{ArmorClass, ProjectileStyle, Team, UnitKind, WeaponSpec};
 use crate::combat::{DamageSource, Shot, Targets, fire_projectile, surface_distance};
 use crate::components::Mobile;
 use crate::determinism::SimulationRng;
-use crate::effects::EffectAssets;
+use crate::effects::BlastCue;
 use crate::map::cell_center;
 use crate::sound::Sound;
 
@@ -72,7 +72,7 @@ pub fn detonate_mines(
     mut commands: Commands,
     mut rng: ResMut<SimulationRng>,
     time: Res<Time>,
-    effects: Res<EffectAssets>,
+    mut blasts: MessageWriter<BlastCue>,
     targets: Res<Targets>,
     mut mines: Query<(Entity, &mut Mine, &Transform)>,
 ) {
@@ -100,7 +100,7 @@ pub fn detonate_mines(
             muzzle: position + Vec3::Y * 0.2,
             weapon: MINE_BLAST,
         };
-        fire_projectile(&mut commands, &mut rng, &effects, shot, victim);
+        fire_projectile(&mut commands, &mut rng, &mut blasts, shot, victim);
         commands.entity(entity).despawn();
     }
 }

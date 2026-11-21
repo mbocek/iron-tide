@@ -115,7 +115,7 @@ pub enum FramePhase {
 }
 
 /// The battle itself: map, economy, production, enemy AI, movement, combat, saving and the outcome.
-/// It needs `ModelLibrary` and `EffectAssets`; `GamePlugin` loads real ones, tests insert placeholders.
+/// It needs a `ModelLibrary`; `GamePlugin` loads the real one, tests insert a placeholder.
 pub struct SimulationPlugin {
     pub enemy_ai: bool,
     pub starting_forces: bool,
@@ -208,6 +208,7 @@ impl Plugin for SimulationPlugin {
             .add_message::<combat::DamageDealt>()
             .add_message::<combat::Destroyed>()
             .add_message::<combat::Impact>()
+            .add_message::<effects::BlastCue>()
             .add_message::<sound::SoundCue>()
             .add_message::<structures::StructureOrder>()
             .add_message::<level_events::MissionMessage>()
@@ -284,7 +285,6 @@ impl Plugin for SimulationPlugin {
                         combat::remove_destroyed,
                         economy::clear_depleted_crystals,
                         scenery::clear_decor_under_new_buildings,
-                        effects::animate_blasts,
                     )
                         .chain(),
                     (
@@ -670,6 +670,9 @@ impl Plugin for GamePlugin {
                         ambience::emit_crystal_sparkles,
                         ambience::pulse_crystal_glow,
                         effects::animate_sparkles,
+                        effects::dress_projectiles,
+                        effects::show_blasts,
+                        effects::animate_blasts,
                         damage_feedback::spawn_damage_numbers,
                         damage_feedback::float_damage_numbers,
                         damage_feedback::emit_damage_smoke,

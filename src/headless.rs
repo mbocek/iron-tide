@@ -12,7 +12,6 @@ use crate::combat::{DamageSource, Destroyed};
 use crate::components::*;
 use crate::determinism::SimId;
 use crate::economy::Economies;
-use crate::effects::EffectAssets;
 use crate::levels::Difficulty;
 use crate::levels::{ActiveLevel, LevelDefinition};
 use crate::map::{GameMap, cell_center};
@@ -101,7 +100,6 @@ impl Battle {
         app.add_plugins(MinimalPlugins)
             .insert_resource(TimeUpdateStrategy::ManualDuration(STEP))
             .insert_resource(ModelLibrary::placeholder())
-            .insert_resource(EffectAssets::placeholder())
             .insert_resource(SaveDirectory(save_directory.clone()))
             .init_resource::<DamageLedger>()
             .init_resource::<SoundLedger>()

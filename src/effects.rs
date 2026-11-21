@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use rand::RngExt;
 
 use crate::catalog::ProjectileStyle;
+use crate::combat::Projectile;
 
 #[derive(Resource)]
 pub struct EffectAssets {
@@ -39,6 +40,19 @@ pub struct FadingLight {
     age: f32,
     lifetime: f32,
     peak_intensity: f32,
+}
+
+/// A blast the simulation set off; presentation draws it.
+#[derive(Message, Clone, Copy)]
+pub struct BlastCue {
+    pub position: Vec3,
+    pub size: BlastSize,
+}
+
+impl BlastCue {
+    pub fn at(position: Vec3, size: BlastSize) -> Self {
+        Self { position, size }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -109,24 +123,6 @@ pub fn create_effect_assets(
     });
 }
 
-impl EffectAssets {
-    /// Empty handles for running the simulation without a renderer.
-    pub fn placeholder() -> Self {
-        Self {
-            tracer_mesh: Handle::default(),
-            shell_mesh: Handle::default(),
-            blast_mesh: Handle::default(),
-            tracer_material: Handle::default(),
-            shell_material: Handle::default(),
-            fire_material: Handle::default(),
-            flash_material: Handle::default(),
-            smoke_material: Handle::default(),
-            sparkle_mesh: Handle::default(),
-            sparkle_material: Handle::default(),
-        }
-    }
-}
-
 pub fn spawn_sparkle(
     commands: &mut Commands,
     effects: &EffectAssets,
@@ -165,6 +161,28 @@ pub fn animate_sparkles(
         let twinkle =
             (progress * std::f32::consts::PI).sin() * (0.7 + 0.3 * (sparkle.age * 23.0).sin());
         transform.scale = Vec3::splat((sparkle.peak_scale * twinkle).max(0.001));
+    }
+}
+
+pub fn show_blasts(
+    mut commands: Commands,
+    effects: Res<EffectAssets>,
+    mut cues: MessageReader<BlastCue>,
+) {
+    for cue in cues.read() {
+        spawn_blast(&mut commands, &effects, cue.position, cue.size);
+    }
+}
+
+pub fn dress_projectiles(
+    mut commands: Commands,
+    effects: Res<EffectAssets>,
+    projectiles: Query<(Entity, &Projectile), Added<Projectile>>,
+) {
+    for (entity, projectile) in &projectiles {
+        commands
+            .entity(entity)
+            .insert(effects.projectile_visual(projectile.style()));
     }
 }
 
