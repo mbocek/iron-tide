@@ -454,201 +454,235 @@ impl NetLobby {
                 seats,
                 start_requested,
             } => self.host_step(listener, level, players, seats, start_requested, now),
-            LobbyPhase::Connecting {
+            phase @ LobbyPhase::Connecting { .. } => self.connecting_step(phase),
+            phase @ LobbyPhase::OwningRoom { .. } => self.owning_room_step(phase, now),
+            phase @ LobbyPhase::WaitingForOffer(..) => self.waiting_for_offer_step(phase),
+            phase @ LobbyPhase::Considering { .. } => self.considering_step(phase),
+            phase @ LobbyPhase::Accepted { .. } => self.accepted_step(phase, now),
+            phase @ LobbyPhase::Countdown { .. } => self.countdown_step(phase),
+            other => other,
+        }
+    }
+
+    fn connecting_step(&mut self, phase: LobbyPhase) -> LobbyPhase {
+        let LobbyPhase::Connecting {
+            dialling,
+            url,
+            opening,
+        } = phase
+        else {
+            return phase;
+        };
+        let result = dialling
+            .lock()
+            .ok()
+            .and_then(|receiver| receiver.try_recv().ok());
+        match result {
+            None => LobbyPhase::Connecting {
                 dialling,
                 url,
                 opening,
-            } => {
-                let result = dialling
-                    .lock()
-                    .ok()
-                    .and_then(|receiver| receiver.try_recv().ok());
-                match result {
-                    None => LobbyPhase::Connecting {
-                        dialling,
-                        url,
-                        opening,
-                    },
-                    Some(Ok(stream)) => match Link::guest_side_to(
-                        stream,
-                        Dialling {
-                            url: url.clone(),
-                            trusted: None,
-                        },
-                    ) {
-                        Ok(link) => match opening {
-                            Some((level, players)) => {
-                                link.open_room(&level, players);
-                                self.changed_to(LobbyPhase::OwningRoom {
-                                    link,
-                                    url,
-                                    level,
-                                    players: Team::ALL[..players].to_vec(),
-                                    seated: 0,
-                                    ready: 0,
-                                })
-                            }
-                            None => self.changed_to(LobbyPhase::WaitingForOffer(link)),
-                        },
-                        Err(error) => self.failed(tr_fmt("Connection failed: {}", &[&error])),
-                    },
-                    Some(Err(error)) => self.failed(tr_fmt("Connection failed: {}", &[&error])),
+            },
+            Some(Ok(stream)) => match Link::guest_side_to(
+                stream,
+                Dialling {
+                    url: url.clone(),
+                    trusted: None,
+                },
+            ) {
+                Ok(link) => match opening {
+                    Some((level, players)) => {
+                        link.open_room(&level, players);
+                        self.changed_to(LobbyPhase::OwningRoom {
+                            link,
+                            url,
+                            level,
+                            players: Team::ALL[..players].to_vec(),
+                            seated: 0,
+                            ready: 0,
+                        })
+                    }
+                    None => self.changed_to(LobbyPhase::WaitingForOffer(link)),
+                },
+                Err(error) => self.failed(tr_fmt("Connection failed: {}", &[&error])),
+            },
+            Some(Err(error)) => self.failed(tr_fmt("Connection failed: {}", &[&error])),
+        }
+    }
+
+    fn owning_room_step(&mut self, phase: LobbyPhase, now: f32) -> LobbyPhase {
+        let LobbyPhase::OwningRoom {
+            mut link,
+            url,
+            level,
+            players,
+            mut seated,
+            mut ready,
+        } = phase
+        else {
+            return phase;
+        };
+        let mut go = false;
+        for news in link.lobby_news() {
+            match news {
+                LobbyNews::RoomStatus {
+                    seated: now_seated,
+                    ready: now_ready,
+                } => {
+                    (seated, ready) = (now_seated, now_ready);
+                    self.changed = true;
                 }
+                LobbyNews::Go => go = true,
+                LobbyNews::Chat(team, text) => self.heard(team, text),
+                LobbyNews::Refused(reason) => return self.failed(tr_owned(&reason)),
+                LobbyNews::Left => {
+                    return self.failed(tr("The server closed the connection").to_string());
+                }
+                LobbyNews::Offered(_) | LobbyNews::GuestReady => {}
             }
-            LobbyPhase::OwningRoom {
-                mut link,
+        }
+        if !go {
+            return LobbyPhase::OwningRoom {
+                link,
                 url,
                 level,
                 players,
-                mut seated,
-                mut ready,
-            } => {
-                let mut go = false;
-                for news in link.lobby_news() {
-                    match news {
-                        LobbyNews::RoomStatus {
-                            seated: now_seated,
-                            ready: now_ready,
-                        } => {
-                            (seated, ready) = (now_seated, now_ready);
-                            self.changed = true;
-                        }
-                        LobbyNews::Go => go = true,
-                        LobbyNews::Chat(team, text) => self.heard(team, text),
-                        LobbyNews::Refused(reason) => return self.failed(tr_owned(&reason)),
-                        LobbyNews::Left => {
-                            return self.failed(tr("The server closed the connection").to_string());
-                        }
-                        LobbyNews::Offered(_) | LobbyNews::GuestReady => {}
-                    }
+                seated,
+                ready,
+            };
+        }
+        let remote_teams = players
+            .into_iter()
+            .filter(|&team| team != Team::Player)
+            .collect();
+        self.changed_to(LobbyPhase::Countdown {
+            level,
+            links: vec![link],
+            local_team: Some(Team::Player),
+            remote_teams,
+            relays: false,
+            watchers: Vec::new(),
+            door: None,
+            starts_at: now + COUNTDOWN_SECS,
+        })
+    }
+
+    fn waiting_for_offer_step(&mut self, phase: LobbyPhase) -> LobbyPhase {
+        let LobbyPhase::WaitingForOffer(mut link) = phase else {
+            return phase;
+        };
+        for news in link.lobby_news() {
+            match news {
+                LobbyNews::Offered(Ok(offer)) => {
+                    return self.changed_to(LobbyPhase::Considering { offer, link });
                 }
-                if !go {
-                    return LobbyPhase::OwningRoom {
-                        link,
-                        url,
-                        level,
-                        players,
-                        seated,
-                        ready,
-                    };
+                LobbyNews::Offered(Err(version)) => {
+                    return self.failed(tr_fmt(
+                        "The host runs version {}; all players need the same version",
+                        &[&version],
+                    ));
                 }
-                let remote_teams = players
-                    .into_iter()
-                    .filter(|&team| team != Team::Player)
-                    .collect();
-                self.changed_to(LobbyPhase::Countdown {
-                    level,
-                    links: vec![link],
-                    local_team: Some(Team::Player),
-                    remote_teams,
-                    relays: false,
-                    watchers: Vec::new(),
-                    door: None,
-                    starts_at: now + COUNTDOWN_SECS,
-                })
+                LobbyNews::Left => return self.host_gone(),
+                LobbyNews::Refused(reason) => return self.failed(tr_owned(&reason)),
+                LobbyNews::Chat(team, text) => self.heard(team, text),
+                LobbyNews::GuestReady | LobbyNews::Go | LobbyNews::RoomStatus { .. } => {}
             }
-            LobbyPhase::WaitingForOffer(mut link) => {
-                for news in link.lobby_news() {
-                    match news {
-                        LobbyNews::Offered(Ok(offer)) => {
-                            return self.changed_to(LobbyPhase::Considering { offer, link });
-                        }
-                        LobbyNews::Offered(Err(version)) => {
-                            return self.failed(tr_fmt(
-                                "The host runs version {}; all players need the same version",
-                                &[&version],
-                            ));
-                        }
-                        LobbyNews::Left => return self.host_gone(),
-                        LobbyNews::Refused(reason) => return self.failed(tr_owned(&reason)),
-                        LobbyNews::Chat(team, text) => self.heard(team, text),
-                        LobbyNews::GuestReady | LobbyNews::Go | LobbyNews::RoomStatus { .. } => {}
-                    }
-                }
-                LobbyPhase::WaitingForOffer(link)
+        }
+        LobbyPhase::WaitingForOffer(link)
+    }
+
+    fn considering_step(&mut self, phase: LobbyPhase) -> LobbyPhase {
+        let LobbyPhase::Considering {
+            mut offer,
+            mut link,
+        } = phase
+        else {
+            return phase;
+        };
+        for news in link.lobby_news() {
+            match news {
+                LobbyNews::Left => return self.host_gone(),
+                LobbyNews::Chat(team, text) => self.heard(team, text),
+                LobbyNews::Offered(Ok(changed)) => offer = self.battle_changed(changed),
+                _ => {}
             }
-            LobbyPhase::Considering {
-                mut offer,
-                mut link,
-            } => {
-                for news in link.lobby_news() {
-                    match news {
-                        LobbyNews::Left => return self.host_gone(),
-                        LobbyNews::Chat(team, text) => self.heard(team, text),
-                        LobbyNews::Offered(Ok(changed)) => offer = self.battle_changed(changed),
-                        _ => {}
-                    }
+        }
+        LobbyPhase::Considering { offer, link }
+    }
+
+    fn accepted_step(&mut self, phase: LobbyPhase, now: f32) -> LobbyPhase {
+        let LobbyPhase::Accepted { offer, mut link } = phase else {
+            return phase;
+        };
+        let mut go = false;
+        for news in link.lobby_news() {
+            match news {
+                LobbyNews::Left => return self.host_gone(),
+                LobbyNews::Chat(team, text) => self.heard(team, text),
+                LobbyNews::Offered(Ok(changed)) => {
+                    let offer = self.battle_changed(changed);
+                    return LobbyPhase::Considering { offer, link };
                 }
-                LobbyPhase::Considering { offer, link }
+                LobbyNews::Go => go = true,
+                _ => {}
             }
-            LobbyPhase::Accepted { offer, mut link } => {
-                let mut go = false;
-                for news in link.lobby_news() {
-                    match news {
-                        LobbyNews::Left => return self.host_gone(),
-                        LobbyNews::Chat(team, text) => self.heard(team, text),
-                        LobbyNews::Offered(Ok(changed)) => {
-                            let offer = self.battle_changed(changed);
-                            return LobbyPhase::Considering { offer, link };
-                        }
-                        LobbyNews::Go => go = true,
-                        _ => {}
-                    }
-                }
-                if !go {
-                    return LobbyPhase::Accepted { offer, link };
-                }
-                let Offer {
-                    level,
-                    your_team,
-                    players,
-                    under_way,
-                } = *offer;
-                let remote_teams = players
-                    .into_iter()
-                    .filter(|&team| Some(team) != your_team)
-                    .collect();
-                let countdown = if under_way { 0.0 } else { COUNTDOWN_SECS };
-                self.changed_to(LobbyPhase::Countdown {
-                    level: Box::new(level),
-                    links: vec![link],
-                    local_team: your_team,
-                    remote_teams,
-                    relays: false,
-                    watchers: Vec::new(),
-                    door: None,
-                    starts_at: now + countdown,
-                })
-            }
-            LobbyPhase::Countdown {
-                level,
-                mut links,
-                local_team,
-                remote_teams,
-                relays,
-                watchers,
-                door,
-                starts_at,
-            } => {
-                let left = links
-                    .iter_mut()
-                    .flat_map(Link::lobby_news)
-                    .any(|news| news == LobbyNews::Left);
-                if left {
-                    return self.failed(tr("A player left before the battle began").to_string());
-                }
-                LobbyPhase::Countdown {
-                    level,
-                    links,
-                    local_team,
-                    remote_teams,
-                    relays,
-                    watchers,
-                    door,
-                    starts_at,
-                }
-            }
-            other => other,
+        }
+        if !go {
+            return LobbyPhase::Accepted { offer, link };
+        }
+        let Offer {
+            level,
+            your_team,
+            players,
+            under_way,
+        } = *offer;
+        let remote_teams = players
+            .into_iter()
+            .filter(|&team| Some(team) != your_team)
+            .collect();
+        let countdown = if under_way { 0.0 } else { COUNTDOWN_SECS };
+        self.changed_to(LobbyPhase::Countdown {
+            level: Box::new(level),
+            links: vec![link],
+            local_team: your_team,
+            remote_teams,
+            relays: false,
+            watchers: Vec::new(),
+            door: None,
+            starts_at: now + countdown,
+        })
+    }
+
+    fn countdown_step(&mut self, phase: LobbyPhase) -> LobbyPhase {
+        let LobbyPhase::Countdown {
+            level,
+            mut links,
+            local_team,
+            remote_teams,
+            relays,
+            watchers,
+            door,
+            starts_at,
+        } = phase
+        else {
+            return phase;
+        };
+        let left = links
+            .iter_mut()
+            .flat_map(Link::lobby_news)
+            .any(|news| news == LobbyNews::Left);
+        if left {
+            return self.failed(tr("A player left before the battle began").to_string());
+        }
+        LobbyPhase::Countdown {
+            level,
+            links,
+            local_team,
+            remote_teams,
+            relays,
+            watchers,
+            door,
+            starts_at,
         }
     }
 
