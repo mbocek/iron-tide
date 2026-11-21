@@ -207,9 +207,7 @@ pub fn select_units(
     let Some(screen) = cursor.screen else { return };
     let pointer_busy = placement.active.is_some() || tool.0.is_some();
     if keys.just_pressed(KeyCode::Escape) && !pointer_busy {
-        for entity in &selected {
-            commands.entity(entity).remove::<Selected>();
-        }
+        deselect_all(&mut commands, &selected);
     }
     if pointer_busy {
         drag.start = None;
@@ -232,10 +230,7 @@ pub fn select_units(
     } else {
         Visibility::Hidden
     };
-    node.left = Val::Px(min.x);
-    node.top = Val::Px(min.y);
-    node.width = Val::Px(max.x - min.x);
-    node.height = Val::Px(max.y - min.y);
+    frame_the_box(&mut node, min, max);
 
     let Ok((camera, camera_transform)) = cameras.single() else {
         return;
@@ -255,12 +250,7 @@ pub fn select_units(
             .collect::<Vec<_>>()
     };
     if dragging {
-        let count = own_units_inside(&selectable).len();
-        let label = match count {
-            0 => String::new(),
-            1 => tr("1 unit").to_string(),
-            n => tr_fmt("{} units", &[&n]),
-        };
+        let label = unit_count_label(own_units_inside(&selectable).len());
         for mut text in &mut counts {
             if text.0 != label {
                 text.0 = label.clone();
@@ -276,9 +266,7 @@ pub fn select_units(
 
     let additive = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
     if !additive {
-        for entity in &selected {
-            commands.entity(entity).remove::<Selected>();
-        }
+        deselect_all(&mut commands, &selected);
     }
     if dragging {
         for entity in own_units_inside(&selectable) {
@@ -360,7 +348,7 @@ pub fn issue_orders(
     mut marker: ResMut<OrderMarker>,
     diplomacy: Res<Diplomacy>,
     mut minimap_order: ResMut<MinimapOrder>,
-    selected_units: Query<(&SimId, &Unit, &Team), With<Selected>>,
+    selected_units: SelectedUnits,
     selected_buildings: Query<(&SimId, &Building, &Team), With<Selected>>,
     structures: Query<(&SimId, &Building, &Health)>,
     sim_ids: Query<&SimId>,
@@ -376,11 +364,7 @@ pub fn issue_orders(
             units: units.clone(),
         });
     }
-    let engineers: Vec<SimId> = selected_units
-        .iter()
-        .filter(|(_, unit, owner)| **owner == team && unit.0 == UnitKind::Engineer)
-        .map(|(&id, ..)| id)
-        .collect();
+    let engineers = own_engineers(&selected_units, team);
     if settings.keys.just_pressed(&keys, Action::LayMine) && !engineers.is_empty() {
         issuer.issue(PlayerCommand::LayMines { units: engineers });
     }
@@ -428,11 +412,7 @@ pub fn issue_orders(
         && let Ok((&id, building, health)) = structures.get(structure.entity)
         && let Some(job) = job_for(*diplomacy, team, structure.team, building.kind, health)
     {
-        let engineers: Vec<SimId> = selected_units
-            .iter()
-            .filter(|(_, unit, owner)| **owner == team && unit.0 == UnitKind::Engineer)
-            .map(|(&id, ..)| id)
-            .collect();
+        let engineers = own_engineers(&selected_units, team);
         if !engineers.is_empty() {
             issuer.issue(PlayerCommand::SendEngineers {
                 units: engineers,
@@ -466,12 +446,47 @@ pub fn issue_orders(
         queued: shortcut.queued,
         refinery,
     });
-    let kind = match shortcut.order {
+    acknowledge(&mut marker, ground, marker_for(shortcut.order));
+}
+
+type SelectedUnits<'w, 's> =
+    Query<'w, 's, (&'static SimId, &'static Unit, &'static Team), With<Selected>>;
+
+fn own_engineers(selected_units: &SelectedUnits, team: Team) -> Vec<SimId> {
+    selected_units
+        .iter()
+        .filter(|(_, unit, owner)| **owner == team && unit.0 == UnitKind::Engineer)
+        .map(|(&id, ..)| id)
+        .collect()
+}
+
+fn marker_for(order: GroundOrder) -> MarkerKind {
+    match order {
         GroundOrder::Move => MarkerKind::Move,
         GroundOrder::AttackMove => MarkerKind::Attack,
         GroundOrder::Patrol => MarkerKind::Patrol,
-    };
-    acknowledge(&mut marker, ground, kind);
+    }
+}
+
+fn deselect_all(commands: &mut Commands, selected: &Query<Entity, With<Selected>>) {
+    for entity in selected {
+        commands.entity(entity).remove::<Selected>();
+    }
+}
+
+fn frame_the_box(node: &mut Node, min: Vec2, max: Vec2) {
+    node.left = Val::Px(min.x);
+    node.top = Val::Px(min.y);
+    node.width = Val::Px(max.x - min.x);
+    node.height = Val::Px(max.y - min.y);
+}
+
+fn unit_count_label(count: usize) -> String {
+    match count {
+        0 => String::new(),
+        1 => tr("1 unit").to_string(),
+        n => tr_fmt("{} units", &[&n]),
+    }
 }
 
 #[cfg(test)]
