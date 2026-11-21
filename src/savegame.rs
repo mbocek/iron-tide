@@ -187,6 +187,95 @@ pub fn quick_save_keys(
     }
 }
 
+type SavableBuilding<'a> = (
+    &'a Building,
+    &'a Team,
+    &'a Health,
+    Option<&'a RallyPoint>,
+    Has<Repairing>,
+);
+
+type SavableUnit<'a> = (
+    &'a Unit,
+    &'a Team,
+    &'a Transform,
+    &'a Mobile,
+    &'a Health,
+    Option<&'a Harvester>,
+    Option<&'a Orders>,
+    Option<&'a Veterancy>,
+);
+
+impl SavedBuilding {
+    fn of(
+        (building, &team, health, rally, repairing): (
+            &Building,
+            &Team,
+            &Health,
+            Option<&RallyPoint>,
+            bool,
+        ),
+    ) -> Self {
+        Self {
+            team,
+            kind: building.kind,
+            origin: building.origin.to_array(),
+            health: health.current,
+            rally: rally.map(|rally| rally.0.to_array()),
+            repairing,
+        }
+    }
+}
+
+impl SavedUnit {
+    fn of(
+        (unit, &team, transform, mobile, health, harvester, orders, veterancy): SavableUnit,
+    ) -> Self {
+        Self {
+            team,
+            kind: unit.0,
+            position: transform.translation.to_array(),
+            facing: mobile.facing,
+            health: health.current,
+            cargo: harvester.map_or(0, |h| h.cargo),
+            orders: orders.map_or_else(Vec::new, |orders| {
+                orders
+                    .current
+                    .iter()
+                    .chain(orders.queued.iter())
+                    .copied()
+                    .collect()
+            }),
+            experience: veterancy.map_or(0.0, |veterancy| veterancy.experience),
+        }
+    }
+}
+
+fn saved_lanes(production: &Production) -> Vec<SavedLane> {
+    Team::ALL
+        .into_iter()
+        .flat_map(|team| Lane::ALL.map(|lane| (team, lane)))
+        .map(|(team, lane)| {
+            let state = production.lane(team, lane);
+            SavedLane {
+                team,
+                lane,
+                queue: state.queue.iter().copied().collect(),
+                progress_secs: state.progress_secs,
+                ready: state.ready,
+            }
+        })
+        .collect()
+}
+
+fn write_save_file(path: &std::path::Path, save: &SaveGame) -> Result<(), String> {
+    path.parent()
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .map_err(|error| error.to_string())?;
+    let json = serde_json::to_string(save).map_err(|error| error.to_string())?;
+    std::fs::write(path, json).map_err(|error| error.to_string())
+}
+
 pub fn write_requested_save(
     directory: Res<SaveDirectory>,
     mut requests: ResMut<SaveRequests>,
@@ -201,26 +290,8 @@ pub fn write_requested_save(
     intel: Res<Intel>,
     cameras: Query<&RtsCamera>,
     mines: Query<&Mine>,
-    buildings: Query<
-        (
-            &Building,
-            &Team,
-            &Health,
-            Option<&RallyPoint>,
-            Has<Repairing>,
-        ),
-        Without<BeingSold>,
-    >,
-    units: Query<(
-        &Unit,
-        &Team,
-        &Transform,
-        &Mobile,
-        &Health,
-        Option<&Harvester>,
-        Option<&Orders>,
-        Option<&Veterancy>,
-    )>,
+    buildings: Query<SavableBuilding, Without<BeingSold>>,
+    units: Query<SavableUnit>,
 ) {
     let Some(slot) = requests.save.take() else {
         return;
@@ -238,55 +309,10 @@ pub fn write_requested_save(
         crystal: map.crystal_amounts(),
         buildings: buildings
             .iter()
-            .map(
-                |(building, &team, health, rally, repairing)| SavedBuilding {
-                    team,
-                    kind: building.kind,
-                    origin: building.origin.to_array(),
-                    health: health.current,
-                    rally: rally.map(|rally| rally.0.to_array()),
-                    repairing,
-                },
-            )
+            .map(|item| SavedBuilding::of(item))
             .collect(),
-        units: units
-            .iter()
-            .map(
-                |(unit, &team, transform, mobile, health, harvester, orders, veterancy)| {
-                    SavedUnit {
-                        team,
-                        kind: unit.0,
-                        position: transform.translation.to_array(),
-                        facing: mobile.facing,
-                        health: health.current,
-                        cargo: harvester.map_or(0, |h| h.cargo),
-                        orders: orders.map_or_else(Vec::new, |orders| {
-                            orders
-                                .current
-                                .iter()
-                                .chain(orders.queued.iter())
-                                .copied()
-                                .collect()
-                        }),
-                        experience: veterancy.map_or(0.0, |veterancy| veterancy.experience),
-                    }
-                },
-            )
-            .collect(),
-        production: Team::ALL
-            .into_iter()
-            .flat_map(|team| Lane::ALL.map(|lane| (team, lane)))
-            .map(|(team, lane)| {
-                let state = production.lane(team, lane);
-                SavedLane {
-                    team,
-                    lane,
-                    queue: state.queue.iter().copied().collect(),
-                    progress_secs: state.progress_secs,
-                    ready: state.ready,
-                }
-            })
-            .collect(),
+        units: units.iter().map(|item| SavedUnit::of(item)).collect(),
+        production: saved_lanes(&production),
         researched: Team::ALL
             .map(|team| production.researched(team).to_vec())
             .to_vec(),
@@ -306,13 +332,7 @@ pub fn write_requested_save(
             .to_vec(),
     };
     let path = slot_path(&directory, slot);
-    let written = path
-        .parent()
-        .map_or(Ok(()), std::fs::create_dir_all)
-        .map_err(|error| error.to_string())
-        .and_then(|_| serde_json::to_string(&save).map_err(|error| error.to_string()))
-        .and_then(|json| std::fs::write(&path, json).map_err(|error| error.to_string()));
-    match written {
+    match write_save_file(&path, &save) {
         Ok(()) => notifications.push(tr_fmt("Game saved - {}", &[&slot_label(slot)])),
         Err(error) => {
             warn!("could not write {}: {error}", path.display());
@@ -378,6 +398,7 @@ pub fn restore_pending_load(
     let Some(pending) = pending else { return };
     let save = pending.0.clone();
     commands.remove_resource::<PendingLoad>();
+    restore_explored_ground(&mut intel, &save);
 
     map.reset_for_load(save.crystal);
     let mut rng = rand::rng();
@@ -387,55 +408,10 @@ pub fn restore_pending_load(
         }
     }
     for saved in &save.buildings {
-        let origin = IVec2::from_array(saved.origin);
-        let entity = spawn_building(
-            &mut commands,
-            &models,
-            &mut map,
-            saved.kind,
-            saved.team,
-            origin,
-        );
-        commands.entity(entity).insert(Health {
-            current: saved.health,
-            max: saved.kind.spec().max_health,
-        });
-        if let Some(rally) = saved.rally {
-            commands
-                .entity(entity)
-                .insert(RallyPoint(IVec2::from_array(rally)));
-        }
-        if saved.repairing {
-            commands.entity(entity).insert(Repairing::default());
-        }
+        respawn_building(&mut commands, &models, &mut map, saved);
     }
     for saved in &save.units {
-        let position = Vec3::from_array(saved.position);
-        let entity = spawn_unit(
-            &mut commands,
-            &models,
-            saved.kind,
-            saved.team,
-            position,
-            saved.facing,
-        );
-        let (veterancy, health) = Veterancy::restored(saved.kind, saved.experience, saved.health);
-        commands.entity(entity).insert(health);
-        if saved.experience > 0.0 {
-            commands.entity(entity).insert(veterancy);
-        }
-        let mut planned = saved.orders.iter().copied();
-        commands.entity(entity).insert(Orders {
-            current: planned.next(),
-            queued: planned.collect(),
-        });
-        if saved.kind == UnitKind::Harvester {
-            commands.entity(entity).insert(Harvester {
-                state: HarvestState::SeekingField,
-                cargo: saved.cargo,
-                preferred_field: None,
-            });
-        }
+        respawn_unit(&mut commands, &models, saved);
     }
     for (team, credits) in Team::ALL.into_iter().zip(&save.credits) {
         economies.of_mut(team).credits = *credits;
@@ -460,6 +436,65 @@ pub fn restore_pending_load(
     *commanders = save.ai;
     clock.elapsed_secs = save.match_secs;
     events_fired.0 = save.events_fired.clone();
+    for mut camera in &mut cameras {
+        camera.focus = Vec3::from_array(save.camera_focus);
+    }
+    notifications.push(tr("Game loaded"));
+}
+
+fn respawn_building(
+    commands: &mut Commands,
+    models: &ModelLibrary,
+    map: &mut GameMap,
+    saved: &SavedBuilding,
+) {
+    let origin = IVec2::from_array(saved.origin);
+    let entity = spawn_building(commands, models, map, saved.kind, saved.team, origin);
+    commands.entity(entity).insert(Health {
+        current: saved.health,
+        max: saved.kind.spec().max_health,
+    });
+    if let Some(rally) = saved.rally {
+        commands
+            .entity(entity)
+            .insert(RallyPoint(IVec2::from_array(rally)));
+    }
+    if saved.repairing {
+        commands.entity(entity).insert(Repairing::default());
+    }
+}
+
+fn respawn_unit(commands: &mut Commands, models: &ModelLibrary, saved: &SavedUnit) {
+    let position = Vec3::from_array(saved.position);
+    let entity = spawn_unit(
+        commands,
+        models,
+        saved.kind,
+        saved.team,
+        position,
+        saved.facing,
+    );
+    let (veterancy, health) = Veterancy::restored(saved.kind, saved.experience, saved.health);
+    commands.entity(entity).insert(health);
+    if saved.experience > 0.0 {
+        commands.entity(entity).insert(veterancy);
+    }
+    let mut planned = saved.orders.iter().copied();
+    commands.entity(entity).insert(Orders {
+        current: planned.next(),
+        queued: planned.collect(),
+    });
+    if saved.kind == UnitKind::Harvester {
+        commands.entity(entity).insert(Harvester {
+            state: HarvestState::SeekingField,
+            cargo: saved.cargo,
+            preferred_field: None,
+        });
+    }
+}
+
+/// Saves from before every opponent had its own view kept one shared Syndicate view for all of them.
+fn restore_explored_ground(intel: &mut Intel, save: &SaveGame) {
     intel
         .vision_mut(Team::Player)
         .restore_explored(&save.explored);
@@ -470,10 +505,6 @@ pub fn restore_pending_load(
             .unwrap_or(&save.explored_by_syndicate);
         intel.vision_mut(opponent).restore_explored(explored);
     }
-    for mut camera in &mut cameras {
-        camera.focus = Vec3::from_array(save.camera_focus);
-    }
-    notifications.push(tr("Game loaded"));
 }
 
 #[cfg(test)]
